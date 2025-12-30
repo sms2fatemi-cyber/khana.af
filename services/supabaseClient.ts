@@ -1,11 +1,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// ایمن‌سازی دسترسی به متغیرهای محیطی برای جلوگیری از خطای TypeError
+// استخراج متغیرها با حذف فاصله‌های احتمالی (trim)
 const getEnvVar = (name: string): string => {
   try {
     // @ts-ignore
-    return import.meta.env[name] || "";
+    const val = import.meta.env[name];
+    return typeof val === 'string' ? val.trim() : "";
   } catch (e) {
     return "";
   }
@@ -14,23 +15,23 @@ const getEnvVar = (name: string): string => {
 const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
 const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
 
-// لاگ دیباگ برای بررسی وضعیت اتصال
+// بررسی دقیق‌تر برای تایید پیکربندی
+const isUrlValid = supabaseUrl.startsWith('https://');
+const isKeyValid = supabaseAnonKey.length > 20;
+
 console.log("Database Connection Status:", {
   urlFound: !!supabaseUrl,
   keyFound: !!supabaseAnonKey,
-  urlValid: supabaseUrl.startsWith('https://'),
+  urlValid: isUrlValid,
+  keyLength: supabaseAnonKey.length,
   // @ts-ignore
-  envMode: typeof import.meta !== 'undefined' && (import.meta as any).env ? (import.meta as any).env.MODE : 'unknown'
+  envMode: typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.MODE : 'unknown'
 });
 
-const isConfigured = 
-  supabaseUrl && 
-  supabaseUrl.startsWith('https://') && 
-  supabaseAnonKey && 
-  supabaseAnonKey.length > 20;
+const isConfigured = isUrlValid && isKeyValid;
 
 if (!isConfigured) {
-  console.warn("Supabase is not configured. Data is coming from mockData.ts");
+  console.warn("Supabase is not configured properly. Check your GitHub Secrets.");
 }
 
 export const supabase = createClient(
