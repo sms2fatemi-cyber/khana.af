@@ -1,15 +1,36 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// در Vite استانداردترین راه استفاده از import.meta.env است
-// ما هر دو حالت را چک می‌کنیم تا ضریب خطا صفر شود
-const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || "";
-const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || "";
+// ایمن‌سازی دسترسی به متغیرهای محیطی برای جلوگیری از خطای TypeError
+const getEnvVar = (name: string): string => {
+  try {
+    // @ts-ignore
+    return import.meta.env[name] || "";
+  } catch (e) {
+    return "";
+  }
+};
 
-const isConfigured = supabaseUrl && supabaseUrl.startsWith('https://') && supabaseAnonKey.length > 10;
+const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
+const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+
+// لاگ دیباگ برای بررسی وضعیت اتصال
+console.log("Database Connection Status:", {
+  urlFound: !!supabaseUrl,
+  keyFound: !!supabaseAnonKey,
+  urlValid: supabaseUrl.startsWith('https://'),
+  // @ts-ignore
+  envMode: typeof import.meta !== 'undefined' && (import.meta as any).env ? (import.meta as any).env.MODE : 'unknown'
+});
+
+const isConfigured = 
+  supabaseUrl && 
+  supabaseUrl.startsWith('https://') && 
+  supabaseAnonKey && 
+  supabaseAnonKey.length > 20;
 
 if (!isConfigured) {
-  console.warn("Supabase is not configured. Using placeholder client.");
+  console.warn("Supabase is not configured. Data is coming from mockData.ts");
 }
 
 export const supabase = createClient(
