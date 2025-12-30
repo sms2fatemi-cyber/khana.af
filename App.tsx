@@ -1,6 +1,6 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2 } from 'lucide-react';
+import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, ArrowRight } from 'lucide-react';
 import MapView from './components/MapView';
 import PropertyCard from './components/PropertyCard';
 import PropertyDetails from './components/PropertyDetails';
@@ -19,6 +19,8 @@ import { Property, Job, Service, AppMode, Language, DealType } from './types';
 import { translations } from './services/translations';
 import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 
+type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
+
 function App() {
   const [lang] = useState<Language>(() => (localStorage.getItem('app_lang') as Language) || 'dari');
   const t = translations[lang];
@@ -35,6 +37,7 @@ function App() {
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
   
   const [properties, setProperties] = useState<Property[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -70,9 +73,6 @@ function App() {
   const refreshData = useCallback(async () => {
     setIsLoading(true);
     if (!isSupabaseReady()) {
-      setProperties([]);
-      setJobs([]);
-      setServices([]);
       setIsLoading(false);
       return;
     }
@@ -96,9 +96,6 @@ function App() {
       setServices(sRes.data?.map(mapStatus) || []);
     } catch (e) {
       console.error("Data fetch error:", e);
-      setProperties([]);
-      setJobs([]);
-      setServices([]);
     } finally {
       setIsLoading(false);
     }
@@ -111,10 +108,18 @@ function App() {
     let base = appMode === 'ESTATE' ? properties : appMode === 'JOBS' ? jobs : services;
     
     return base.filter(item => {
+      // فیلتر دسته‌بندی (همه، آگهی‌های من، نشان شده‌ها)
+      if (filterCategory === 'MY_ADS') {
+        if (!userPhone || item.ownerId !== userPhone) return false;
+      } else if (filterCategory === 'SAVED') {
+        if (!savedIds.has(item.id)) return false;
+      }
+
       const isApproved = item.status === 'APPROVED';
       const isOwner = userPhone && item.ownerId === userPhone;
       
-      if (!isApproved && !isOwner) return false;
+      // در حالت نمایش معمولی فقط تایید شده‌ها، اما در "آگهی‌های من" همه وضعیت‌ها نشان داده شود
+      if (filterCategory !== 'MY_ADS' && !isApproved && !isOwner) return false;
 
       const titleMatch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
       const isAllCity = selectedProvince === t.provinces[0];
@@ -128,7 +133,7 @@ function App() {
       }
       return true;
     });
-  }, [appMode, searchTerm, activeDealFilter, selectedProvince, properties, jobs, services, t]);
+  }, [appMode, searchTerm, activeDealFilter, selectedProvince, properties, jobs, services, t, filterCategory, savedIds]);
 
   const handleSelectItem = (item: Property | Job | Service) => {
     setVisitedIds(prev => new Set(prev).add(item.id));
@@ -136,11 +141,22 @@ function App() {
     setIsDetailOpen(true);
   };
 
+  const handleOpenAddModal = () => {
+    const userPhone = localStorage.getItem('user_phone');
+    if (!userPhone) {
+      alert("لطفاً ابتدا وارد حساب کاربری خود شوید.");
+      setShowAuthModal(true);
+    } else {
+      setShowAddModal(true);
+    }
+  };
+
   const handleModeChange = (mode: AppMode) => {
     setAppMode(mode);
     setSelectedItem(null);
     setIsDetailOpen(false);
     setViewMode('list');
+    setFilterCategory('ALL'); // بازنشانی فیلتر هنگام تغییر بخش
   };
 
   if (isAdminMode) {
@@ -169,7 +185,7 @@ function App() {
             )}
           </button>
           <div className="hidden md:flex items-center gap-3">
-            <button onClick={() => setShowAddModal(true)} className="bg-[#a62626] text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg shadow-red-900/20 active:scale-95">ثبت آگهی</button>
+            <button onClick={handleOpenAddModal} className="bg-[#a62626] text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg shadow-red-900/20 active:scale-95">ثبت آگهی</button>
             <button onClick={() => setShowAuthModal(true)} className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"><User size={22} /></button>
           </div>
         </div>
@@ -183,6 +199,12 @@ function App() {
         <div className={`w-full md:w-[420px] h-full flex flex-col bg-white z-20 shrink-0 border-l ${viewMode === 'map' ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-3 bg-gray-50 shrink-0">
             <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
+              {filterCategory !== 'ALL' && (
+                <div className="flex items-center justify-between bg-red-50 p-2 rounded-xl mb-2">
+                   <span className="text-[10px] font-black text-red-600">نمایش: {filterCategory === 'MY_ADS' ? 'آگهی‌های من' : 'نشان شده‌ها'}</span>
+                   <button onClick={() => setFilterCategory('ALL')} className="text-[9px] font-black text-gray-500 flex items-center gap-1">پاک کردن <ArrowRight size={12} /></button>
+                </div>
+              )}
               <div className="flex gap-2">
                 <input 
                   type="text" 
@@ -247,7 +269,7 @@ function App() {
         <div className="fixed bottom-0 left-0 right-0 h-[70px] bg-white/95 backdrop-blur-md border-t flex items-center justify-around z-[4000] px-2 shadow-[0_-5px_25px_rgba(0,0,0,0.05)] pb-env">
           <button onClick={() => handleModeChange('ESTATE')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'ESTATE' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Building2 size={20} /><span className="text-[9px] font-black">{t.estate}</span></button>
           <button onClick={() => handleModeChange('JOBS')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'JOBS' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Briefcase size={20} /><span className="text-[9px] font-black">{t.jobs}</span></button>
-          <button onClick={() => setShowAddModal(true)} className="w-14 h-14 bg-[#a62626] text-white rounded-2xl flex items-center justify-center shadow-xl shadow-red-900/30 -top-6 relative active:scale-90 transition-all border-4 border-white"><Plus size={32} /></button>
+          <button onClick={handleOpenAddModal} className="w-14 h-14 bg-[#a62626] text-white rounded-2xl flex items-center justify-center shadow-xl shadow-red-900/30 -top-6 relative active:scale-90 transition-all border-4 border-white"><Plus size={32} /></button>
           <button onClick={() => handleModeChange('SERVICES')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'SERVICES' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Wrench size={20} /><span className="text-[9px] font-black">{t.services}</span></button>
           <button onClick={() => setShowAuthModal(true)} className="flex flex-col items-center flex-1 gap-1 text-gray-300 active:text-gray-600"><User size={20} /><span className="text-[9px] font-black">{t.account}</span></button>
         </div>
@@ -269,7 +291,7 @@ function App() {
         </div>
       )}
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} onShowMyAds={() => {}} onShowSaved={() => {}} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} />}
       {showAdminLogin && <AdminLogin admins={ADMINS} onLogin={() => { setShowAdminLogin(false); setIsAdminMode(true); }} onCancel={() => setShowAdminLogin(false)} />}
     </div>
   );

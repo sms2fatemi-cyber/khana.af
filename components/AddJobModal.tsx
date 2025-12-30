@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Check, MapPin, ChevronRight, Crosshair, Loader2, Camera, Trash2, Smartphone } from 'lucide-react';
 import { JobType } from '../types';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
@@ -66,10 +66,39 @@ const MapEventsHandler = ({ onMove }: { onMove: (lat: number, lng: number) => vo
   return null;
 };
 
+const UserLocationBtn = () => {
+  const map = useMap();
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleLocate = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        map.flyTo([lat, lng], 16, { animate: true });
+        setIsLocating(false);
+      },
+      () => {
+        setIsLocating(false);
+        alert("لطفاً GPS را روشن کنید.");
+      }
+    );
+  }, [map]);
+
+  return (
+    <button 
+      onClick={handleLocate}
+      className="absolute bottom-28 right-6 z-[1000] w-12 h-12 bg-white rounded-xl shadow-2xl flex items-center justify-center text-blue-600 border border-gray-100 active:scale-90"
+    >
+      {isLocating ? <Loader2 size={20} className="animate-spin" /> : <Crosshair size={24} />}
+    </button>
+  );
+};
+
 const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t }) => {
   const [view, setView] = useState<'form' | 'map'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -84,7 +113,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t }) => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [tempLocation, setTempLocation] = useState({ lat: 34.5553, lng: 69.2075 });
-  const [mapTarget, setMapTarget] = useState({ lat: 34.5553, lng: 69.2075 });
+  const [mapTarget] = useState({ lat: 34.5553, lng: 69.2075 });
 
   const handleInputChange = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
 
@@ -96,34 +125,11 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t }) => {
     }
   };
 
-  const handleLocateMe = (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (!navigator.geolocation) return;
-
-    setIsLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        if (Number.isFinite(lat) && Number.isFinite(lng)) {
-          setMapTarget({ lat, lng });
-          setTempLocation({ lat, lng });
-        }
-        setIsLocating(false);
-      },
-      () => {
-        setIsLocating(false);
-        alert("دریافت موقعیت با خطا مواجه شد.");
-      }
-    );
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanSalary = toEnglishDigits(formData.salary);
     const cleanPhone = toEnglishDigits(formData.phoneNumber);
 
-    // اعتبارسنجی موقعیت قبل از ارسال
     const loc = formData.location || tempLocation;
     if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) {
         alert("موقعیت مکانی نامعتبر است. لطفا مجددا روی نقشه انتخاب کنید.");
@@ -177,7 +183,6 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t }) => {
     </div>
   );
 
-  // Using components with any casting to bypass incorrectly resolved react-leaflet type definitions
   const MapContainerAny = MapContainer as any;
 
   return (
@@ -197,19 +202,12 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t }) => {
                   <MapResizer />
                   <SafeMapFlyTo lat={mapTarget.lat} lng={mapTarget.lng} />
                   <MapEventsHandler onMove={(lat, lng) => setTempLocation({ lat, lng })} />
+                  <UserLocationBtn />
                 </MapContainerAny>
               )}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none pb-4">
                 <MapPin size={48} className="text-blue-600 drop-shadow-2xl animate-bounce" />
               </div>
-              
-              <button 
-                onClick={handleLocateMe}
-                disabled={isLocating}
-                className="absolute bottom-32 right-6 p-4 bg-white text-blue-600 rounded-2xl shadow-2xl z-[1000] border border-gray-100 flex items-center justify-center active:scale-90"
-              >
-                {isLocating ? <Loader2 size={28} className="animate-spin" /> : <Crosshair size={28} />}
-              </button>
 
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
                 <button onClick={() => { handleInputChange('location', tempLocation); setView('form'); }} className="w-full bg-blue-600 text-white py-4.5 rounded-2xl font-black text-lg shadow-2xl active:scale-95 transition-all">تایید موقعیت شرکت</button>
@@ -248,7 +246,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t }) => {
                  <select value={formData.jobType} onChange={e => handleInputChange('jobType', e.target.value)} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none">
                    {Object.values(JobType).map(type => (<option key={type} value={type}>{type}</option>))}
                  </select>
-                 <input type="text" inputMode="numeric" value={formData.salary} onChange={e => handleInputChange('salary', e.target.value)} placeholder="حقوق (افغانی)" className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
+                 <input type="text" value={formData.salary} onChange={e => handleInputChange('salary', e.target.value)} placeholder="حقوق (افغانی)" className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
               </div>
 
               <div className="relative">

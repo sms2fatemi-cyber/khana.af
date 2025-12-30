@@ -1,5 +1,5 @@
 
-import { Component, ErrorInfo, ReactNode } from "react";
+import React, { ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface Props {
@@ -12,9 +12,15 @@ interface State {
   errorInfo: ErrorInfo | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
+/**
+ * ErrorBoundary class component to catch JavaScript errors in child components.
+ * Explicitly using React.Component to ensure TypeScript correctly identifies
+ * inherited properties like this.state, this.setState, and this.props.
+ */
+export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
+    // Initialize the component's state
     this.state = {
       hasError: false,
       error: null,
@@ -23,15 +29,19 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public static getDerivedStateFromError(error: Error): State {
+    // Update state so the next render will show the fallback UI.
     return { hasError: true, error, errorInfo: null };
   }
 
+  // Use componentDidCatch to log errors and update state with error info
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Log the error to an error reporting service if needed
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ errorInfo });
   }
 
   public render() {
+    // If an error occurred, render the fallback UI
     if (this.state.hasError) {
       return (
         <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center p-6 text-center font-[Vazirmatn]" dir="rtl">
@@ -60,6 +70,7 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
+    // Normally, just render children
     return this.props.children;
   }
 }

@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, MapPin, Check, ChevronRight, Loader2, Camera, Trash2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, MapPin, Check, ChevronRight, Loader2, Camera, Trash2, Crosshair } from 'lucide-react';
 import { PropertyType, DealType } from '../types';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages, isSupabaseReady } from '../services/supabaseClient';
@@ -39,6 +39,36 @@ const MapEventsHandler = ({ onMove }: { onMove: (lat: number, lng: number) => vo
   return null;
 };
 
+const UserLocationBtn = () => {
+  const map = useMap();
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleLocate = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        map.flyTo([lat, lng], 16, { animate: true });
+        setIsLocating(false);
+      },
+      () => {
+        setIsLocating(false);
+        alert("لطفاً GPS را روشن کنید.");
+      }
+    );
+  }, [map]);
+
+  return (
+    <button 
+      onClick={handleLocate}
+      className="absolute bottom-28 right-6 z-[1000] w-12 h-12 bg-white rounded-xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 active:scale-90"
+    >
+      {isLocating ? <Loader2 size={20} className="animate-spin" /> : <Crosshair size={24} />}
+    </button>
+  );
+};
+
 const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
   const [view, setView] = useState<'form' | 'map'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,7 +77,7 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
   const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
   
   const [formData, setFormData] = useState({ 
-    title: '', price: '', type: PropertyType.APARTMENT, 
+    title: '', price: '', monthlyRent: '', securityDeposit: '', type: PropertyType.APARTMENT, 
     dealType: DealType.SALE, bedrooms: '1', hasStorage: false, area: '', 
     address: '', city: t.provinces[1] || 'کابل', description: '', 
     phoneNumber: '',
@@ -85,9 +115,18 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanPrice = toEnglishDigits(formData.price);
     const cleanPhone = toEnglishDigits(formData.phoneNumber);
     const cleanArea = toEnglishDigits(formData.area);
+
+    // تعیین قیمت نهایی بر اساس نوع معامله برای ثبت در دیتابیس
+    let finalPrice = 0;
+    if (formData.dealType === DealType.SALE) {
+        finalPrice = parseFloat(toEnglishDigits(formData.price)) || 0;
+    } else if (formData.dealType === DealType.RENT) {
+        finalPrice = parseFloat(toEnglishDigits(formData.monthlyRent)) || 0;
+    } else if (formData.dealType === DealType.MORTGAGE) {
+        finalPrice = parseFloat(toEnglishDigits(formData.securityDeposit)) || 0;
+    }
 
     if (!formData.title) return alert("لطفاً عنوان را وارد کنید.");
     if (!cleanPhone || cleanPhone.length < 9) return alert("شماره تماس معتبر نیست.");
@@ -101,9 +140,17 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
         finalUrls = await uploadMultipleImages(filesToUpload);
       }
 
+      // افزودن جزئیات کرایه/گروی به توضیحات برای حفظ داده‌ها در ساختار فعلی دیتابیس
+      let augmentedDescription = formData.description;
+      if (formData.dealType === DealType.RENT) {
+          augmentedDescription += `\n[کرایه ماهانه: ${formData.monthlyRent} | ضمانت: ${formData.securityDeposit}]`;
+      } else if (formData.dealType === DealType.MORTGAGE) {
+          augmentedDescription += `\n[مبلغ گروی/ضمانت: ${formData.securityDeposit}]`;
+      }
+
       const { error } = await supabase.from(TABLES.PROPERTIES).insert([{
         title: formData.title,
-        price: parseFloat(cleanPrice) || 0,
+        price: finalPrice,
         currency: 'AFN',
         location: formData.isLocationSet ? formData.location : { lat: 34.5553, lng: 69.2075 },
         address: formData.address,
@@ -113,7 +160,7 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
         area: parseFloat(cleanArea) || 0,
         type: formData.type,
         deal_type: formData.dealType,
-        description: formData.description,
+        description: augmentedDescription,
         phone_number: cleanPhone,
         status: 'PENDING',
         owner_id: localStorage.getItem('user_phone') || 'guest'
@@ -139,7 +186,6 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
     </div>
   );
 
-  // Using components with any casting to bypass incorrectly resolved react-leaflet type definitions
   const MapContainerAny = MapContainer as any;
 
   return (
@@ -157,6 +203,7 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <MapEventsHandler onMove={(lat, lng) => setTempLoc({ lat, lng })} />
+                <UserLocationBtn />
               </MapContainerAny>
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none pb-4">
                  <div className="w-10 h-10 bg-[#a62626] rounded-full border-4 border-white shadow-2xl flex items-center justify-center animate-bounce">
@@ -218,7 +265,7 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
                 <select value={formData.type} onChange={e => handleInputChange('type', e.target.value)} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none">
                   {Object.values(PropertyType).map(type => (<option key={type} value={type}>{type}</option>))}
                 </select>
-                <input type="text" inputMode="numeric" value={formData.area} onChange={e => handleInputChange('area', e.target.value)} placeholder={t.area} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
+                <input type="text" value={formData.area} onChange={e => handleInputChange('area', e.target.value)} placeholder={t.area} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
               </div>
 
               {isResidential && (
@@ -233,7 +280,21 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t }) => {
                 </div>
               )}
 
-              <input type="text" inputMode="numeric" value={formData.price} onChange={e => handleInputChange('price', e.target.value)} placeholder="قیمت (افغانی)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
+              {formData.dealType === DealType.SALE && (
+                <input type="text" value={formData.price} onChange={e => handleInputChange('price', e.target.value)} placeholder="قیمت کل (افغانی)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none animate-in fade-in" required />
+              )}
+              
+              {formData.dealType === DealType.RENT && (
+                <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-right">
+                  <input type="text" value={formData.monthlyRent} onChange={e => handleInputChange('monthlyRent', e.target.value)} placeholder="کرایه ماهیانه" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
+                  <input type="text" value={formData.securityDeposit} onChange={e => handleInputChange('securityDeposit', e.target.value)} placeholder="مقدار پول ضمانت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
+                </div>
+              )}
+
+              {formData.dealType === DealType.MORTGAGE && (
+                <input type="text" value={formData.securityDeposit} onChange={e => handleInputChange('securityDeposit', e.target.value)} placeholder="مقدار پول ضمانت (گروی)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none animate-in fade-in" required />
+              )}
+
               <input type="tel" value={formData.phoneNumber} onChange={e => handleInputChange('phoneNumber', e.target.value)} placeholder="شماره تماس" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none text-left dir-ltr" required />
               <input type="text" value={formData.title} onChange={e => handleInputChange('title', e.target.value)} placeholder={t.title} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
               <input type="text" value={formData.address} onChange={e => handleInputChange('address', e.target.value)} placeholder={t.address} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
