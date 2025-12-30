@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Property, Job, Service, AdminUser } from '../types';
-import { Check, Trash2, Home, Briefcase, Wrench, Shield, X, Key, FileText, AlertCircle, LayoutDashboard, ChevronLeft, Loader2, Users, UserPlus, Lock, MessageSquare, Phone, MapPin, Eye, User } from 'lucide-react';
+import { Check, Trash2, Home, Briefcase, Wrench, Shield, X, Key, FileText, AlertCircle, LayoutDashboard, ChevronLeft, Loader2, Users, UserPlus, Lock, MessageSquare, Phone, MapPin, Eye, User, Search, Send } from 'lucide-react';
 import { ADMINS as initialAdmins } from '../services/mockData';
 import { supabase, TABLES } from '../services/supabaseClient';
 
@@ -21,12 +21,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   services, setServices,
   onExit 
 }) => {
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESTATE' | 'JOBS' | 'SERVICES' | 'ADMINS' | 'PROFILE'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESTATE' | 'JOBS' | 'SERVICES' | 'ADMINS' | 'PROFILE' | 'USERS'>('DASHBOARD');
   const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED'>('PENDING');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   
   const [admins, setAdmins] = useState<AdminUser[]>(() => {
     const saved = localStorage.getItem('admins_list');
@@ -54,6 +55,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     };
   }, [properties, jobs, services]);
 
+  // استخراج لیست کاربران از روی شماره تماس آگهی‌ها
+  const userStats = useMemo(() => {
+    const allItems = [...properties, ...jobs, ...services];
+    const usersMap: Record<string, { phone: string, propertyCount: number, jobCount: number, serviceCount: number, total: number }> = {};
+    
+    allItems.forEach(item => {
+      const phone = item.phoneNumber || 'نامشخص';
+      if (!usersMap[phone]) {
+        usersMap[phone] = { phone, propertyCount: 0, jobCount: 0, serviceCount: 0, total: 0 };
+      }
+      
+      if (properties.some(p => p.id === item.id)) usersMap[phone].propertyCount++;
+      else if (jobs.some(j => j.id === item.id)) usersMap[phone].jobCount++;
+      else if (services.some(s => s.id === item.id)) usersMap[phone].serviceCount++;
+      
+      usersMap[phone].total++;
+    });
+
+    return Object.values(usersMap).filter(u => u.phone.includes(userSearchTerm));
+  }, [properties, jobs, services, userSearchTerm]);
+
   const sendMessageToUser = async (targetPhone: string, text: string) => {
     try {
       await supabase.from(TABLES.MESSAGES).insert([{
@@ -79,6 +101,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       if (activeTab === 'ESTATE') tableName = TABLES.PROPERTIES;
       else if (activeTab === 'JOBS') tableName = TABLES.JOBS;
       else if (activeTab === 'SERVICES') tableName = TABLES.SERVICES;
+      else if (selectedItem) {
+          // اگر در حالت مودال هستیم و تب عوض شده، جدول را از روی نوع آیتم پیدا کن
+          if (properties.some(p => p.id === id)) tableName = TABLES.PROPERTIES;
+          else if (jobs.some(j => j.id === id)) tableName = TABLES.JOBS;
+          else if (services.some(s => s.id === id)) tableName = TABLES.SERVICES;
+      }
 
       if (action === 'DELETE') {
         const { error } = await supabase.from(tableName).delete().eq('id', id);
@@ -88,9 +116,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           await sendMessageToUser(selectedItem.phoneNumber, `آگهی شما با عنوان "${selectedItem.title}" به دلیل زیر رد شد: ${adminMessage}`);
         }
 
-        if (activeTab === 'ESTATE') setProperties(prev => prev.filter(it => it.id !== id));
-        else if (activeTab === 'JOBS') setJobs(prev => prev.filter(it => it.id !== id));
-        else if (activeTab === 'SERVICES') setServices(prev => prev.filter(it => it.id !== id));
+        setProperties(prev => prev.filter(it => it.id !== id));
+        setJobs(prev => prev.filter(it => it.id !== id));
+        setServices(prev => prev.filter(it => it.id !== id));
         
         alert("آگهی حذف شد.");
         setSelectedItem(null);
@@ -101,9 +129,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         await sendMessageToUser(selectedItem.phoneNumber, `تبریک! آگهی شما با عنوان "${selectedItem.title}" تایید و منتشر شد.`);
 
         const updateState = (list: any[]) => list.map(it => it.id === id ? { ...it, status: 'APPROVED' } : it);
-        if (activeTab === 'ESTATE') setProperties(updateState(properties));
-        else if (activeTab === 'JOBS') setJobs(updateState(jobs));
-        else if (activeTab === 'SERVICES') setServices(updateState(services));
+        setProperties(updateState(properties));
+        setJobs(updateState(jobs));
+        setServices(updateState(services));
         
         alert("آگهی تایید شد.");
         setSelectedItem(null);
@@ -152,7 +180,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     { id: 'ESTATE', label: 'املاک', icon: Home },
     { id: 'JOBS', label: 'استخدام', icon: Briefcase },
     { id: 'SERVICES', label: 'خدمات', icon: Wrench },
-    { id: 'ADMINS', label: 'ادمین‌ها', icon: Users, superOnly: true },
+    { id: 'USERS', label: 'کاربران', icon: Users },
+    { id: 'ADMINS', label: 'ادمین‌ها', icon: Shield, superOnly: true },
     { id: 'PROFILE', label: 'تنظیمات', icon: Key },
   ];
 
@@ -203,6 +232,66 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <span className="text-2xl md:text-3xl font-black text-green-600">{stats.approvedCount}</span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'USERS' && (
+              <div className="space-y-6">
+                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b pb-4">
+                    <h2 className="text-lg md:text-xl font-black">آمار و مدیریت کاربران</h2>
+                    <div className="relative">
+                       <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                       <input 
+                         type="text" 
+                         placeholder="جستجوی شماره تلفن..." 
+                         value={userSearchTerm}
+                         onChange={(e) => setUserSearchTerm(e.target.value)}
+                         className="bg-gray-100 border-none rounded-xl pr-10 pl-4 py-2 text-xs font-bold outline-none focus:ring-1 focus:ring-[#a62626] transition-all w-full md:w-64"
+                       />
+                    </div>
+                 </div>
+                 <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+                    <table className="w-full text-right text-xs">
+                       <thead className="bg-gray-50 border-b">
+                          <tr>
+                             <th className="px-4 py-4 font-black text-gray-400 uppercase">شماره تماس</th>
+                             <th className="px-4 py-4 font-black text-gray-400 uppercase text-center">املاک</th>
+                             <th className="px-4 py-4 font-black text-gray-400 uppercase text-center">استخدام</th>
+                             <th className="px-4 py-4 font-black text-gray-400 uppercase text-center">خدمات</th>
+                             <th className="px-4 py-4 font-black text-gray-400 uppercase text-center">مجموع آگهی</th>
+                             <th className="px-4 py-4 font-black text-gray-400 uppercase"></th>
+                          </tr>
+                       </thead>
+                       <tbody className="divide-y">
+                          {userStats.length > 0 ? userStats.map((user, idx) => (
+                             <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-4 font-black text-gray-800">{user.phone}</td>
+                                <td className="px-4 py-4 text-center font-bold text-gray-500">{user.propertyCount}</td>
+                                <td className="px-4 py-4 text-center font-bold text-gray-500">{user.jobCount}</td>
+                                <td className="px-4 py-4 text-center font-bold text-gray-500">{user.serviceCount}</td>
+                                <td className="px-4 py-4 text-center">
+                                   <span className="bg-red-50 text-[#a62626] px-2 py-1 rounded-lg font-black">{user.total}</span>
+                                </td>
+                                <td className="px-4 py-4 text-left">
+                                   <button 
+                                     onClick={() => {
+                                         // جستجوی شماره در بخش‌های دیگر
+                                         alert(`کاربر ${user.phone} دارای ${user.total} آگهی است.`);
+                                     }}
+                                     className="text-gray-300 hover:text-[#a62626]"
+                                   >
+                                      <ChevronLeft size={18} />
+                                   </button>
+                                </td>
+                             </tr>
+                          )) : (
+                             <tr>
+                                <td colSpan={6} className="px-4 py-12 text-center text-gray-300 font-bold">هیچ کاربری یافت نشد</td>
+                             </tr>
+                          )}
+                       </tbody>
+                    </table>
+                 </div>
               </div>
             )}
 
@@ -355,9 +444,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
 
                   <div className="mt-6 pt-5 border-t border-dashed border-gray-200">
-                    <div className="flex items-center gap-2 mb-3">
-                      <MessageSquare size={16} className="text-blue-500" />
-                      <span className="text-[10px] font-black text-gray-800">ارسال پیام / دلیل رد آگهی</span>
+                    <div className="flex items-center justify-between mb-3">
+                       <div className="flex items-center gap-2">
+                          <MessageSquare size={16} className="text-blue-500" />
+                          <span className="text-[10px] font-black text-gray-800">ارسال پیام / دلیل رد آگهی</span>
+                       </div>
+                       <button 
+                         onClick={() => handleAction(selectedItem.id, 'MESSAGE')}
+                         disabled={isProcessing || !adminMessage}
+                         className="flex items-center gap-1.5 text-[9px] font-black bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg active:scale-95 transition-all disabled:opacity-50"
+                       >
+                          {isProcessing ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                          ارسال پیام
+                       </button>
                     </div>
                     <textarea 
                       value={adminMessage} 
@@ -382,7 +481,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   ) : (
                     <>
                       <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'MESSAGE')} className="flex-[2] bg-blue-600 text-white py-3 md:py-4.5 rounded-xl md:rounded-2xl font-black flex items-center justify-center gap-2 md:gap-3 shadow-lg text-sm md:text-base">
-                        <MessageSquare size={20} /> ارسال پیام
+                        <MessageSquare size={20} /> ارسال پیام نهایی
                       </button>
                       <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-3 md:py-4.5 rounded-xl md:rounded-2xl font-black flex items-center justify-center border border-red-100 text-sm md:text-base">
                         <Trash2 size={20} /> حذف
