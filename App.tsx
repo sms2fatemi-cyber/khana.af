@@ -14,7 +14,7 @@ import AddServiceModal from './components/AddServiceModal';
 import AuthModal from './components/AuthModal';
 import AdminPanel from './components/AdminPanel';
 import AdminLogin from './components/AdminLogin';
-import { PROPERTIES as initialProperties, JOBS as initialJobs, SERVICES as initialServices, ADMINS } from './services/mockData';
+import { ADMINS } from './services/mockData';
 import { Property, Job, Service, AppMode, Language, DealType } from './types';
 import { translations } from './services/translations';
 import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
@@ -68,14 +68,14 @@ function App() {
   };
 
   const refreshData = useCallback(async () => {
+    setIsLoading(true);
     if (!isSupabaseReady()) {
-      setProperties(initialProperties);
-      setJobs(initialJobs);
-      setServices(initialServices);
+      setProperties([]);
+      setJobs([]);
+      setServices([]);
       setIsLoading(false);
       return;
     }
-    setIsLoading(true);
     try {
       const [pRes, jRes, sRes] = await Promise.all([
         supabase.from(TABLES.PROPERTIES).select('*').order('created_at', { ascending: false }),
@@ -91,15 +91,14 @@ function App() {
         status: item.status || 'APPROVED'
       });
 
-      // ترکیب داده‌های ماک با داده‌های واقعی دیتابیس
-      setProperties([...(pRes.data?.map(mapStatus) || []), ...initialProperties]);
-      setJobs([...(jRes.data?.map(mapStatus) || []), ...initialJobs]);
-      setServices([...(sRes.data?.map(mapStatus) || []), ...initialServices]);
+      setProperties(pRes.data?.map(mapStatus) || []);
+      setJobs(jRes.data?.map(mapStatus) || []);
+      setServices(sRes.data?.map(mapStatus) || []);
     } catch (e) {
       console.error("Data fetch error:", e);
-      setProperties(initialProperties);
-      setJobs(initialJobs);
-      setServices(initialServices);
+      setProperties([]);
+      setJobs([]);
+      setServices([]);
     } finally {
       setIsLoading(false);
     }
@@ -107,14 +106,11 @@ function App() {
 
   useEffect(() => { refreshData(); }, [refreshData]);
 
-  // منطق تصفیه آگهی‌ها (Pending vs Approved)
   const filteredItems = useMemo(() => {
     const userPhone = localStorage.getItem('user_phone') || null;
     let base = appMode === 'ESTATE' ? properties : appMode === 'JOBS' ? jobs : services;
     
     return base.filter(item => {
-      // فقط آگهی‌های تایید شده برای همه نمایش داده می‌شوند
-      // آگهی‌های در انتظار فقط برای صاحب آن (در صورت لاگین بودن) نمایش داده می‌شوند
       const isApproved = item.status === 'APPROVED';
       const isOwner = userPhone && item.ownerId === userPhone;
       
@@ -144,7 +140,6 @@ function App() {
     setAppMode(mode);
     setSelectedItem(null);
     setIsDetailOpen(false);
-    // وقتی مود عوض می‌شود به لیست برگردیم برای تجربه کاربری بهتر
     setViewMode('list');
   };
 

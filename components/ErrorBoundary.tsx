@@ -1,9 +1,9 @@
 
-import React, { ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface Props {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 interface State {
@@ -12,13 +12,7 @@ interface State {
   errorInfo: ErrorInfo | null;
 }
 
-/**
- * ErrorBoundary class to catch and handle rendering errors in the component tree.
- * Fixed: Explicitly extending React.Component and using a constructor for state
- * to ensure proper type inheritance for 'props', 'state', and 'setState' which
- * were causing resolution errors in some TypeScript environments.
- */
-export class ErrorBoundary extends React.Component<Props, State> {
+export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = {
@@ -34,7 +28,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
-    // Fixed: setState is now correctly recognized as inherited from React.Component
     this.setState({ errorInfo });
   }
 
@@ -67,7 +60,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Fixed: props is now correctly recognized as inherited from React.Component
     return this.props.children;
   }
 }

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Service } from '../types';
 import { User, ChevronRight, Bookmark, MapPinned, Phone, X, Share2, MessageCircle, ChevronLeft } from 'lucide-react';
 
@@ -16,13 +16,15 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
   const [showContact, setShowContact] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
-  // Strict Type Guard: Ensure it is a Service (must have providerName)
   if (!service || !('providerName' in service)) {
     console.error("ServiceDetails received invalid data:", service);
     return null; 
   }
 
   const allImages = service.images?.filter(img => img) || [];
+
+  const nextImage = useCallback(() => { if (allImages.length > 1) setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0)); }, [allImages.length]);
+  const prevImage = useCallback(() => { if (allImages.length > 1) setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1)); }, [allImages.length]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -32,15 +34,12 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeImageIndex, allImages.length]);
+  }, [nextImage, prevImage, onClose]);
 
   const handleShare = () => {
     if (navigator.share) navigator.share({ title: service.title, text: service.description, url: window.location.href }).catch(() => {});
     else alert("لینک کپی شد!");
   };
-
-  const nextImage = () => { if (allImages.length > 1) setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0)); };
-  const prevImage = () => { if (allImages.length > 1) setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1)); };
 
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
@@ -57,10 +56,10 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
       </div>
 
       <div className="flex-1 overflow-y-auto no-scrollbar md:flex md:flex-row md:overflow-hidden">
-        <div className="w-full h-[40vh] md:w-[60%] md:h-full bg-orange-950 relative shrink-0 flex items-center justify-center group select-none">
+        <div className="w-full h-[40vh] md:w-[60%] md:h-full bg-orange-950 relative shrink-0 flex items-center justify-center group select-none overflow-hidden">
             {allImages.length > 0 ? (
             <>
-                <img src={allImages[activeImageIndex]} className="w-full h-full object-contain" alt={service.title} />
+                <img key={allImages[activeImageIndex]} src={allImages[activeImageIndex]} className="w-full h-full object-contain" alt={service.title} />
                 {allImages.length > 1 && (
                 <>
                     <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-3 rounded-full z-50 backdrop-blur-sm border border-white/10"><ChevronRight size={32} /></button>

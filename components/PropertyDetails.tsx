@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Property } from '../types';
 import { Bookmark, ChevronRight, Phone, MapPinned, Share2, X, ChevronLeft, MessageCircle } from 'lucide-react';
 
@@ -19,8 +19,6 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
-  // Strict Type Guard: Check if it's really a property (must have 'price')
-  // This prevents the white screen crash if a Job object is accidentally passed here
   if (!property || !('price' in property)) {
     console.error("PropertyDetails received invalid data:", property);
     return null; 
@@ -28,6 +26,18 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
 
   const allImages = property.images?.filter(img => img) || [];
   const minSwipeDistance = 50;
+
+  const nextImage = useCallback(() => {
+    if (allImages.length > 1) {
+      setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
+    }
+  }, [allImages.length]);
+
+  const prevImage = useCallback(() => {
+    if (allImages.length > 1) {
+      setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1));
+    }
+  }, [allImages.length]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -37,7 +47,7 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeImageIndex, allImages.length]);
+  }, [nextImage, prevImage, onClose]);
 
   const handleShare = () => {
     if (navigator.share) {
@@ -48,18 +58,6 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
       }).catch(() => {});
     } else {
       alert("لینک کپی شد!");
-    }
-  };
-
-  const nextImage = () => {
-    if (allImages.length > 1) {
-      setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
-    }
-  };
-
-  const prevImage = () => {
-    if (allImages.length > 1) {
-      setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1));
     }
   };
 
@@ -75,8 +73,8 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > minSwipeDistance;
     const isRightSwipe = distance < -minSwipeDistance;
-    if (isLeftSwipe) prevImage(); 
-    if (isRightSwipe) nextImage();
+    if (isLeftSwipe) nextImage(); 
+    if (isRightSwipe) prevImage();
   };
 
   return (
@@ -96,14 +94,19 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
       <div className="flex-1 overflow-y-auto no-scrollbar md:flex md:flex-row md:overflow-hidden">
         {/* Image Section */}
         <div 
-            className="w-full h-[40vh] md:w-[60%] md:h-full bg-zinc-900 relative shrink-0 flex items-center justify-center group select-none"
+            className="w-full h-[40vh] md:w-[60%] md:h-full bg-zinc-900 relative shrink-0 flex items-center justify-center group select-none overflow-hidden"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
         >
             {allImages.length > 0 ? (
             <>
-                <img src={allImages[activeImageIndex]} className="w-full h-full object-contain" alt={property.title} />
+                <img 
+                  key={allImages[activeImageIndex]}
+                  src={allImages[activeImageIndex]} 
+                  className="w-full h-full object-contain" 
+                  alt={property.title} 
+                />
                 
                 {/* Desktop Nav */}
                 {allImages.length > 1 && (
@@ -167,7 +170,7 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
         </div>
       </div>
 
-      {/* Action Bar (Fixed at bottom within flex container) */}
+      {/* Action Bar */}
       <div className="bg-white border-t p-4 flex gap-3 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] safe-area-bottom shrink-0">
         <button className="flex-1 bg-gray-100 text-gray-700 h-14 rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 hover:bg-gray-200 transition-colors">
             <MessageCircle size={22} />

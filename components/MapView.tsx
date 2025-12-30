@@ -14,7 +14,6 @@ interface MapViewProps {
   visitedIds: Set<string>;
 }
 
-// کامپوننت مدیریت اندازه نقشه با استفاده از ResizeObserver برای حل مشکل کاشی‌های خاکستری در موبایل
 const MapResizer = () => {
   const map = useMap();
   useEffect(() => {
@@ -23,10 +22,7 @@ const MapResizer = () => {
       map.invalidateSize();
     });
     resizeObserver.observe(map.getContainer());
-    
-    // یک وقفه اضافی برای اطمینان از پایان انیمیشن‌های مودال در موبایل
     const timer = setTimeout(() => map.invalidateSize(), 800);
-    
     return () => {
       resizeObserver.disconnect();
       clearTimeout(timer);
@@ -86,6 +82,7 @@ const UserLocationHandler = () => {
 
 const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, visitedIds }) => {
   const defaultCenter: [number, number] = [34.5553, 69.2075];
+  const [activeMarkerId, setActiveMarkerId] = useState<string | null>(null);
 
   const createIcon = useCallback((isVisited: boolean, isSelected: boolean) => {
     const size = isSelected ? 42 : 30;
@@ -151,10 +148,26 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
               key={item.id} 
               position={[lat, lng]} 
               icon={createIcon(visitedIds.has(item.id), selectedItem?.id === item.id)}
-              eventHandlers={{ click: () => onSelectItem(item) }}
+              eventHandlers={{ 
+                click: () => {
+                  // standard behavior opens popup.
+                  // if marker is already 'active', open full details.
+                  if (activeMarkerId === item.id) {
+                    onSelectItem(item);
+                  } else {
+                    setActiveMarkerId(item.id);
+                  }
+                },
+                popupclose: () => {
+                  setActiveMarkerId(null);
+                }
+              }}
             >
               <Popup closeButton={false} className="custom-popup">
-                <div className="p-0 overflow-hidden" onClick={() => onSelectItem(item)}>
+                <div 
+                  className="p-0 overflow-hidden cursor-pointer" 
+                  onClick={() => onSelectItem(item)}
+                >
                   <img src={item.images?.[0]} className="w-full h-24 object-cover" alt="" />
                   <div className="p-3">
                     <p className="text-[11px] font-black truncate text-gray-800">{item.title}</p>
