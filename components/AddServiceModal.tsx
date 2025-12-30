@@ -174,6 +174,9 @@ const AddServiceModal: React.FC<AddServiceModalProps> = ({ onClose, t }) => {
     </div>
   );
 
+  // Using components with any casting to bypass incorrectly resolved react-leaflet type definitions
+  const MapContainerAny = MapContainer as any;
+
   return (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 md:backdrop-blur-sm" onClick={onClose}>
       <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl md:rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl relative" onClick={e => e.stopPropagation()}>
@@ -186,12 +189,12 @@ const AddServiceModal: React.FC<AddServiceModalProps> = ({ onClose, t }) => {
             </div>
             <div className="flex-1 relative bg-gray-100">
               {Number.isFinite(tempLocation.lat) && Number.isFinite(tempLocation.lng) && (
-                <MapContainer center={[tempLocation.lat, tempLocation.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+                <MapContainerAny center={[tempLocation.lat, tempLocation.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                   <MapResizer />
                   <SafeMapFlyTo lat={mapTarget.lat} lng={mapTarget.lng} />
                   <MapEventsHandler onMove={(lat, lng) => setTempLocation({ lat, lng })} />
-                </MapContainer>
+                </MapContainerAny>
               )}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none pb-4">
                 <MapPin size={48} className="text-orange-600 drop-shadow-2xl animate-bounce" />

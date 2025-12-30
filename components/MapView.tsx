@@ -123,16 +123,22 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
     return null;
   }, [selectedItem]);
 
+  // Using components with any casting to bypass incorrectly resolved react-leaflet type definitions in this environment
+  const MapContainerAny = MapContainer as any;
+  const TileLayerAny = TileLayer as any;
+  const MarkerAny = Marker as any;
+  const PopupAny = Popup as any;
+
   return (
     <div className="w-full h-full relative bg-gray-200">
-      <MapContainer 
+      <MapContainerAny 
         center={defaultCenter} 
         zoom={13} 
         style={{ height: '100%', width: '100%' }} 
         zoomControl={false}
         attributionControl={false}
       >
-        <TileLayer 
+        <TileLayerAny 
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" 
           maxZoom={19}
         />
@@ -144,7 +150,7 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
           if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
           return (
-            <Marker 
+            <MarkerAny 
               key={item.id} 
               position={[lat, lng]} 
               icon={createIcon(visitedIds.has(item.id), selectedItem?.id === item.id)}
@@ -163,7 +169,7 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
                 }
               }}
             >
-              <Popup closeButton={false} className="custom-popup">
+              <PopupAny closeButton={false} className="custom-popup">
                 <div 
                   className="p-0 overflow-hidden cursor-pointer" 
                   onClick={() => onSelectItem(item)}
@@ -176,14 +182,14 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
                     </p>
                   </div>
                 </div>
-              </Popup>
-            </Marker>
+              </PopupAny>
+            </MarkerAny>
           );
         })}
         
         {flyTarget && <SafeMapFlyTo lat={flyTarget.lat} lng={flyTarget.lng} />}
         <UserLocationHandler />
-      </MapContainer>
+      </MapContainerAny>
     </div>
   );
 };
