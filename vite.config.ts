@@ -6,8 +6,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
   
   return {
-    // چون نام مخزن شما khana.af است، باید این مقدار دقیقاً تنظیم شود
-    base: '/khana.af/', 
+    // استفاده از مسیر نسبی برای اینکه در هر نام مخزنی به درستی لود شود
+    base: './', 
     plugins: [react()],
     define: {
       'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || ''),
