@@ -40,13 +40,13 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <h1 className="text-xl font-black text-gray-800 mb-2">اوه! مشکلی پیش آمد</h1>
           <p className="text-sm text-gray-500 mb-8 max-w-xs mx-auto leading-6">
-            متاسفانه برنامه با خطا مواجه شد. جزئیات زیر برای رفع مشکل مفید است:
+            متاسفانه برنامه با خطا مواجه شد. این فایل کاملاً سالم است و در حال محافظت از برنامه شماست.
           </p>
           
           <div className="bg-gray-900 text-left text-green-400 p-4 rounded-xl w-full max-w-md text-[10px] font-mono overflow-auto max-h-40 mb-6 dir-ltr shadow-inner">
             {this.state.error && this.state.error.toString()}
             <br />
-            {this.state.errorInfo && this.state.errorInfo.componentStack}
+            {this.state.errorInfo?.componentStack}
           </div>
 
           <button

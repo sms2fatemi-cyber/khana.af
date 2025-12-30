@@ -25,10 +25,12 @@ export const supabase = createClient(
   isConfigured ? supabaseAnonKey : 'placeholder'
 );
 
+// صریحاً نوع فیلدها را مشخص می‌کنیم تا خطای AdminPanel رفع شود
 export const TABLES = {
-  PROPERTIES: 'properties',
-  JOBS: 'jobs',
-  SERVICES: 'services'
+  PROPERTIES: 'properties' as string,
+  JOBS: 'jobs' as string,
+  SERVICES: 'services' as string,
+  MESSAGES: 'messages' as string
 };
 
 export const isSupabaseReady = () => isConfigured;
@@ -43,7 +45,7 @@ const compressImage = async (file: File): Promise<File> => {
       
       img.onerror = () => {
         console.error("Image load error in compression");
-        resolve(file); // Return original if load fails
+        resolve(file);
       };
 
       img.onload = () => {
@@ -118,7 +120,6 @@ export const uploadImage = async (file: File): Promise<string> => {
 
 export const uploadMultipleImages = async (files: File[]): Promise<string[]> => {
   const urls: string[] = [];
-  // Use sequential upload for mobile stability
   for (const file of files) {
     const url = await uploadImage(file);
     if (url) urls.push(url);

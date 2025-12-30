@@ -73,7 +73,7 @@ const UserLocationHandler = () => {
   return (
     <button 
       onClick={handleLocate}
-      className="absolute bottom-24 right-6 z-[1000] w-14 h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 active:scale-90 transition-transform"
+      className="absolute bottom-36 md:bottom-24 right-6 z-[1000] w-14 h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 active:scale-90 transition-transform"
     >
       {isLocating ? <Loader2 size={24} className="animate-spin" /> : <Crosshair size={28} />}
     </button>
@@ -156,8 +156,6 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
               icon={createIcon(visitedIds.has(item.id), selectedItem?.id === item.id)}
               eventHandlers={{ 
                 click: () => {
-                  // standard behavior opens popup.
-                  // if marker is already 'active', open full details.
                   if (activeMarkerId === item.id) {
                     onSelectItem(item);
                   } else {
