@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
-import { X, List, Heart, LogOut, User, Smartphone, Loader2, Shield, Bell, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { List, Heart, LogOut, User, Loader2, Bell, ChevronRight, Camera, ArrowLeft } from 'lucide-react';
 import { translations } from '../services/translations';
-import { AdminMessage } from '../types';
+import { uploadImage } from '../services/supabaseClient';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -12,213 +12,128 @@ interface AuthModalProps {
   lang: 'dari' | 'pashto';
 }
 
+interface UserProfile {
+  firstName: string;
+  lastName: string;
+  avatarUrl: string;
+}
+
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang }) => {
   const t = translations[lang];
   const [view, setView] = useState<'login' | 'otp' | 'profile' | 'messages'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
-  const [timer, setTimer] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [userMessages, setUserMessages] = useState<AdminMessage[]>([]);
+  const [profile, setProfile] = useState<UserProfile>({ firstName: '', lastName: '', avatarUrl: '' });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const savedPhone = localStorage.getItem('user_phone');
     if (savedPhone) {
       setView('profile');
       setPhoneNumber(savedPhone);
-      const allMsgs = JSON.parse(localStorage.getItem('admin_messages') || '[]');
-      setUserMessages(allMsgs.filter((m: any) => m.targetPhone === savedPhone));
+      const savedProfile = localStorage.getItem(`profile_${savedPhone}`);
+      if (savedProfile) setProfile(JSON.parse(savedProfile));
     }
   }, []);
 
-  useEffect(() => {
-    if (timer > 0) {
-      const interval = setInterval(() => setTimer(t => t - 1), 1000);
-      return () => clearInterval(interval);
+  const saveProfile = (newProfile: UserProfile) => {
+    setProfile(newProfile);
+    localStorage.setItem(`profile_${phoneNumber}`, JSON.stringify(newProfile));
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setIsLoading(true);
+      const url = await uploadImage(e.target.files[0]);
+      if (url) saveProfile({ ...profile, avatarUrl: url });
+      setIsLoading(false);
     }
-  }, [timer]);
+  };
 
   const handleSendOtp = () => {
-    if (phoneNumber.length < 9) {
-      alert(lang === 'dari' ? 'شماره نامعتبر است' : 'شماره سمه نه ده');
-      return;
-    }
+    if (phoneNumber.length < 9) return alert("شماره معتبر نیست");
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      setView('otp');
-      setTimer(60);
-    }, 1500);
+    setTimeout(() => { setIsLoading(false); setView('otp'); }, 1000);
   };
 
   const handleVerifyOtp = () => {
     if (otp.length === 4) {
-      setIsLoading(true);
-      setTimeout(() => {
-        setIsLoading(false);
-        localStorage.setItem('user_phone', phoneNumber);
-        setView('profile');
-      }, 1000);
-    } else {
-      alert(lang === 'dari' ? 'کد ۴ رقمی را وارد کنید' : '۴ رقمه کوډ ولیکئ');
+      localStorage.setItem('user_phone', phoneNumber);
+      setView('profile');
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user_phone');
-    setView('login');
-  };
-
-  const unreadCount = userMessages.filter(m => !m.isRead).length;
-
-  if (view === 'login') {
-    return (
-      <div className="fixed inset-0 z-[11000] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-white w-full max-w-md rounded-t-[2.5rem] md:rounded-[3rem] p-10 shadow-2xl relative animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-center mb-10">
-            <h2 className="text-3xl font-black text-gray-800">{t.login_title}</h2>
-            <button onClick={onClose} className="p-3 text-gray-400 bg-gray-50 rounded-full hover:bg-red-50 transition-colors"><X size={28} /></button>
-          </div>
-          <div className="space-y-8">
-            <div className="relative">
-              <Smartphone className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={24} />
-              <input 
-                type="tel" 
-                value={phoneNumber} 
-                onChange={e => setPhoneNumber(e.target.value)}
-                placeholder="07XXXXXXXX" 
-                className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl pr-14 pl-4 py-5 text-2xl font-black outline-none focus:border-[#a62626] transition-all text-left dir-ltr shadow-inner"
-              />
-            </div>
-            <button onClick={handleSendOtp} disabled={isLoading} className="w-full bg-[#a62626] text-white py-5 rounded-2xl font-black text-xl shadow-xl shadow-red-900/20 active:scale-95 transition-all flex items-center justify-center gap-3">
-              {isLoading ? <Loader2 className="animate-spin" /> : t.get_code}
-            </button>
-          </div>
+  if (view === 'login') return (
+    <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+        <h2 className="text-2xl font-black mb-8">{t.login_title}</h2>
+        <div className="space-y-6">
+          <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} placeholder="07XXXXXXXX" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-4 px-6 text-xl font-black text-left dir-ltr outline-none focus:border-[#a62626]" />
+          <button onClick={handleSendOtp} disabled={isLoading} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg">
+            {isLoading ? <Loader2 className="animate-spin m-auto" /> : t.get_code}
+          </button>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (view === 'otp') {
-    return (
-      <div className="fixed inset-0 z-[11000] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-white w-full max-w-md rounded-t-[2.5rem] md:rounded-[3rem] p-10 shadow-2xl relative animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-center mb-10">
-            <h2 className="text-3xl font-black text-gray-800">{t.enter_otp}</h2>
-            <button onClick={() => setView('login')} className="p-3 text-gray-400 bg-gray-50 rounded-full transition-colors"><X size={28} /></button>
-          </div>
-          <div className="space-y-8">
-            <input 
-              type="text" 
-              value={otp} 
-              onChange={e => setOtp(e.target.value)}
-              placeholder="----" 
-              className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-4 py-6 text-4xl font-black outline-none focus:border-[#a62626] transition-all text-center tracking-[0.5em] shadow-inner"
-              maxLength={4}
-            />
-            <div className="text-center text-gray-400 font-bold">
-              {timer > 0 ? `ارسال مجدد تا ${timer} ثانیه دیگر` : <button onClick={handleSendOtp} className="text-[#a62626] font-black">ارسال مجدد کد</button>}
-            </div>
-            <button onClick={handleVerifyOtp} disabled={isLoading} className="w-full bg-[#a62626] text-white py-5 rounded-2xl font-black text-xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
-              {isLoading ? <Loader2 className="animate-spin" /> : t.verify}
-            </button>
-          </div>
-        </div>
+  if (view === 'otp') return (
+    <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+        <h2 className="text-2xl font-black mb-8">{t.enter_otp}</h2>
+        <input type="text" value={otp} onChange={e => setOtp(e.target.value)} maxLength={4} className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-6 text-4xl font-black text-center tracking-[0.5em] outline-none" />
+        <button onClick={handleVerifyOtp} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black mt-6">تایید و ورود</button>
       </div>
-    );
-  }
-
-  if (view === 'messages') {
-    return (
-      <div className="fixed inset-0 z-[11000] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-        <div className="bg-white w-full max-w-md h-[80vh] md:h-[70vh] rounded-t-[2.5rem] md:rounded-[3rem] p-8 shadow-2xl relative animate-in slide-in-from-bottom duration-300 flex flex-col" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-center mb-6 shrink-0">
-             <h2 className="text-2xl font-black text-gray-800">{t.notifications}</h2>
-             <button onClick={() => setView('profile')} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-all"><ChevronRight className="rotate-180" /></button>
-          </div>
-          <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pr-2">
-            {userMessages.length === 0 ? (
-              <div className="text-center py-24 text-gray-300 font-bold flex flex-col items-center gap-3"><Bell size={48} className="opacity-20" />پیامی ندارید</div>
-            ) : (
-              userMessages.map(msg => (
-                <div key={msg.id} className="bg-gray-50 p-5 rounded-2xl border border-gray-100 relative shadow-sm">
-                   {!msg.isRead && <div className="absolute top-3 left-3 w-2.5 h-2.5 bg-red-500 rounded-full shadow-lg"></div>}
-                   <p className="text-gray-700 font-bold leading-7 text-sm">{msg.text}</p>
-                   <span className="block text-[10px] text-gray-400 mt-3 text-left font-black">{msg.date}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 z-[11000] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <div 
-        className="bg-white w-full max-w-md max-h-[85vh] rounded-t-[3rem] md:rounded-[3rem] p-8 shadow-2xl relative flex flex-col overflow-hidden animate-in slide-in-from-bottom" 
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex justify-between items-center mb-8 shrink-0">
-          <h2 className="text-3xl font-black text-gray-800">{t.account}</h2>
-          <button onClick={onClose} className="p-3 text-gray-400 bg-gray-50 rounded-full hover:bg-red-50 hover:text-red-500 transition-all"><X size={28} /></button>
+    <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-sm max-h-[90vh] rounded-[3rem] p-8 shadow-2xl flex flex-col overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
+        <div className="flex flex-col items-center gap-4 mb-8">
+           <div className="relative group">
+              <div className="w-24 h-24 bg-gray-100 rounded-[2.5rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-xl">
+                 {profile.avatarUrl ? <img src={profile.avatarUrl} className="w-full h-full object-cover" /> : <User size={48} className="text-gray-300" />}
+                 {isLoading && <div className="absolute inset-0 bg-black/20 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}
+              </div>
+              <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-1 -right-1 bg-[#a62626] text-white p-2 rounded-xl shadow-lg border-2 border-white"><Camera size={16} /></button>
+              <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" onChange={handleAvatarUpload} />
+           </div>
+           <div className="w-full grid grid-cols-2 gap-2">
+              <input type="text" value={profile.firstName} onChange={e => saveProfile({...profile, firstName: e.target.value})} placeholder="نام" className="bg-gray-50 border rounded-xl px-4 py-2 text-center font-bold text-sm outline-none" />
+              <input type="text" value={profile.lastName} onChange={e => saveProfile({...profile, lastName: e.target.value})} placeholder="تخلص" className="bg-gray-50 border rounded-xl px-4 py-2 text-center font-bold text-sm outline-none" />
+           </div>
+           <h3 className="font-black text-lg text-gray-800 tracking-tighter">{phoneNumber}</h3>
         </div>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar pb-6 pr-1">
-          <div className="flex items-center gap-5 p-6 bg-gray-50 rounded-[2.5rem] mb-8 border border-gray-100 shadow-inner">
-            <div className="w-16 h-16 bg-[#a62626] text-white rounded-2xl flex items-center justify-center shadow-xl shadow-red-900/20"><User size={36} /></div>
-            <div className="flex-1">
-              <h3 className="font-black text-xl text-gray-800 tracking-tighter">{phoneNumber}</h3>
-              <span className="text-gray-400 font-bold text-xs">پروفایل کاربری</span>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-6 bg-red-50/50 rounded-2xl transition-all border border-red-100 hover:bg-red-50">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-red-100 text-[#a62626] rounded-xl relative">
-                  <Bell size={24} />
-                  {unreadCount > 0 && <span className="absolute -top-1 -left-1 w-6 h-6 bg-red-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-lg">{unreadCount}</span>}
-                </div>
-                <div className="text-right">
-                   <span className="font-black text-gray-800 text-lg block leading-none">{t.notifications}</span>
-                   <span className="text-[10px] text-red-600 font-black mt-1 block">اعلان‌های سیستم</span>
-                </div>
-              </div>
-              <ChevronRight className="rotate-180 text-[#a62626]" />
+        <div className="space-y-3">
+          <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black">
+            <div className="flex items-center gap-3"><Bell size={20} /> اعلان‌ها و پیام‌ها</div>
+            <ChevronRight className="rotate-180" />
+          </button>
+          <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold">
+            <div className="flex items-center gap-3"><List size={20} /> {t.my_ads}</div>
+            <ChevronRight className="rotate-180 text-gray-300" />
+          </button>
+          <button onClick={onShowSaved} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold">
+            <div className="flex items-center gap-3"><Heart size={20} /> {t.saved}</div>
+            <ChevronRight className="rotate-180 text-gray-300" />
+          </button>
+          
+          <div className="pt-4 border-t space-y-2">
+            <button onClick={onClose} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all">
+               <ArrowLeft size={18} /> بازگشت به برنامه
             </button>
-
-            <button onClick={() => { onShowMyAds(); onClose(); }} className="w-full flex items-center justify-between p-6 hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-gray-100 text-gray-600 rounded-xl"><List size={24} /></div>
-                <span className="font-black text-gray-700 text-lg">{t.my_ads}</span>
-              </div>
-              <ChevronRight className="rotate-180 text-gray-300" />
-            </button>
-
-            <button onClick={() => { onShowSaved(); onClose(); }} className="w-full flex items-center justify-between p-6 hover:bg-gray-50 rounded-2xl transition-all border border-transparent hover:border-gray-100">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-gray-100 text-gray-600 rounded-xl"><Heart size={24} /></div>
-                <span className="font-black text-gray-700 text-lg">{t.saved}</span>
-              </div>
-              <ChevronRight className="rotate-180 text-gray-300" />
+            <button onClick={() => { localStorage.removeItem('user_phone'); window.location.reload(); }} className="w-full p-4 text-red-600 font-bold flex items-center justify-center gap-2">
+               <LogOut size={18} /> خروج از حساب
             </button>
           </div>
-
-          <div className="mt-10 pt-8 border-t border-gray-100 flex flex-col items-center gap-4">
-            <button onClick={handleLogout} className="w-full bg-gray-50 text-red-600 py-4.5 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all hover:bg-red-50 active:scale-95"><LogOut size={20} /> {t.logout}</button>
-            <button 
-               onClick={onAdminClick} 
-               className="mt-2 text-[12px] text-gray-300 font-black hover:text-[#a62626] transition-all flex items-center gap-2 border-b border-gray-100 pb-1"
-            >
-              <Shield size={16} /> {t.admin_panel}
-            </button>
-          </div>
+          
+          <button onClick={onAdminClick} className="w-full text-[10px] text-gray-300 font-bold mt-2">ورود به پنل مدیریت</button>
         </div>
       </div>
     </div>
   );
 };
-
 export default AuthModal;

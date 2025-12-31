@@ -1,5 +1,5 @@
 
-import React, { ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface Props {
@@ -14,11 +14,9 @@ interface State {
 
 /**
  * ErrorBoundary class component to catch JavaScript errors in child components.
- * Explicitly using React.Component to ensure TypeScript correctly identifies
- * inherited properties like this.state, this.setState, and this.props.
+ * Fix: Explicitly extending Component to resolve compilation issues with setState and props.
  */
-export class ErrorBoundary extends React.Component<Props, State> {
-  // Removed 'override' modifier to resolve "does not extend another class" error in this environment
+export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
@@ -29,22 +27,19 @@ export class ErrorBoundary extends React.Component<Props, State> {
     super(props);
   }
 
-  // Static method correctly returns a State
+  // Fix: Static method correctly returns State for derived error updates
   public static getDerivedStateFromError(error: Error): State {
-    // Update state so the next render will show the fallback UI.
     return { hasError: true, error, errorInfo: null };
   }
 
-  // Removed 'override' modifier to fix compilation error
+  // Fix: Implementation of componentDidCatch to store error info using this.setState
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log the error to an error reporting service if needed
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ errorInfo });
   }
 
-  // Removed 'override' modifier to fix compilation error
+  // Fix: Using this.props correctly in render method
   public render() {
-    // If an error occurred, render the fallback UI
     if (this.state.hasError) {
       return (
         <div className="fixed inset-0 z-[99999] bg-white flex flex-col items-center justify-center p-6 text-center font-[Vazirmatn]" dir="rtl">
@@ -73,7 +68,6 @@ export class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Normally, just render children
     return this.props.children;
   }
 }

@@ -1,7 +1,8 @@
 
 import React from 'react';
-import { Job } from '../types';
-import { Bookmark, Building2 } from 'lucide-react';
+// Import Language type
+import { Job, Language } from '../types';
+import { Bookmark, Building2, Briefcase } from 'lucide-react';
 
 interface JobCardProps {
   job: Job;
@@ -9,9 +10,14 @@ interface JobCardProps {
   isVisited?: boolean;
   isSaved?: boolean;
   onToggleSave?: () => void;
+  // Add lang to props interface
+  lang: Language;
 }
 
-const JobCard: React.FC<JobCardProps> = ({ job, onClick, isVisited, isSaved, onToggleSave }) => {
+// Add lang to component destructuring
+const JobCard: React.FC<JobCardProps> = ({ job, onClick, isVisited, isSaved, onToggleSave, lang }) => {
+  const hasImages = job.images && job.images.length > 0;
+
   return (
     <div 
       onClick={onClick}
@@ -20,7 +26,7 @@ const JobCard: React.FC<JobCardProps> = ({ job, onClick, isVisited, isSaved, onT
       <div className="flex-1 flex flex-col justify-between py-1 text-right">
         <div>
           <div className="flex justify-between items-start">
-             <span className="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-0.5 rounded-lg">استخدام</span>
+             <span className="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-0.5 rounded-lg">{lang === 'dari' ? 'استخدام' : 'استخدام'}</span>
              <button 
                 onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }}
                 className="p-2 -m-2 text-gray-300 hover:text-blue-600 transition-colors"
@@ -36,18 +42,28 @@ const JobCard: React.FC<JobCardProps> = ({ job, onClick, isVisited, isSaved, onT
         
         <div className="mt-4 flex items-baseline gap-1">
           <span className="text-blue-700 font-black text-xl tracking-tight">
-            {job.salary?.toLocaleString() || 'توافقی'}
+            {job.salary?.toLocaleString() || (lang === 'dari' ? 'توافقی' : 'توافقي')}
           </span>
           <small className="text-gray-400 text-[10px] font-black uppercase">افغانی</small>
         </div>
       </div>
 
-      <div className="w-[110px] h-[110px] rounded-[1.8rem] overflow-hidden bg-gray-100 shrink-0 relative shadow-inner">
-        <img 
-          src={job.images?.[0] || 'https://via.placeholder.com/200'} 
-          alt={job.title} 
-          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-        />
+      <div className="w-[110px] h-[110px] rounded-[1.8rem] overflow-hidden bg-gray-50 shrink-0 relative shadow-inner flex items-center justify-center">
+        {hasImages ? (
+          <img 
+            src={job.images[0]} 
+            alt={job.title} 
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+          />
+        ) : (
+          <Briefcase size={40} className="text-gray-200" />
+        )}
+        {/* Added visited indicator overlay for consistency with PropertyCard */}
+        {isVisited && (
+          <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+             <span className="bg-white/90 text-black text-[9px] px-2 py-1 rounded-lg font-black shadow-sm">{lang === 'dari' ? 'دیده شده' : 'لیدل شوی'}</span>
+          </div>
+        )}
       </div>
     </div>
   );

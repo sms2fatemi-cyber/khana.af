@@ -34,6 +34,8 @@ export interface Property {
   ownerId: string;
   title: string;
   price: number;
+  deposit?: number;
+  mortgageAmount?: number;
   currency: string;
   location: Location;
   address: string;

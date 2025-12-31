@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Property } from '../types';
+import { Property, DealType } from '../types';
 import { Bookmark, ChevronRight, Phone, MapPinned, Share2, X, ChevronLeft, MessageCircle } from 'lucide-react';
 
 interface PropertyDetailsProps {
@@ -153,17 +153,61 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
                         <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.type}</span><span className="font-black text-sm">{property.type}</span></div>
                     </div>
 
-                    <div className="flex justify-between items-center bg-red-50/50 p-5 rounded-[1.8rem] border border-red-100 my-8">
-                        <div className="text-right">
-                            <span className="text-gray-400 text-[10px] font-black block mb-1 uppercase">{t.price}</span>
-                            <span className="text-2xl font-black text-[#a62626]">{property.price?.toLocaleString() || '0'} افغانی</span>
+                    <div className="bg-red-50/50 p-6 rounded-[1.8rem] border border-red-100 my-8">
+                        <div className="flex justify-between items-center mb-4">
+                            <div className="text-right">
+                                {property.dealType === DealType.SALE ? (
+                                    <>
+                                        <span className="text-gray-400 text-[10px] font-black block mb-1 uppercase">قیمت کل</span>
+                                        <span className="text-2xl font-black text-[#a62626]">{property.price?.toLocaleString()} افغانی</span>
+                                    </>
+                                ) : property.dealType === DealType.RENT ? (
+                                    <div className="flex flex-col gap-2">
+                                        <div>
+                                            <span className="text-gray-400 text-[10px] font-black block mb-1 uppercase">کرایه ماهانه</span>
+                                            <span className="text-xl font-black text-[#a62626]">{property.price?.toLocaleString()} افغانی</span>
+                                        </div>
+                                        {property.deposit && (
+                                            <div className="border-t border-red-200 pt-2">
+                                                <span className="text-gray-400 text-[10px] font-black block mb-1 uppercase">پول ضمانت (پیش‌پرداخت)</span>
+                                                <span className="text-lg font-black text-gray-700">{property.deposit?.toLocaleString()} افغانی</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <>
+                                        <span className="text-gray-400 text-[10px] font-black block mb-1 uppercase">مبلغ گروی / ضمانت</span>
+                                        <span className="text-2xl font-black text-[#a62626]">{property.price?.toLocaleString()} افغانی</span>
+                                    </>
+                                )}
+                            </div>
+                            <button onClick={onShowOnMap} className="w-14 h-14 bg-white text-[#a62626] rounded-2xl shadow-sm border border-red-100 flex items-center justify-center active:scale-90 transition-transform shrink-0"><MapPinned size={28} /></button>
                         </div>
-                        <button onClick={onShowOnMap} className="w-14 h-14 bg-white text-[#a62626] rounded-2xl shadow-sm border border-red-100 flex items-center justify-center active:scale-90 transition-transform"><MapPinned size={28} /></button>
                     </div>
 
-                    <div className="space-y-4 mb-4">
-                        <h3 className="text-lg font-black text-gray-900">{t.description}</h3>
-                        <p className="text-gray-600 leading-8 text-sm text-justify font-medium pb-4">{property.description}</p>
+                    <div className="space-y-6">
+                        {property.address && (
+                            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                                <h3 className="text-sm font-black text-gray-900 mb-2 flex items-center gap-2"><MapPinned size={16} className="text-red-600" /> آدرس دقیق</h3>
+                                <p className="text-xs font-bold text-gray-600">{property.address}</p>
+                            </div>
+                        )}
+                        
+                        <div className="space-y-4 mb-4">
+                            <h3 className="text-lg font-black text-gray-900">{t.description}</h3>
+                            <p className="text-gray-600 leading-8 text-sm text-justify font-medium pb-4">{property.description}</p>
+                        </div>
+
+                        {property.features && property.features.length > 0 && (
+                            <div className="space-y-4">
+                                <h3 className="text-lg font-black text-gray-900">امکانات رفاهی</h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {property.features.map((f, i) => (
+                                        <span key={i} className="bg-gray-100 text-gray-700 px-4 py-2 rounded-xl text-xs font-bold">{f}</span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -1,6 +1,6 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, ArrowRight } from 'lucide-react';
+import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, ArrowRight, Languages } from 'lucide-react';
 import MapView from './components/MapView';
 import PropertyCard from './components/PropertyCard';
 import PropertyDetails from './components/PropertyDetails';
@@ -22,8 +22,16 @@ import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
 
 function App() {
-  const [lang] = useState<Language>(() => (localStorage.getItem('app_lang') as Language) || 'dari');
+  const [lang, setLang] = useState<Language>(() => (localStorage.getItem('app_lang') as Language) || 'dari');
   const t = translations[lang];
+
+  const toggleLanguage = () => {
+    const newLang = lang === 'dari' ? 'pashto' : 'dari';
+    setLang(newLang);
+    localStorage.setItem('app_lang', newLang);
+    document.documentElement.lang = newLang === 'dari' ? 'fa' : 'ps';
+    document.documentElement.dir = 'rtl';
+  };
 
   const [appMode, setAppMode] = useState<AppMode>('ESTATE');
   const [viewMode, setViewMode] = useState<'map' | 'list'>('list');
@@ -108,7 +116,6 @@ function App() {
     let base = appMode === 'ESTATE' ? properties : appMode === 'JOBS' ? jobs : services;
     
     return base.filter(item => {
-      // فیلتر دسته‌بندی (همه، آگهی‌های من، نشان شده‌ها)
       if (filterCategory === 'MY_ADS') {
         if (!userPhone || item.ownerId !== userPhone) return false;
       } else if (filterCategory === 'SAVED') {
@@ -118,11 +125,10 @@ function App() {
       const isApproved = item.status === 'APPROVED';
       const isOwner = userPhone && item.ownerId === userPhone;
       
-      // در حالت نمایش معمولی فقط تایید شده‌ها، اما در "آگهی‌های من" همه وضعیت‌ها نشان داده شود
       if (filterCategory !== 'MY_ADS' && !isApproved && !isOwner) return false;
 
       const titleMatch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
-      const isAllCity = selectedProvince === t.provinces[0];
+      const isAllCity = selectedProvince === translations.dari.provinces[0] || selectedProvince === translations.pashto.provinces[0];
       const cityMatch = isAllCity || item.city === selectedProvince;
       
       if (!titleMatch || !cityMatch) return false;
@@ -133,7 +139,7 @@ function App() {
       }
       return true;
     });
-  }, [appMode, searchTerm, activeDealFilter, selectedProvince, properties, jobs, services, t, filterCategory, savedIds]);
+  }, [appMode, searchTerm, activeDealFilter, selectedProvince, properties, jobs, services, filterCategory, savedIds]);
 
   const handleSelectItem = (item: Property | Job | Service) => {
     setVisitedIds(prev => new Set(prev).add(item.id));
@@ -144,7 +150,7 @@ function App() {
   const handleOpenAddModal = () => {
     const userPhone = localStorage.getItem('user_phone');
     if (!userPhone) {
-      alert("لطفاً ابتدا وارد حساب کاربری خود شوید.");
+      alert(lang === 'dari' ? "لطفاً ابتدا وارد حساب کاربری خود شوید." : "مهرباني وکړئ لومړی خپل حساب ته ننوځئ.");
       setShowAuthModal(true);
     } else {
       setShowAddModal(true);
@@ -156,7 +162,7 @@ function App() {
     setSelectedItem(null);
     setIsDetailOpen(false);
     setViewMode('list');
-    setFilterCategory('ALL'); // بازنشانی فیلتر هنگام تغییر بخش
+    setFilterCategory('ALL');
   };
 
   if (isAdminMode) {
@@ -172,26 +178,36 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-white font-[Vazirmatn] overflow-hidden" dir="rtl">
-      <header className="h-[60px] bg-white border-b flex items-center justify-between px-4 z-[3000] shrink-0 shadow-sm">
-        <div className="flex items-center gap-3">
+      <header className="h-[65px] bg-white border-b flex items-center justify-between px-4 z-[3000] shrink-0 shadow-sm">
+        <div className="flex items-center gap-2">
           <button 
             onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')} 
-            className="bg-gray-900 text-white px-4 py-2 rounded-xl font-black text-[11px] md:hidden flex items-center gap-2 active:scale-95 transition-transform"
+            className="bg-gray-900 text-white px-3 py-2 rounded-xl font-black text-[10px] md:hidden flex items-center gap-1 active:scale-95 transition-transform"
           >
             {viewMode === 'list' ? (
-              <><MapIcon size={16} /> <span>{t.map}</span></>
+              <><MapIcon size={14} /> <span>{t.map}</span></>
             ) : (
-              <><List size={16} /> <span>{t.list}</span></>
+              <><List size={14} /> <span>{t.list}</span></>
             )}
           </button>
-          <div className="hidden md:flex items-center gap-3">
+          
+          <button 
+            onClick={toggleLanguage}
+            className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <Languages size={14} className="text-[#a62626]" />
+            <span>{lang === 'dari' ? 'پشتو' : 'دری'}</span>
+          </button>
+
+          <div className="hidden md:flex items-center gap-3 mr-4">
             <button onClick={handleOpenAddModal} className="bg-[#a62626] text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg shadow-red-900/20 active:scale-95">ثبت آگهی</button>
             <button onClick={() => setShowAuthModal(true)} className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"><User size={22} /></button>
           </div>
         </div>
+
         <div className="flex flex-col items-end">
-          <h1 className="font-black text-[#a62626] text-lg leading-none">خانه افغانستان</h1>
-          <span className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Real Estate & Jobs</span>
+          <h1 className="font-black text-[#a62626] text-base md:text-lg leading-none">خانه افغانستان</h1>
+          <span className="text-[8px] md:text-[9px] text-gray-400 font-bold uppercase tracking-tighter">ESTATE & JOBS</span>
         </div>
       </header>
 
@@ -201,8 +217,8 @@ function App() {
             <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
               {filterCategory !== 'ALL' && (
                 <div className="flex items-center justify-between bg-red-50 p-2 rounded-xl mb-2">
-                   <span className="text-[10px] font-black text-red-600">نمایش: {filterCategory === 'MY_ADS' ? 'آگهی‌های من' : 'نشان شده‌ها'}</span>
-                   <button onClick={() => setFilterCategory('ALL')} className="text-[9px] font-black text-gray-500 flex items-center gap-1">پاک کردن <ArrowRight size={12} /></button>
+                   <span className="text-[10px] font-black text-red-600">نمایش: {filterCategory === 'MY_ADS' ? t.my_ads : t.saved}</span>
+                   <button onClick={() => setFilterCategory('ALL')} className="text-[9px] font-black text-gray-500 flex items-center gap-1">{lang === 'dari' ? 'پاک کردن' : 'پاکول'} <ArrowRight size={12} /></button>
                 </div>
               )}
               <div className="flex gap-2">
@@ -216,7 +232,7 @@ function App() {
                 <select 
                   value={selectedProvince} 
                   onChange={(e) => setSelectedProvince(e.target.value)} 
-                  className="bg-gray-100 rounded-xl px-3 py-2.5 text-[11px] font-black outline-none border border-transparent focus:border-[#a62626]/20"
+                  className="bg-gray-100 rounded-xl px-2 py-2.5 text-[10px] font-black outline-none border border-transparent focus:border-[#a62626]/20 max-w-[100px]"
                 >
                   {t.provinces.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
@@ -224,9 +240,9 @@ function App() {
               {appMode === 'ESTATE' && (
                  <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
                     <button onClick={() => setActiveDealFilter('ALL')} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === 'ALL' ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.all}</button>
-                    {Object.values(DealType).map(type => (
-                       <button key={type} onClick={() => setActiveDealFilter(type)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === type ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{type}</button>
-                    ))}
+                    <button onClick={() => setActiveDealFilter(DealType.SALE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.SALE ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.sale}</button>
+                    <button onClick={() => setActiveDealFilter(DealType.RENT)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.RENT ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.rent}</button>
+                    <button onClick={() => setActiveDealFilter(DealType.MORTGAGE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.MORTGAGE ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.mortgage}</button>
                  </div>
               )}
             </div>
@@ -236,19 +252,19 @@ function App() {
             {isLoading ? (
                <div className="flex flex-col items-center justify-center py-24 gap-4">
                  <Loader2 className="animate-spin text-[#a62626]" size={40} />
-                 <p className="text-[10px] font-black text-gray-400">در حال بروزرسانی لیست...</p>
+                 <p className="text-[10px] font-black text-gray-400">{lang === 'dari' ? 'در حال بروزرسانی لیست...' : 'د لست تازه کول...'}</p>
                </div>
             ) : (
               filteredItems.map(item => (
                 <div key={item.id} className="relative">
                   {item.status === 'PENDING' && (
-                    <div className="absolute top-2 right-2 z-10 bg-amber-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">در انتظار تایید</div>
+                    <div className="absolute top-2 right-2 z-10 bg-amber-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">{lang === 'dari' ? 'در انتظار تایید' : 'تایید ته انتظار'}</div>
                   )}
                   {appMode === 'ESTATE' ? 
-                    <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} /> :
+                    <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} /> :
                    appMode === 'JOBS' ? 
-                    <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} /> :
-                    <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} />
+                    <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} /> :
+                    <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} />
                   }
                 </div>
               ))
@@ -285,9 +301,9 @@ function App() {
 
       {showAddModal && (
         <div className="z-[6000] fixed inset-0">
-          {appMode === 'ESTATE' && <AddPropertyModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} />}
-          {appMode === 'JOBS' && <AddJobModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} />}
-          {appMode === 'SERVICES' && <AddServiceModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} />}
+          {appMode === 'ESTATE' && <AddPropertyModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} lang={lang} />}
+          {appMode === 'JOBS' && <AddJobModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} lang={lang} />}
+          {appMode === 'SERVICES' && <AddServiceModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} lang={lang} />}
         </div>
       )}
 
