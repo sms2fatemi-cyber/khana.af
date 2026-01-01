@@ -1,5 +1,5 @@
 
-import React, { ErrorInfo, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface Props {
@@ -15,8 +15,8 @@ interface State {
 /**
  * ErrorBoundary class component to catch JavaScript errors in child components.
  */
-// Fix: Explicitly extend React.Component to ensure setState and props are correctly inherited and recognized by the compiler
-export class ErrorBoundary extends React.Component<Props, State> {
+// Use named Component import to ensure correct inheritance and visibility of members
+export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
@@ -27,19 +27,19 @@ export class ErrorBoundary extends React.Component<Props, State> {
     super(props);
   }
 
-  // Static method correctly returns State for derived error updates
+  // Static method to update state when an error is caught by the boundary
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error, errorInfo: null };
   }
 
-  // Implementation of componentDidCatch to store error info using this.setState
+  // Lifecycle method to handle error catching and side effects (logging)
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
-    // Fix: Accessing setState which is inherited from React.Component
+    // Explicitly call setState which is inherited from the Component base class
     this.setState({ errorInfo });
   }
 
-  // Render method displays fallback UI if an error occurs
+  // Render method to display a fallback UI or the children components
   public render() {
     if (this.state.hasError) {
       return (
@@ -69,7 +69,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
       );
     }
 
-    // Fix: Correctly access children from the inherited props property of React.Component
+    // Return children from props property inherited from Component
     return this.props.children;
   }
 }

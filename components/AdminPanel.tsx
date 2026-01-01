@@ -72,9 +72,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsProcessing(true);
     try {
       let tableName = '';
-      if (properties.some(p => p.id === id)) tableName = TABLES.PROPERTIES;
-      else if (jobs.some(j => j.id === id)) tableName = TABLES.JOBS;
-      else if (services.some(s => s.id === id)) tableName = TABLES.SERVICES;
+      // شناسایی جدول بر اساس تب فعال یا جستجو در آرایه‌ها برای اطمینان بیشتر
+      if (activeTab === 'ESTATE' || properties.some(p => p.id === id)) tableName = TABLES.PROPERTIES;
+      else if (activeTab === 'JOBS' || jobs.some(j => j.id === id)) tableName = TABLES.JOBS;
+      else if (activeTab === 'SERVICES' || services.some(s => s.id === id)) tableName = TABLES.SERVICES;
 
       if (!tableName && action !== 'MESSAGE') throw new Error("آگهی در سیستم یافت نشد.");
 
@@ -93,9 +94,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         if (error) throw error;
         
         const updateFn = (list: any[]) => list.map(it => it.id === id ? { ...it, status: 'APPROVED' } : it);
-        setProperties(updateFn);
-        setJobs(updateFn);
-        setServices(updateFn);
+        if (tableName === TABLES.PROPERTIES) setProperties(updateFn);
+        if (tableName === TABLES.JOBS) setJobs(updateFn);
+        if (tableName === TABLES.SERVICES) setServices(updateFn);
+        
         alert("آگهی تایید شد و اکنون برای عموم قابل مشاهده است.");
       } 
       else if (action === 'MESSAGE') {
@@ -109,7 +111,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         if (error) throw error;
         alert("پیام شما برای کاربر ارسال شد.");
         setAdminMessage('');
-        return; // مودال را نبند تا ادمین بتواند کارهای دیگر هم انجام دهد
+        return; 
       }
       setSelectedItem(null);
     } catch (err: any) {
@@ -235,10 +237,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                        <span className="text-[10px] font-black text-gray-400 block mb-1">نام کاربر مدیریت</span>
                        <span className="font-black text-gray-800">{currentAdmin.fullName}</span>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-xl border">
-                       <span className="text-[10px] font-black text-gray-400 block mb-1">نقش کاربری</span>
-                       <span className="font-black text-gray-800">{currentAdmin.role === 'SUPER' ? 'مدیر ارشد' : 'مدیر معمولی'}</span>
-                    </div>
                  </div>
               </div>
             )}
@@ -247,9 +245,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       </div>
 
       {selectedItem && (
-        <div className="fixed inset-0 z-[12000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => !isProcessing && setSelectedItem(null)}>
-          <div className="bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-slide-up" onClick={e => e.stopPropagation()}>
-            <div className="w-full md:w-1/2 h-[30vh] md:h-full bg-black shrink-0 flex items-center justify-center relative group">
+        <div className="fixed inset-0 z-[12000] bg-black/90 flex items-center justify-center p-2 md:p-4 backdrop-blur-md" onClick={() => !isProcessing && setSelectedItem(null)}>
+          <div className="bg-white w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="w-full md:w-1/2 h-[25vh] md:h-full bg-black shrink-0 flex items-center justify-center relative group">
                <img src={selectedItem.images?.[activeImageIdx]} className="w-full h-full object-contain" alt="" />
                {selectedItem.images?.length > 1 && (
                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/30 p-2 rounded-full">
@@ -260,49 +258,49 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                )}
             </div>
             
-            <div className="flex-1 flex flex-col h-full bg-white relative">
-               <div className="p-6 border-b flex justify-between items-center bg-gray-50 shrink-0">
+            <div className="flex-1 flex flex-col min-h-0 bg-white relative">
+               <div className="p-4 border-b flex justify-between items-center bg-gray-50 shrink-0">
                   <h2 className="font-black text-sm text-gray-700">بررسی جزئیات آگهی</h2>
-                  <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400"><X size={24} /></button>
+                  <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400"><X size={20} /></button>
                </div>
                
-               <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar">
-                  <h3 className="text-xl font-black text-gray-900 leading-relaxed">{selectedItem.title}</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-2xl border">
-                       <span className="text-[9px] font-black text-gray-400 block mb-1 uppercase">قیمت / معاش</span>
-                       <span className="text-lg font-black text-red-600">{(selectedItem.price || selectedItem.salary)?.toLocaleString() || 'توافقی'}</span>
+               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 no-scrollbar">
+                  <h3 className="text-lg md:text-xl font-black text-gray-900 leading-relaxed">{selectedItem.title}</h3>
+                  <div className="grid grid-cols-2 gap-3 md:gap-4">
+                    <div className="bg-gray-50 p-3 md:p-4 rounded-2xl border">
+                       <span className="text-[8px] md:text-[9px] font-black text-gray-400 block mb-1 uppercase">قیمت / معاش</span>
+                       <span className="text-sm md:text-lg font-black text-red-600">{(selectedItem.price || selectedItem.salary)?.toLocaleString() || 'توافقی'}</span>
                     </div>
-                    <div className="bg-gray-50 p-4 rounded-2xl border">
-                       <span className="text-[9px] font-black text-gray-400 block mb-1 uppercase">شماره تماس</span>
-                       <span className="text-lg font-black text-gray-800">{selectedItem.phoneNumber}</span>
+                    <div className="bg-gray-50 p-3 md:p-4 rounded-2xl border">
+                       <span className="text-[8px] md:text-[9px] font-black text-gray-400 block mb-1 uppercase">شماره تماس</span>
+                       <span className="text-sm md:text-lg font-black text-gray-800">{selectedItem.phoneNumber}</span>
                     </div>
                   </div>
                   
                   <div className="space-y-2">
                     <span className="text-[10px] font-black text-gray-400 uppercase">توضیحات آگهی</span>
-                    <p className="text-sm font-medium text-gray-700 leading-8 bg-gray-50 p-5 rounded-2xl border border-gray-100 whitespace-pre-wrap">{selectedItem.description}</p>
+                    <p className="text-xs md:text-sm font-medium text-gray-700 leading-7 bg-gray-50 p-4 md:p-5 rounded-2xl border border-gray-100 whitespace-pre-wrap">{selectedItem.description}</p>
                   </div>
                   
                   <div className="pt-6 border-t border-dashed space-y-4">
                     <span className="text-[#a62626] font-black text-xs flex items-center gap-2"><MessageSquare size={16}/> ارسال پیام مستقیم به کاربر:</span>
-                    <textarea value={adminMessage} onChange={e => setAdminMessage(e.target.value)} placeholder="مثلاً: آگهی شما به دلیل نقص در تصاویر رد شد..." className="w-full bg-gray-50 border rounded-2xl p-4 text-sm font-bold resize-none h-28 outline-none focus:border-blue-400 transition-all shadow-inner" />
-                    <button onClick={() => handleAction(selectedItem.id, 'MESSAGE')} disabled={isProcessing || !adminMessage} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-900/10 active:scale-95 transition-all"><Send size={18}/> ارسال پیام به کاربر</button>
+                    <textarea value={adminMessage} onChange={e => setAdminMessage(e.target.value)} placeholder="مثلاً: آگهی شما به دلیل نقص در تصاویر رد شد..." className="w-full bg-gray-50 border rounded-2xl p-4 text-xs md:text-sm font-bold resize-none h-24 md:h-28 outline-none focus:border-blue-400 transition-all shadow-inner" />
+                    <button onClick={() => handleAction(selectedItem.id, 'MESSAGE')} disabled={isProcessing || !adminMessage} className="w-full bg-blue-600 text-white py-3 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-900/10 active:scale-95 transition-all text-sm"><Send size={18}/> ارسال پیام به کاربر</button>
                   </div>
                </div>
                
-               <div className="p-6 border-t bg-gray-50 flex gap-4 shrink-0">
+               <div className="p-4 md:p-6 border-t bg-gray-50 flex gap-3 md:gap-4 shrink-0">
                   {selectedItem.status === 'PENDING' ? (
                     <>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-green-900/10 active:scale-95 transition-all">
-                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید و انتشار عمومی
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-3 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-green-900/10 active:scale-95 transition-all text-sm">
+                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید و انتشار
                       </button>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 hover:bg-red-100 active:scale-95 transition-all">
-                        <Trash2 size={20} /> حذف رد
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-3 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 hover:bg-red-100 active:scale-95 transition-all text-sm">
+                        <Trash2 size={20} /> حذف
                       </button>
                     </>
                   ) : (
-                    <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-red-900/10 active:scale-95 transition-all">
+                    <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="w-full bg-red-600 text-white py-3 md:py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-red-900/10 active:scale-95 transition-all text-sm">
                       <Trash2 size={20} /> حذف دائمی این آگهی
                     </button>
                   )}
