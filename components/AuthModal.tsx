@@ -14,6 +14,7 @@ interface AuthModalProps {
   lang: 'dari' | 'pashto';
   hasUnreadChats?: boolean;
   hasUnreadAdmin?: boolean;
+  onCheckNotifications: () => void;
 }
 
 interface UserProfile {
@@ -22,7 +23,7 @@ interface UserProfile {
   avatarUrl: string;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang, hasUnreadChats, hasUnreadAdmin }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang, hasUnreadChats, hasUnreadAdmin, onCheckNotifications }) => {
   const t = translations[lang];
   const [view, setView] = useState<'login' | 'otp' | 'profile' | 'messages' | 'user_chats'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -62,6 +63,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         .update({ is_read: true })
         .eq('target_phone', phoneNumber)
         .eq('is_read', false);
+      onCheckNotifications(); // بروزرسانی آنی نقطه قرمز در هدر
     } catch (e) {
       console.error("Error marking admin messages as read:", e);
     }
@@ -161,7 +163,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
 
   if (view === 'login') return (
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+      <div className="bg-white w-full max-sm:max-w-sm rounded-[2.5rem] p-10 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
         <h2 className="text-2xl font-black mb-8">{t.login_title}</h2>
         <div className="space-y-6">
           <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} placeholder="07XXXXXXXX" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-4 px-6 text-xl font-black text-left dir-ltr outline-none focus:border-[#a62626]" />
@@ -175,7 +177,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
 
   if (view === 'otp') return (
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+      <div className="bg-white w-full max-sm:max-w-sm rounded-[2.5rem] p-10 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
         <h2 className="text-2xl font-black mb-8">{t.enter_otp}</h2>
         <input type="text" value={otp} onChange={e => setOtp(e.target.value)} maxLength={4} className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-6 text-4xl font-black text-center tracking-[0.5em] outline-none" />
         <button onClick={handleVerifyOtp} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black mt-6">تایید و ورود</button>
@@ -241,7 +243,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
             })
           )}
         </div>
-        {activeChat && <ChatWindow receiverPhone={activeChat.phone} adId={activeChat.id} adTitle={activeChat.title} onClose={() => { setActiveChat(null); fetchUserChats(); }} />}
+        {activeChat && <ChatWindow receiverPhone={activeChat.phone} adId={activeChat.id} adTitle={activeChat.title} onClose={() => { setActiveChat(null); fetchUserChats(); onCheckNotifications(); }} />}
       </div>
     </div>
   );
@@ -285,7 +287,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
             </div>
 
             <div className="space-y-3 pb-4">
-              <button onClick={() => setView('user_chats')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group relative">
+              <button onClick={() => setView('user_chats')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group relative transition-all">
                 <div className="flex items-center gap-3"><MessageSquare size={20} /> گفتگوهای من</div>
                 <div className="flex items-center gap-2">
                    {hasUnreadChats && <div className="w-2.5 h-2.5 bg-red-600 rounded-full border border-white"></div>}
@@ -293,7 +295,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
                 </div>
               </button>
               
-              <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group relative">
+              <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group relative transition-all">
                 <div className="flex items-center gap-3"><Bell size={20} /> {t.notifications}</div>
                 <div className="flex items-center gap-2">
                    {hasUnreadAdmin && <div className="w-2.5 h-2.5 bg-red-600 rounded-full border border-white"></div>}
@@ -301,12 +303,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
                 </div>
               </button>
               
-              <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
+              <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group transition-all">
                 <div className="flex items-center gap-3"><List size={20} /> {t.my_ads}</div>
                 <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
               </button>
               
-              <button onClick={onShowSaved} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
+              <button onClick={onShowSaved} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group transition-all">
                 <div className="flex items-center gap-3"><Heart size={20} /> {t.saved}</div>
                 <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
               </button>
@@ -315,7 +317,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
                 <button onClick={onClose} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all">
                    <ArrowLeft size={18} className={lang === 'dari' ? '' : 'rotate-180'} /> بازگشت به برنامه
                 </button>
-                <button onClick={() => { localStorage.removeItem('user_phone'); window.location.reload(); }} className="w-full p-4 text-red-600 font-bold flex items-center justify-center gap-2">
+                <button onClick={() => { localStorage.removeItem('user_phone'); window.location.reload(); }} className="w-full p-4 text-red-600 font-bold flex items-center justify-center gap-2 transition-all">
                    <LogOut size={18} /> خروج از حساب
                 </button>
               </div>

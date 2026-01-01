@@ -27,6 +27,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [adminMessage, setAdminMessage] = useState('');
   const [activeImageIdx, setActiveImageIdx] = useState(0);
+  const [isImageLoading, setIsImageLoading] = useState(false);
   const [userSearchTerm, setUserSearchTerm] = useState('');
   
   const [touchStart, setTouchStart] = useState<number | null>(null);
@@ -44,12 +45,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const nextImage = useCallback(() => {
     if (selectedItem?.images?.length > 1) {
+      setIsImageLoading(true);
       setActiveImageIdx(prev => (prev < selectedItem.images.length - 1 ? prev + 1 : 0));
     }
   }, [selectedItem]);
 
   const prevImage = useCallback(() => {
     if (selectedItem?.images?.length > 1) {
+      setIsImageLoading(true);
       setActiveImageIdx(prev => (prev > 0 ? prev - 1 : selectedItem.images.length - 1));
     }
   }, [selectedItem]);
@@ -282,13 +285,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               onTouchMove={onTouchMove}
               onTouchEnd={onTouchEnd}
             >
-               <img src={selectedItem.images?.[activeImageIdx]} className="w-full h-full object-contain pointer-events-none" alt="" />
+               {/* key={activeImageIdx} باعث می‌شود React تگ تصویر قبلی را کاملا حذف و تگ جدید بسازد، لذا تصویر قبلی نمی‌ماند */}
+               <img 
+                 key={activeImageIdx}
+                 src={selectedItem.images?.[activeImageIdx]} 
+                 className={`w-full h-full object-contain pointer-events-none transition-opacity duration-200 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
+                 alt="" 
+                 onLoad={() => setIsImageLoading(false)}
+               />
+               
+               {isImageLoading && (
+                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <Loader2 className="animate-spin text-white" size={32} />
+                 </div>
+               )}
                
                {/* Controls for Desktop */}
                {selectedItem.images?.length > 1 && (
                  <>
-                   <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 text-white p-3 rounded-full hover:bg-black/60 z-50"><ChevronRight size={24} /></button>
-                   <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 text-white p-3 rounded-full hover:bg-black/60 z-50"><ChevronLeft size={24} /></button>
+                   <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 text-white p-3 rounded-full hover:bg-black/60 z-50 transition-all"><ChevronRight size={24} /></button>
+                   <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 text-white p-3 rounded-full hover:bg-black/60 z-50 transition-all"><ChevronLeft size={24} /></button>
                  </>
                )}
 
@@ -296,7 +312,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                {selectedItem.images?.length > 1 && (
                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/30 p-2 rounded-full z-50">
                    {selectedItem.images.map((_: any, i: number) => (
-                     <button key={i} onClick={() => setActiveImageIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === activeImageIdx ? 'bg-red-600 scale-125' : 'bg-white/40'}`} />
+                     <button key={i} onClick={() => { setIsImageLoading(true); setActiveImageIdx(i); }} className={`w-2 h-2 rounded-full transition-all ${i === activeImageIdx ? 'bg-red-600 scale-125' : 'bg-white/40'}`} />
                    ))}
                  </div>
                )}
