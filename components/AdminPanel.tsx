@@ -79,13 +79,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       if (!tableName && action !== 'MESSAGE') throw new Error("آگهی در سیستم یافت نشد.");
 
       if (action === 'DELETE') {
-        if (!window.confirm("حذف دائمی؟")) { setIsProcessing(false); return; }
+        if (!window.confirm("آیا از حذف دائمی این آگهی اطمینان دارید؟")) { setIsProcessing(false); return; }
         const { error } = await supabase.from(tableName).delete().eq('id', id);
         if (error) throw error;
-        setProperties(p => p.filter(it => it.id !== id));
-        setJobs(j => j.filter(it => it.id !== id));
-        setServices(s => s.filter(it => it.id !== id));
-        alert("حذف شد.");
+        
+        setProperties(prev => prev.filter(it => it.id !== id));
+        setJobs(prev => prev.filter(it => it.id !== id));
+        setServices(prev => prev.filter(it => it.id !== id));
+        alert("آگهی با موفقیت حذف شد.");
       } 
       else if (action === 'APPROVE') {
         const { error } = await supabase.from(tableName).update({ status: 'APPROVED' }).eq('id', id);
@@ -95,7 +96,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         setProperties(updateFn);
         setJobs(updateFn);
         setServices(updateFn);
-        alert("آگهی تایید و در سایت منتشر شد.");
+        alert("آگهی تایید شد و اکنون برای عموم قابل مشاهده است.");
       } 
       else if (action === 'MESSAGE') {
         const phone = selectedItem?.phoneNumber;
@@ -106,12 +107,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           is_read: false 
         }]);
         if (error) throw error;
-        alert("پیام ارسال شد.");
+        alert("پیام شما برای کاربر ارسال شد.");
         setAdminMessage('');
+        return; // مودال را نبند تا ادمین بتواند کارهای دیگر هم انجام دهد
       }
       setSelectedItem(null);
     } catch (err: any) {
-      alert("خطا: " + (err.message || "عملیات ناموفق"));
+      alert("خطا در انجام عملیات: " + (err.message || "ناموفق"));
     } finally {
       setIsProcessing(false);
     }
@@ -138,10 +140,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <aside className="flex md:flex-col overflow-x-auto md:overflow-y-auto w-full md:w-64 bg-white border-b md:border-l p-2 md:p-4 gap-2 shrink-0">
+        <aside className="flex md:flex-col overflow-x-auto md:overflow-y-auto w-full md:w-64 bg-white border-b md:border-l p-2 md:p-4 gap-2 shrink-0 shadow-sm">
            {navItems.map((item) => (
              (!item.superOnly || currentAdmin.role === 'SUPER') && (
-               <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex-none flex items-center gap-3 px-5 py-3 md:py-4 rounded-xl font-black transition-all ${activeTab === item.id ? 'bg-[#a62626] text-white' : 'text-gray-400 hover:bg-gray-50'}`}>
+               <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex-none flex items-center gap-3 px-5 py-3 md:py-4 rounded-xl font-black transition-all ${activeTab === item.id ? 'bg-[#a62626] text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}>
                  <item.icon size={18} /> <span className="text-[11px] md:text-sm">{item.label}</span>
                </button>
              )
@@ -174,7 +176,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               <div className="space-y-6">
                  <div className="flex justify-between items-center border-b pb-4">
                     <h2 className="text-xl font-black">مدیریت آگهی‌ها</h2>
-                    <div className="flex bg-gray-100 p-1 rounded-xl">
+                    <div className="flex bg-gray-100 p-1 rounded-xl shadow-inner">
                       <button onClick={() => setStatusFilter('PENDING')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${statusFilter === 'PENDING' ? 'bg-[#a62626] text-white shadow-md' : 'text-gray-500'}`}>در انتظار</button>
                       <button onClick={() => setStatusFilter('APPROVED')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${statusFilter === 'APPROVED' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500'}`}>تایید شده</button>
                     </div>
@@ -183,7 +185,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                    {(activeTab === 'ESTATE' ? properties : activeTab === 'JOBS' ? jobs : services)
                      .filter(it => it.status === statusFilter)
                      .map(item => (
-                       <div key={item.id} onClick={() => { setSelectedItem(item); setActiveImageIdx(0); }} className="bg-white rounded-2xl p-4 border flex items-center gap-4 hover:border-[#a62626]/30 cursor-pointer shadow-sm">
+                       <div key={item.id} onClick={() => { setSelectedItem(item); setActiveImageIdx(0); }} className="bg-white rounded-2xl p-4 border flex items-center gap-4 hover:border-[#a62626]/30 cursor-pointer shadow-sm transition-all hover:shadow-md">
                           <img src={item.images?.[0]} className="w-14 h-14 rounded-xl object-cover bg-gray-100 shrink-0" alt="" />
                           <div className="flex-1">
                              <h3 className="font-black text-sm text-gray-800 truncate">{item.title}</h3>
@@ -202,17 +204,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <h2 className="text-xl font-black">لیست کاربران</h2>
                     <div className="relative">
                       <Search className="absolute right-3 top-2.5 text-gray-400" size={16} />
-                      <input type="text" placeholder="جستجوی شماره..." value={userSearchTerm} onChange={e => setUserSearchTerm(e.target.value)} className="bg-gray-100 rounded-xl pr-10 pl-4 py-2 text-xs font-black outline-none" />
+                      <input type="text" placeholder="جستجوی شماره..." value={userSearchTerm} onChange={e => setUserSearchTerm(e.target.value)} className="bg-gray-100 rounded-xl pr-10 pl-4 py-2 text-xs font-black outline-none border border-transparent focus:border-red-200" />
                     </div>
                  </div>
                  <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
                     <table className="w-full text-right text-sm">
                        <thead className="bg-gray-50 border-b text-xs font-black text-gray-400">
-                          <tr><th className="p-4">کاربر</th><th className="p-4">شماره تماس</th><th className="p-4 text-center">آگهی</th><th className="p-4"></th></tr>
+                          <tr><th className="p-4 text-right">کاربر</th><th className="p-4 text-right">شماره تماس</th><th className="p-4 text-center">آگهی</th><th className="p-4"></th></tr>
                        </thead>
                        <tbody className="divide-y">
                           {allUsersList.map((user, idx) => (
-                             <tr key={idx} className="hover:bg-gray-50 cursor-pointer">
+                             <tr key={idx} className="hover:bg-gray-50">
                                 <td className="p-4 font-black">{user.firstName} {user.lastName}</td>
                                 <td className="p-4 font-black text-gray-500">{user.phone}</td>
                                 <td className="p-4 text-center"><span className="bg-red-50 text-red-600 px-3 py-1 rounded-lg font-black">{user.total}</span></td>
@@ -233,6 +235,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                        <span className="text-[10px] font-black text-gray-400 block mb-1">نام کاربر مدیریت</span>
                        <span className="font-black text-gray-800">{currentAdmin.fullName}</span>
                     </div>
+                    <div className="bg-gray-50 p-4 rounded-xl border">
+                       <span className="text-[10px] font-black text-gray-400 block mb-1">نقش کاربری</span>
+                       <span className="font-black text-gray-800">{currentAdmin.role === 'SUPER' ? 'مدیر ارشد' : 'مدیر معمولی'}</span>
+                    </div>
                  </div>
               </div>
             )}
@@ -243,52 +249,61 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       {selectedItem && (
         <div className="fixed inset-0 z-[12000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => !isProcessing && setSelectedItem(null)}>
           <div className="bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-slide-up" onClick={e => e.stopPropagation()}>
-            <div className="w-full md:w-1/2 h-[30vh] md:h-full bg-black shrink-0 flex items-center justify-center relative">
+            <div className="w-full md:w-1/2 h-[30vh] md:h-full bg-black shrink-0 flex items-center justify-center relative group">
                <img src={selectedItem.images?.[activeImageIdx]} className="w-full h-full object-contain" alt="" />
-               <div className="absolute bottom-4 flex gap-2">
-                 {selectedItem.images?.map((_: string, i: number) => (
-                   <button key={i} onClick={() => setActiveImageIdx(i)} className={`w-3 h-3 rounded-full ${i === activeImageIdx ? 'bg-red-600' : 'bg-white/40'}`} />
-                 ))}
-               </div>
+               {selectedItem.images?.length > 1 && (
+                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/30 p-2 rounded-full">
+                   {selectedItem.images.map((_: any, i: number) => (
+                     <button key={i} onClick={() => setActiveImageIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === activeImageIdx ? 'bg-red-600 scale-125' : 'bg-white/40 hover:bg-white/60'}`} />
+                   ))}
+                 </div>
+               )}
             </div>
+            
             <div className="flex-1 flex flex-col h-full bg-white relative">
-               <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-                  <h2 className="font-black text-sm">بررسی جزئیات آگهی</h2>
-                  <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full"><X size={24} /></button>
+               <div className="p-6 border-b flex justify-between items-center bg-gray-50 shrink-0">
+                  <h2 className="font-black text-sm text-gray-700">بررسی جزئیات آگهی</h2>
+                  <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400"><X size={24} /></button>
                </div>
-               <div className="flex-1 overflow-y-auto p-8 space-y-6">
-                  <h3 className="text-xl font-black text-gray-900">{selectedItem.title}</h3>
+               
+               <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar">
+                  <h3 className="text-xl font-black text-gray-900 leading-relaxed">{selectedItem.title}</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-gray-50 p-4 rounded-2xl border">
-                       <span className="text-[9px] font-black text-gray-400 block mb-1">قیمت / معاش</span>
-                       <span className="text-lg font-black text-red-600">{selectedItem.price?.toLocaleString() || selectedItem.salary?.toLocaleString() || 'توافقی'}</span>
+                       <span className="text-[9px] font-black text-gray-400 block mb-1 uppercase">قیمت / معاش</span>
+                       <span className="text-lg font-black text-red-600">{(selectedItem.price || selectedItem.salary)?.toLocaleString() || 'توافقی'}</span>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-2xl border">
-                       <span className="text-[9px] font-black text-gray-400 block mb-1">شماره تماس</span>
+                       <span className="text-[9px] font-black text-gray-400 block mb-1 uppercase">شماره تماس</span>
                        <span className="text-lg font-black text-gray-800">{selectedItem.phoneNumber}</span>
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-gray-700 leading-7 bg-gray-50 p-4 rounded-2xl border whitespace-pre-wrap">{selectedItem.description}</p>
                   
-                  <div className="pt-6 border-t space-y-3">
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-black text-gray-400 uppercase">توضیحات آگهی</span>
+                    <p className="text-sm font-medium text-gray-700 leading-8 bg-gray-50 p-5 rounded-2xl border border-gray-100 whitespace-pre-wrap">{selectedItem.description}</p>
+                  </div>
+                  
+                  <div className="pt-6 border-t border-dashed space-y-4">
                     <span className="text-[#a62626] font-black text-xs flex items-center gap-2"><MessageSquare size={16}/> ارسال پیام مستقیم به کاربر:</span>
-                    <textarea value={adminMessage} onChange={e => setAdminMessage(e.target.value)} placeholder="متن پیام مدیریت..." className="w-full bg-gray-50 border rounded-2xl p-4 text-sm font-bold resize-none h-24 outline-none focus:border-blue-400" />
-                    <button onClick={() => handleAction(selectedItem.id, 'MESSAGE')} disabled={isProcessing || !adminMessage} className="w-full bg-blue-600 text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 disabled:opacity-50"><Send size={18}/> ارسال پیام</button>
+                    <textarea value={adminMessage} onChange={e => setAdminMessage(e.target.value)} placeholder="مثلاً: آگهی شما به دلیل نقص در تصاویر رد شد..." className="w-full bg-gray-50 border rounded-2xl p-4 text-sm font-bold resize-none h-28 outline-none focus:border-blue-400 transition-all shadow-inner" />
+                    <button onClick={() => handleAction(selectedItem.id, 'MESSAGE')} disabled={isProcessing || !adminMessage} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-900/10 active:scale-95 transition-all"><Send size={18}/> ارسال پیام به کاربر</button>
                   </div>
                </div>
+               
                <div className="p-6 border-t bg-gray-50 flex gap-4 shrink-0">
                   {selectedItem.status === 'PENDING' ? (
                     <>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg">
-                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید و انتشار
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-green-900/10 active:scale-95 transition-all">
+                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید و انتشار عمومی
                       </button>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100">
-                        <Trash2 size={20} /> حذف
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 hover:bg-red-100 active:scale-95 transition-all">
+                        <Trash2 size={20} /> حذف رد
                       </button>
                     </>
                   ) : (
-                    <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg">
-                      <Trash2 size={20} /> حذف دائمی آگهی
+                    <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-red-900/10 active:scale-95 transition-all">
+                      <Trash2 size={20} /> حذف دائمی این آگهی
                     </button>
                   )}
                </div>
