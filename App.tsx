@@ -66,6 +66,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
   const [displayLimit, setDisplayLimit] = useState(20);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
   
   const [properties, setProperties] = useState<Property[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -116,6 +117,7 @@ function App() {
         ownerId: item.owner_id || 'guest',
         dealType: item.deal_type,
         phoneNumber: item.phone_number,
+        showPhoneNumber: item.show_phone ?? true,
         status: item.status || 'APPROVED',
         date: item.created_at,
         mortgageAmount: item.mortgage_amount,
@@ -134,7 +136,33 @@ function App() {
     }
   }, []);
 
-  useEffect(() => { refreshData(); }, [refreshData]);
+  useEffect(() => { 
+    refreshData(); 
+    
+    // سیستم اعلان پیام جدید
+    const userPhone = localStorage.getItem('user_phone');
+    if (userPhone && isSupabaseReady()) {
+      const checkMessages = async () => {
+        const { count } = await supabase
+          .from(TABLES.USER_CHATS)
+          .select('*', { count: 'exact', head: true })
+          .eq('receiver_phone', userPhone)
+          .eq('is_read', false);
+        setHasNewMessages((count || 0) > 0);
+      };
+      checkMessages();
+      
+      const channel = supabase
+        .channel('unread_chats_realtime')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLES.USER_CHATS }, payload => {
+          if (payload.new.receiver_phone === userPhone) {
+            setHasNewMessages(true);
+          }
+        })
+        .subscribe();
+      return () => { supabase.removeChannel(channel); };
+    }
+  }, [refreshData]);
 
   const handleDeleteItem = async (item: Property | Job | Service) => {
     const confirmMsg = lang === 'dari' ? "آیا از حذف این آگهی اطمینان دارید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟";
@@ -167,32 +195,22 @@ function App() {
     let base = appMode === 'ESTATE' ? properties : appMode === 'JOBS' ? jobs : services;
     
     return base.filter(item => {
-      // اگر در حالت "آگهی‌های من" هستیم، فقط آگهی‌های کاربر را نشان بده (حتی اگر تایید نشده باشند)
       if (filterCategory === 'MY_ADS') {
         if (!userPhone || item.ownerId !== userPhone) return false;
         return true;
       } 
-      
-      // اگر در حالت "نشان شده‌ها" هستیم
       if (filterCategory === 'SAVED') {
         if (!savedIds.has(item.id)) return false;
       }
-
-      // در حالت عادی (نمایش عمومی): فقط آگهی‌های تایید شده را نشان بده
-      // مگر اینکه کاربر مالک آن آگهی باشد (که بتواند قبل از تایید هم آن را ببیند)
       const isApproved = item.status === 'APPROVED';
       const isOwner = userPhone && item.ownerId === userPhone;
-      
       if (!isApproved && !isOwner) return false;
 
-      // فیلترهای جستجو و ولایت
       const titleMatch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
       const isAllCity = selectedProvince === translations.dari.provinces[0] || selectedProvince === translations.pashto.provinces[0];
       const cityMatch = isAllCity || item.city === selectedProvince;
-      
       if (!titleMatch || !cityMatch) return false;
 
-      // فیلتر فروش/کرایه برای املاک
       if (appMode === 'ESTATE') {
         const p = item as Property;
         return activeDealFilter === 'ALL' || p.dealType === activeDealFilter;
@@ -270,7 +288,10 @@ function App() {
 
           <div className="hidden md:flex items-center gap-3 mr-4">
             <button onClick={handleOpenAddModal} className="bg-[#a62626] text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg shadow-red-900/20 active:scale-95">ثبت آگهی</button>
-            <button onClick={() => setShowAuthModal(true)} className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors"><User size={22} /></button>
+            <button onClick={() => setShowAuthModal(true)} className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors relative">
+               <User size={22} />
+               {hasNewMessages && <div className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border border-white"></div>}
+            </button>
           </div>
         </div>
 
@@ -400,7 +421,11 @@ function App() {
           <button onClick={() => handleModeChange('JOBS')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'JOBS' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Briefcase size={20} /><span className="text-[9px] font-black">{t.jobs}</span></button>
           <button onClick={handleOpenAddModal} className="w-14 h-14 bg-[#a62626] text-white rounded-2xl flex items-center justify-center shadow-xl shadow-red-900/30 -top-6 relative active:scale-90 transition-all border-4 border-white"><Plus size={32} /></button>
           <button onClick={() => handleModeChange('SERVICES')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'SERVICES' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Wrench size={20} /><span className="text-[9px] font-black">{t.services}</span></button>
-          <button onClick={() => setShowAuthModal(true)} className="flex flex-col items-center flex-1 gap-1 text-gray-300 active:text-gray-600"><User size={20} /><span className="text-[9px] font-black">{t.account}</span></button>
+          <button onClick={() => setShowAuthModal(true)} className={`flex flex-col items-center flex-1 gap-1 transition-all relative ${showAuthModal ? 'text-[#a62626]' : 'text-gray-300'}`}>
+            <User size={20} />
+            <span className="text-[9px] font-black">{t.account}</span>
+            {hasNewMessages && <div className="absolute top-0 right-1/2 translate-x-3 w-2 h-2 bg-red-600 rounded-full border border-white"></div>}
+          </button>
         </div>
       </main>
 

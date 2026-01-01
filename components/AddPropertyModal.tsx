@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Box, MapPinned, Crosshair, Check } from 'lucide-react';
+import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Box, MapPinned, Crosshair, Check, Eye, EyeOff } from 'lucide-react';
 import { Property, PropertyType, DealType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
@@ -87,6 +87,8 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
   const [isSuccess, setIsSuccess] = useState(false);
   const [isMapMoving, setIsMapMoving] = useState(false);
   
+  const userPhone = localStorage.getItem('user_phone') || '';
+
   const [formData, setFormData] = useState({
     title: editData?.title || '', 
     price: editData?.price?.toString() || '', 
@@ -102,7 +104,8 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
     city: editData?.city || t.provinces[1], 
     address: editData?.address || '', 
     description: editData?.description || '', 
-    phoneNumber: editData?.phoneNumber || localStorage.getItem('user_phone') || '',
+    phoneNumber: userPhone,
+    showPhoneNumber: editData?.showPhoneNumber ?? true,
     location: editData?.location || { lat: 34.5553, lng: 69.2075 }
   });
 
@@ -137,7 +140,6 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
     try {
       const uploadedUrls = await uploadMultipleImages(selectedFiles);
       const allImages = [...previews.filter(p => p.startsWith('http')), ...uploadedUrls];
-      const userPhone = localStorage.getItem('user_phone') || 'guest';
 
       let finalPrice = 0;
       if (formData.dealType === DealType.SALE) finalPrice = Number(toEnglishDigits(formData.price));
@@ -164,7 +166,8 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
         city: formData.city,
         address: formData.address,
         description: formData.description,
-        phone_number: toEnglishDigits(formData.phoneNumber),
+        phone_number: userPhone,
+        show_phone: formData.showPhoneNumber,
         location: formData.location,
         images: allImages,
         status: editData ? editData.status : 'PENDING',
@@ -184,13 +187,7 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
       setIsSuccess(true);
     } catch (err: any) {
       console.error("Submit error:", err);
-      let msg = err.message || "خطای ناشناخته";
-      
-      if (msg.includes("column") && msg.includes("not found")) {
-        msg = `ستون جدید در دیتابیس یافت نشد. لطفاً کد SQL را در پنل Supabase اجرا کنید.\nستون خطا: ${msg}`;
-      }
-
-      alert(lang === 'dari' ? `خطا: ${msg}` : `تېروتنه: ${msg}`);
+      alert(lang === 'dari' ? `خطا: ${err.message}` : `تېروتنه: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -341,7 +338,22 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
                 <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder={t.address} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-11 py-4 font-bold outline-none focus:border-[#a62626]/40" required />
               </div>
 
-              <input type="tel" value={formData.phoneNumber} onChange={e => setFormData({...formData, phoneNumber: e.target.value})} placeholder={t.enter_phone} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none text-center dir-ltr" required />
+              <div className="space-y-3">
+                <div className="relative">
+                  <input type="tel" value={formData.phoneNumber} readOnly className="w-full bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 font-black text-center dir-ltr text-gray-500" />
+                  <div className="absolute top-1/2 -translate-y-1/2 right-4 bg-gray-200 text-gray-500 px-2 py-1 rounded-lg text-[10px] font-bold">ثابت</div>
+                </div>
+                
+                <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                   <div className="flex items-center gap-3">
+                      {formData.showPhoneNumber ? <Eye size={18} className="text-green-600" /> : <EyeOff size={18} className="text-gray-400" />}
+                      <span className="text-xs font-black text-gray-700">نمایش شماره به دیگران</span>
+                   </div>
+                   <button type="button" onClick={() => setFormData({...formData, showPhoneNumber: !formData.showPhoneNumber})} className={`w-12 h-6 rounded-full transition-all relative ${formData.showPhoneNumber ? 'bg-green-500' : 'bg-gray-300'}`}>
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.showPhoneNumber ? (lang === 'dari' ? 'right-7' : 'left-7') : (lang === 'dari' ? 'right-1' : 'left-1')}`} />
+                   </button>
+                </div>
+              </div>
               
               <button 
                 type="button" 

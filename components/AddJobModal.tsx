@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, ListChecks, MapPinned, Crosshair } from 'lucide-react';
+import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Eye, EyeOff } from 'lucide-react';
 import { Job, JobType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
@@ -51,31 +51,15 @@ const UserLocationHandler = () => {
   const handleLocate = useCallback(async () => {
     if (!navigator.geolocation) return;
     setIsLocating(true);
-
-    if (navigator.permissions && navigator.permissions.query) {
-      try {
-        const result = await navigator.permissions.query({ name: 'geolocation' });
-        if (result.state === 'denied') {
-          alert("دسترسی GPS توسط شما مسدود شده است. لطفاً از بخش قفل (در بالای مرورگر) اجازه دسترسی بدهید.");
-          setIsLocating(false);
-          return;
-        }
-      } catch (e) {}
-    }
-    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         map.flyTo([lat, lng], 16, { animate: true });
         setIsLocating(false);
       },
-      (err) => {
+      () => {
         setIsLocating(false);
-        if (err.code === 1) {
-          alert("لطفاً در تنظیمات مرورگر اجازه دسترسی به موقعیت را صادر کنید.");
-        } else {
-          alert("موقعیت یافت نشد. لطفاً GPS را چک کنید.");
-        }
+        alert("موقعیت یافت نشد. لطفاً GPS را چک کنید.");
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -98,6 +82,8 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
   const [isSuccess, setIsSuccess] = useState(false);
   const [isMapMoving, setIsMapMoving] = useState(false);
   
+  const userPhone = localStorage.getItem('user_phone') || '';
+
   const [formData, setFormData] = useState({
     title: editData?.title || '', 
     company: editData?.company || '', 
@@ -107,7 +93,8 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
     city: editData?.city || t.provinces[1], 
     address: editData?.address || '', 
     description: editData?.description || '', 
-    phoneNumber: editData?.phoneNumber || localStorage.getItem('user_phone') || '',
+    phoneNumber: userPhone,
+    showPhoneNumber: editData?.showPhoneNumber ?? true,
     location: editData?.location || { lat: 34.5553, lng: 69.2075 }
   });
 
@@ -152,27 +139,25 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
         city: formData.city,
         address: formData.address,
         description: formData.description,
-        phone_number: toEnglishDigits(formData.phoneNumber),
+        phone_number: userPhone,
+        show_phone: formData.showPhoneNumber,
         location: formData.location,
         images: allImages,
         status: editData ? editData.status : 'PENDING',
-        owner_id: localStorage.getItem('user_phone') || 'guest'
+        owner_id: userPhone
       };
 
-      let error;
       if (editData) {
-        const { error: err } = await supabase.from(TABLES.JOBS).update(payload).eq('id', editData.id);
-        error = err;
+        const { error } = await supabase.from(TABLES.JOBS).update(payload).eq('id', editData.id);
+        if (error) throw error;
       } else {
-        const { error: err } = await supabase.from(TABLES.JOBS).insert([payload]);
-        error = err;
+        const { error } = await supabase.from(TABLES.JOBS).insert([payload]);
+        if (error) throw error;
       }
 
-      if (error) throw error;
       setIsSuccess(true);
-    } catch (err: any) {
-      console.error("Job submit error:", err);
-      alert(lang === 'dari' ? `خطا در ثبت آگهی: ${err.message}` : `تېروتنه: ${err.message}`);
+    } catch (_err: any) {
+      alert(lang === 'dari' ? 'خطا در ثبت آگهی' : 'تېروتنه');
     } finally {
       setIsSubmitting(false);
     }
@@ -217,32 +202,22 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
                   onMoveEnd={() => setIsMapMoving(false)}
                   onChange={(loc) => setFormData(prev => ({ ...prev, location: loc }))} 
                 />
-                
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none flex flex-col items-center">
                    <div className={`mb-2 px-3 py-1 rounded-full text-[10px] font-black shadow-lg transition-all duration-300 ${isMapMoving ? 'bg-gray-800 text-white translate-y-2 opacity-0' : 'bg-green-600 text-white scale-110'}`}>
-                      {isMapMoving ? '...' : (lang === 'dari' ? 'مکان کار تایید شد' : 'د کار ځای وټاکل شو')}
+                      {isMapMoving ? '...' : 'موقعیت کار تایید شد'}
                    </div>
-                   <MapPin 
-                    size={48} 
-                    className={`transition-all duration-300 drop-shadow-2xl ${isMapMoving ? 'text-gray-400 -translate-y-2 scale-90' : 'text-blue-600 scale-100'}`} 
-                   />
+                   <MapPin size={48} className={`transition-all duration-300 drop-shadow-2xl ${isMapMoving ? 'text-gray-400 -translate-y-2 scale-90' : 'text-blue-600 scale-100'}`} />
                 </div>
               </MapContainerAny>
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
-                <button 
-                  onClick={() => setView('form')} 
-                  disabled={isMapMoving}
-                  className={`w-full py-4 rounded-2xl font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 ${isMapMoving ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white'}`}
-                >
-                  <Check size={20} /> تایید موقعیت آگهی
-                </button>
+                <button onClick={() => setView('form')} disabled={isMapMoving} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black">تایید موقعیت</button>
               </div>
             </div>
           </div>
         )}
 
         <div className="flex justify-between items-center p-5 border-b shrink-0">
-          <h2 className="font-black text-xl text-gray-800">{editData ? (lang === 'dari' ? 'ویرایش شغل' : 'دنده ایډیټ') : (lang === 'dari' ? 'ثبت شغل جدید' : 'د نوې دندې ثبتول')}</h2>
+          <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش شغل' : 'ثبت شغل جدید'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={32} /></button>
         </div>
 
@@ -262,7 +237,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
             </div>
 
             <div className="space-y-4">
-              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder={lang === 'dari' ? 'عنوان شغل' : 'د دندې سرلیک'} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="عنوان شغل" className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
               <input type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} placeholder={t.company} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="grid grid-cols-2 gap-4">
@@ -273,23 +248,30 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
               </div>
 
               <div className="relative">
-                <ListChecks size={18} className="absolute right-4 top-4 text-blue-500" />
-                <textarea rows={3} value={formData.requirements} onChange={e => setFormData({...formData, requirements: e.target.value})} placeholder={t.requirements} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-11 py-4 font-bold outline-none resize-none" />
-              </div>
-
-              <div className="relative">
                 <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />
                 <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder={t.address} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-11 py-4 font-bold outline-none" required />
               </div>
 
-              <input type="tel" value={formData.phoneNumber} onChange={e => setFormData({...formData, phoneNumber: e.target.value})} placeholder={t.enter_phone} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none text-center dir-ltr" required />
-              
-              <button 
-                type="button" 
-                onClick={() => setView('map')} 
-                className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${formData.location.lat !== 34.5553 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
-              >
-                {formData.location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">موقعیت استخدام انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">{t.select_location}</span></>}
+              {/* شماره موبایل ثابت */}
+              <div className="space-y-3">
+                <div className="relative">
+                  <input type="tel" value={formData.phoneNumber} readOnly className="w-full bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 font-black text-center dir-ltr text-gray-500" />
+                  <div className="absolute top-1/2 -translate-y-1/2 right-4 bg-gray-200 text-gray-500 px-2 py-1 rounded-lg text-[10px] font-bold">ثابت</div>
+                </div>
+                
+                <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                   <div className="flex items-center gap-3">
+                      {formData.showPhoneNumber ? <Eye size={18} className="text-blue-600" /> : <EyeOff size={18} className="text-gray-400" />}
+                      <span className="text-xs font-black text-gray-700">نمایش شماره به دیگران</span>
+                   </div>
+                   <button type="button" onClick={() => setFormData({...formData, showPhoneNumber: !formData.showPhoneNumber})} className={`w-12 h-6 rounded-full transition-all relative ${formData.showPhoneNumber ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.showPhoneNumber ? (lang === 'dari' ? 'right-7' : 'left-7') : (lang === 'dari' ? 'right-1' : 'left-1')}`} />
+                   </button>
+                </div>
+              </div>
+
+              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${formData.location.lat !== 34.5553 ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}>
+                {formData.location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">موقعیت انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه</span></>}
               </button>
               
               <textarea rows={4} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder={t.description} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>

@@ -28,13 +28,13 @@ export const TABLES = {
   PROPERTIES: 'properties',
   JOBS: 'jobs',
   SERVICES: 'services',
-  MESSAGES: 'messages'
+  MESSAGES: 'messages',
+  USER_CHATS: 'user_chats'
 };
 
 export const isSupabaseReady = () => isConfigured;
 
 const compressImage = async (file: File): Promise<File> => {
-  // اگر فایل HEIC است، پردازش داخلی مرورگر را دور بزن و مستقیماً آپلود کن
   const ext = file.name.split('.').pop()?.toLowerCase();
   if (ext === 'heic' || ext === 'heif') {
     return file;

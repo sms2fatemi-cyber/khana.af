@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Property, DealType } from '../types';
 import { Bookmark, ChevronRight, Phone, MapPinned, Share2, X, ChevronLeft, MessageCircle } from 'lucide-react';
+import ChatWindow from './ChatWindow';
 
 interface PropertyDetailsProps {
   property: Property;
@@ -15,6 +16,7 @@ interface PropertyDetailsProps {
 const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, onShowOnMap, isSaved, onToggleSave, t }) => {
   const [showContact, setShowContact] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -75,6 +77,19 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
     const isRightSwipe = distance < -minSwipeDistance;
     if (isLeftSwipe) nextImage(); 
     if (isRightSwipe) prevImage();
+  };
+
+  const handleChatOpen = () => {
+    const userPhone = localStorage.getItem('user_phone');
+    if (!userPhone) {
+      alert("لطفاً ابتدا وارد حساب خود شوید.");
+      return;
+    }
+    if (userPhone === property.phoneNumber) {
+      alert("شما نمی‌توانید با خودتان چت کنید!");
+      return;
+    }
+    setIsChatOpen(true);
   };
 
   return (
@@ -216,20 +231,36 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
 
       {/* Action Bar */}
       <div className="bg-white border-t p-4 flex gap-3 z-30 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] safe-area-bottom shrink-0">
-        <button className="flex-1 bg-gray-100 text-gray-700 h-14 rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 hover:bg-gray-200 transition-colors">
+        <button onClick={handleChatOpen} className="flex-1 bg-gray-100 text-gray-700 h-14 rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 hover:bg-gray-200 transition-colors">
             <MessageCircle size={22} />
             {t.chat}
         </button>
-        {!showContact ? (
-        <button onClick={() => setShowContact(true)} className="flex-[2] bg-[#a62626] text-white h-14 rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 shadow-xl shadow-red-900/10 hover:bg-red-800 transition-colors">
-            {t.contact_info}
-        </button>
-        ) : (
-        <a href={`tel:${property.phoneNumber}`} className="flex-[2] bg-green-600 text-white h-14 rounded-2xl font-black text-xl flex items-center justify-center gap-4 animate-in zoom-in tracking-widest shadow-xl shadow-green-900/10">
-            <Phone size={24} /> {property.phoneNumber}
-        </a>
+        {property.showPhoneNumber !== false && (
+          !showContact ? (
+          <button onClick={() => setShowContact(true)} className="flex-[2] bg-[#a62626] text-white h-14 rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95 shadow-xl shadow-red-900/10 hover:bg-red-800 transition-colors">
+              {t.contact_info}
+          </button>
+          ) : (
+          <a href={`tel:${property.phoneNumber}`} className="flex-[2] bg-green-600 text-white h-14 rounded-2xl font-black text-xl flex items-center justify-center gap-4 animate-in zoom-in tracking-widest shadow-xl shadow-green-900/10">
+              <Phone size={24} /> {property.phoneNumber}
+          </a>
+          )
+        )}
+        {property.showPhoneNumber === false && (
+          <div className="flex-[2] bg-gray-50 text-gray-400 h-14 rounded-2xl font-bold flex items-center justify-center text-xs border border-dashed border-gray-200">
+            فقط از طریق چت
+          </div>
         )}
       </div>
+
+      {isChatOpen && (
+        <ChatWindow 
+          receiverPhone={property.phoneNumber} 
+          adId={property.id} 
+          adTitle={property.title} 
+          onClose={() => setIsChatOpen(false)} 
+        />
+      )}
     </div>
   );
 };

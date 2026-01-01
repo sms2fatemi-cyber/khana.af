@@ -23,10 +23,22 @@ export enum DealType {
 
 export interface AdminMessage {
   id: string;
-  targetPhone: string;
+  target_phone: string;
   text: string;
   date: string;
-  isRead: boolean;
+  is_read: boolean;
+  created_at?: string;
+}
+
+export interface UserChat {
+  id: string;
+  sender_phone: string;
+  receiver_phone: string;
+  ad_id: string;
+  ad_title: string;
+  text: string;
+  is_read: boolean;
+  created_at: string;
 }
 
 export interface Property {
@@ -51,6 +63,7 @@ export interface Property {
   date: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   phoneNumber: string;
+  showPhoneNumber: boolean;
 }
 
 export enum JobType {
@@ -77,6 +90,7 @@ export interface Job {
   date: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   phoneNumber: string;
+  showPhoneNumber: boolean;
 }
 
 export enum ServiceCategory {
@@ -102,6 +116,7 @@ export interface Service {
   phoneNumber: string;
   date: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  showPhoneNumber: boolean;
 }
 
 export interface ChatMessage {

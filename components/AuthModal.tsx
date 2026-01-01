@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { List, Heart, LogOut, User, Loader2, Bell, ChevronRight, Camera, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { List, Heart, LogOut, User, Loader2, Bell, ChevronRight, Camera, ArrowLeft, CheckCircle2, MessageSquare } from 'lucide-react';
 import { translations } from '../services/translations';
 import { supabase, TABLES, uploadImage } from '../services/supabaseClient';
 import { AdminMessage } from '../types';
+import ChatWindow from './ChatWindow.tsx';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -19,28 +20,17 @@ interface UserProfile {
   avatarUrl: string;
 }
 
-const stringifyError = (err: any): string => {
-  if (!err) return "Unknown error";
-  if (typeof err === 'string') return err;
-  if (err.message && typeof err.message === 'string') return err.message;
-  try {
-    const json = JSON.stringify(err);
-    if (json === '{}') return String(err);
-    return json;
-  } catch {
-    return String(err);
-  }
-};
-
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang }) => {
   const t = translations[lang];
-  const [view, setView] = useState<'login' | 'otp' | 'profile' | 'messages'>('login');
+  const [view, setView] = useState<'login' | 'otp' | 'profile' | 'messages' | 'user_chats'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({ firstName: '', lastName: '', avatarUrl: '' });
   const [messages, setMessages] = useState<AdminMessage[]>([]);
+  const [userConversations, setUserConversations] = useState<any[]>([]);
+  const [activeChat, setActiveChat] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -49,28 +39,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       setView('profile');
       setPhoneNumber(savedPhone);
       const savedProfile = localStorage.getItem(`profile_${savedPhone}`);
-      if (savedProfile && savedProfile !== "[object Object]") {
+      if (savedProfile) {
         try {
           const parsed = JSON.parse(savedProfile);
-          if (parsed && typeof parsed === 'object') {
-            setProfile({
-              firstName: parsed.firstName || '',
-              lastName: parsed.lastName || '',
-              avatarUrl: parsed.avatarUrl || ''
-            });
-          }
-        } catch (e) {
-          console.error("Failed to parse profile JSON", e);
-        }
+          setProfile({
+            firstName: parsed.firstName || '',
+            lastName: parsed.lastName || '',
+            avatarUrl: parsed.avatarUrl || ''
+          });
+        } catch (e) {}
       }
     }
   }, []);
-
-  useEffect(() => {
-    if (view === 'messages' && phoneNumber) {
-      fetchMessages();
-    }
-  }, [view, phoneNumber]);
 
   const fetchMessages = async () => {
     setIsLoading(true);
@@ -84,12 +64,44 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       if (error) throw error;
       setMessages(data || []);
     } catch (e: any) {
-      const errorMsg = stringifyError(e);
-      console.error("Error fetching messages:", errorMsg);
+      console.error("Error fetching admin messages:", e);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const fetchUserChats = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from(TABLES.USER_CHATS)
+        .select('*')
+        .or(`sender_phone.eq.${phoneNumber},receiver_phone.eq.${phoneNumber}`)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      const conversationsMap: Record<string, any> = {};
+      data?.forEach(msg => {
+        const otherPhone = msg.sender_phone === phoneNumber ? msg.receiver_phone : msg.sender_phone;
+        const key = `${otherPhone}_${msg.ad_id}`;
+        if (!conversationsMap[key]) {
+          conversationsMap[key] = msg;
+        }
+      });
+      
+      setUserConversations(Object.values(conversationsMap));
+    } catch (e) {
+      console.error("User chats fetch error:", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (view === 'messages' && phoneNumber) fetchMessages();
+    if (view === 'user_chats' && phoneNumber) fetchUserChats();
+  }, [view, phoneNumber]);
 
   const handleProfileUpdate = (field: keyof UserProfile, value: string) => {
     setProfile(prev => ({ ...prev, [field]: value }));
@@ -128,21 +140,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     if (otp.length === 4) {
       localStorage.setItem('user_phone', phoneNumber);
       setView('profile');
-      const savedProfile = localStorage.getItem(`profile_${phoneNumber}`);
-      if (savedProfile && savedProfile !== "[object Object]") {
-        try {
-          const parsed = JSON.parse(savedProfile);
-          if (parsed && typeof parsed === 'object') {
-            setProfile({
-              firstName: parsed.firstName || '',
-              lastName: parsed.lastName || '',
-              avatarUrl: parsed.avatarUrl || ''
-            });
-          }
-        } catch (e) {
-          console.error("Failed to parse profile JSON on verify", e);
-        }
-      }
     }
   };
 
@@ -196,10 +193,47 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     </div>
   );
 
+  if (view === 'user_chats') return (
+    <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white w-full max-md:max-w-md h-full max-h-[85vh] rounded-[3rem] p-8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-6 shrink-0">
+          <button onClick={() => setView('profile')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft size={24} className={lang === 'dari' ? '' : 'rotate-180'} /></button>
+          <h2 className="text-xl font-black">گفتگوهای من</h2>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+          {isLoading ? (
+            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#a62626]" /></div>
+          ) : userConversations.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 font-bold">هنوز گفتگویی ندارید.</div>
+          ) : (
+            userConversations.map((conv, i) => {
+              const otherPhone = conv.sender_phone === phoneNumber ? conv.receiver_phone : conv.sender_phone;
+              return (
+                <div key={i} onClick={() => setActiveChat({ phone: otherPhone, id: conv.ad_id, title: conv.ad_title })} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center justify-between cursor-pointer hover:bg-white hover:shadow-md transition-all active:scale-[0.98]">
+                  <div className="flex items-center gap-3">
+                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-red-600 shadow-sm border"><User size={24} /></div>
+                     <div>
+                        <h4 className="font-black text-sm text-gray-800">{otherPhone}</h4>
+                        <p className="text-[10px] text-gray-400 font-bold truncate max-w-[180px]">{conv.ad_title}</p>
+                        <p className="text-[9px] text-gray-500 mt-1 line-clamp-1 italic">{conv.text}</p>
+                     </div>
+                  </div>
+                  <ChevronRight size={18} className="text-gray-300" />
+                </div>
+              );
+            })
+          )}
+        </div>
+        {activeChat && <ChatWindow receiverPhone={activeChat.phone} adId={activeChat.id} adTitle={activeChat.title} onClose={() => { setActiveChat(null); fetchUserChats(); }} />}
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-sm max-h-[90vh] rounded-[3rem] p-8 shadow-2xl flex flex-col overflow-hidden relative" onClick={e => e.stopPropagation()}>
-        <div className="flex-1 overflow-y-auto pr-1">
+      <div className="bg-white w-full max-sm:max-w-xs md:max-w-sm max-h-[90vh] rounded-[3rem] p-8 shadow-2xl flex flex-col overflow-hidden relative" onClick={e => e.stopPropagation()}>
+        <div className="flex-1 overflow-y-auto pr-1 no-scrollbar">
             <div className="flex flex-col items-center gap-4 mb-8">
                <div className="relative group">
                   <div className="w-24 h-24 bg-gray-100 rounded-[2.5rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-xl">
@@ -235,14 +269,23 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
             </div>
 
             <div className="space-y-3 pb-4">
-              <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group">
-                <div className="flex items-center gap-3"><Bell size={20} /> {t.notifications}</div>
-                <ChevronRight className={`transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+              <button onClick={() => setView('user_chats')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group relative">
+                <div className="flex items-center gap-3"><MessageSquare size={20} /> گفتگوهای من</div>
+                <div className="flex items-center gap-2">
+                   <ChevronRight className={`transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+                </div>
               </button>
+              
+              <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
+                <div className="flex items-center gap-3"><Bell size={20} /> {t.notifications}</div>
+                <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+              </button>
+              
               <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
                 <div className="flex items-center gap-3"><List size={20} /> {t.my_ads}</div>
                 <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
               </button>
+              
               <button onClick={onShowSaved} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
                 <div className="flex items-center gap-3"><Heart size={20} /> {t.saved}</div>
                 <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
