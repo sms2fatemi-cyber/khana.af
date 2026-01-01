@@ -35,14 +35,15 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, isVisited, 
                 {onDelete && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="p-2 -m-2 text-gray-400 hover:text-red-600 transition-colors"
+                    className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors z-20"
+                    title="حذف آگهی"
                   >
                     <Trash2 size={18} />
                   </button>
                 )}
                 <button 
                     onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }}
-                    className="p-2 -m-2 text-gray-300 hover:text-orange-600 transition-colors"
+                    className="p-2 text-gray-300 hover:text-orange-600 transition-colors"
                 >
                     <Bookmark size={18} className={isSaved ? "fill-orange-600 text-orange-600" : ""} />
                 </button>

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Property, Job, Service, AdminUser } from '../types';
-import { Check, Trash2, Home, Briefcase, Wrench, Shield, X, Key, FileText, AlertCircle, LayoutDashboard, ChevronLeft, Loader2, Users, UserPlus, Lock, Phone, MapPin, User, Search, Send } from 'lucide-react';
+import { Check, Trash2, Home, Briefcase, Wrench, Shield, X, Key, FileText, AlertCircle, LayoutDashboard, ChevronLeft, Loader2, Users, Phone, MapPin, User, Search, Send, MessageSquare } from 'lucide-react';
 import { ADMINS as initialAdmins } from '../services/mockData';
 import { supabase, TABLES } from '../services/supabaseClient';
 
@@ -35,13 +35,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     return saved ? JSON.parse(saved) : initialAdmins;
   });
   
-  const [currentAdmin, setCurrentAdmin] = useState<AdminUser>(() => {
+  const [currentAdmin] = useState<AdminUser>(() => {
     const saved = localStorage.getItem('current_admin_user');
     return saved ? JSON.parse(saved) : admins[0];
   });
 
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '', fullName: '', role: 'NORMAL' as any });
-  const [passwordForm, setPasswordForm] = useState({ old: '', new: '' });
 
   useEffect(() => {
     localStorage.setItem('admins_list', JSON.stringify(admins));
@@ -84,16 +83,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     setIsProcessing(true);
     try {
       let tableName = '';
-      if (properties.some(p => p.id === id)) tableName = TABLES.PROPERTIES;
-      else if (jobs.some(j => j.id === id)) tableName = TABLES.JOBS;
-      else if (services.some(s => s.id === id)) tableName = TABLES.SERVICES;
+      if (properties.some(p => p.id === id || (selectedItem && selectedItem.id === id))) tableName = TABLES.PROPERTIES;
+      else if (jobs.some(j => j.id === id || (selectedItem && selectedItem.id === id))) tableName = TABLES.JOBS;
+      else if (services.some(s => s.id === id || (selectedItem && selectedItem.id === id))) tableName = TABLES.SERVICES;
 
       if (action === 'DELETE') {
+        const confirmDelete = window.confirm("آیا از حذف دائمی این آگهی اطمینان دارید؟");
+        if (!confirmDelete) { setIsProcessing(false); return; }
+        
         await supabase.from(tableName).delete().eq('id', id);
         setProperties(prev => prev.filter(it => it.id !== id));
         setJobs(prev => prev.filter(it => it.id !== id));
         setServices(prev => prev.filter(it => it.id !== id));
         setSelectedItem(null);
+        alert("آگهی با موفقیت حذف شد.");
       } else if (action === 'APPROVE') {
         await supabase.from(tableName).update({ status: 'APPROVED' }).eq('id', id);
         const updateState = (list: any[]) => list.map(it => it.id === id ? { ...it, status: 'APPROVED' } : it);
@@ -101,41 +104,26 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         setJobs(updateState(jobs));
         setServices(updateState(services));
         setSelectedItem(null);
+        alert("آگهی تایید و منتشر شد.");
       } else if (action === 'MESSAGE') {
         const phone = selectedUserDetail?.phone || selectedItem?.phoneNumber;
-        await supabase.from(TABLES.MESSAGES).insert([{ targetPhone: phone, text: adminMessage, date: new Date().toLocaleDateString('fa-AF'), isRead: false }]);
-        alert("پیام ارسال شد.");
+        if (!phone) throw new Error("شماره پیدا نشد");
+        
+        await supabase.from(TABLES.MESSAGES).insert([{ 
+          targetPhone: phone, 
+          text: adminMessage, 
+          date: new Date().toLocaleDateString('fa-AF'), 
+          isRead: false 
+        }]);
+        alert("پیام به کاربر ارسال شد.");
         setAdminMessage('');
       }
     } catch (err) {
+      console.error(err);
       alert("خطا در عملیات.");
     } finally {
       setIsProcessing(false);
     }
-  };
-
-  const handleAddAdmin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAdmin.username || !newAdmin.password) return;
-    const admin: AdminUser = { id: Date.now().toString(), ...newAdmin };
-    setAdmins([...admins, admin]);
-    setNewAdmin({ username: '', password: '', fullName: '', role: 'NORMAL' });
-    alert("ادمین جدید با موفقیت اضافه شد.");
-  };
-
-  const handleUpdatePassword = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passwordForm.old !== currentAdmin.password) {
-      alert("رمز فعلی اشتباه است.");
-      return;
-    }
-    const updated = { ...currentAdmin, password: passwordForm.new };
-    const updatedList = admins.map(a => a.id === currentAdmin.id ? updated : a);
-    setAdmins(updatedList);
-    setCurrentAdmin(updated);
-    localStorage.setItem('current_admin_user', JSON.stringify(updated));
-    setPasswordForm({ old: '', new: '' });
-    alert("رمز عبور با موفقیت تغییر کرد.");
   };
 
   const navItems = [
@@ -262,12 +250,19 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                  </div>
               </div>
             )}
-
+            
             {activeTab === 'ADMINS' && currentAdmin.role === 'SUPER' && (
               <div className="space-y-8 animate-in fade-in">
                 <div className="bg-white p-8 rounded-[2rem] border shadow-sm">
-                  <h3 className="text-lg font-black mb-6 flex items-center gap-2 text-gray-800"><UserPlus size={20} className="text-red-600" /> ثبت ادمین جدید</h3>
-                  <form onSubmit={handleAddAdmin} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <h3 className="text-lg font-black mb-6 flex items-center gap-2 text-gray-800"><Shield size={20} className="text-red-600" /> ثبت ادمین جدید</h3>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newAdmin.username || !newAdmin.password) return;
+                    const admin: AdminUser = { id: Date.now().toString(), ...newAdmin };
+                    setAdmins([...admins, admin]);
+                    setNewAdmin({ username: '', password: '', fullName: '', role: 'NORMAL' });
+                    alert("ادمین جدید با موفقیت اضافه شد.");
+                  }} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="نام کامل" value={newAdmin.fullName} onChange={e => setNewAdmin({...newAdmin, fullName: e.target.value})} className="w-full bg-gray-50 border rounded-xl px-5 py-4 font-bold outline-none focus:border-red-600/20" required />
                     <input type="text" placeholder="نام کاربری" value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} className="w-full bg-gray-50 border rounded-xl px-5 py-4 font-bold outline-none focus:border-red-600/20" required />
                     <input type="password" placeholder="رمز عبور" value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} className="w-full bg-gray-50 border rounded-xl px-5 py-4 font-bold outline-none focus:border-red-600/20" required />
@@ -278,95 +273,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <button type="submit" className="md:col-span-2 bg-red-600 text-white py-4 rounded-xl font-black text-lg active:scale-95 shadow-lg shadow-red-900/20 transition-all">ایجاد حساب مدیریت</button>
                   </form>
                 </div>
-
-                <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
-                  <table className="w-full text-right text-sm">
-                    <thead className="bg-gray-50 border-b">
-                      <tr className="text-xs font-black text-gray-400">
-                        <th className="p-4">ادمین</th>
-                        <th className="p-4">نام کاربری</th>
-                        <th className="p-4">نقش</th>
-                        <th className="p-4"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {admins.map(admin => (
-                        <tr key={admin.id}>
-                          <td className="p-4 font-black">{admin.fullName}</td>
-                          <td className="p-4 font-bold text-gray-500">{admin.username}</td>
-                          <td className="p-4 font-black text-red-600">{admin.role === 'SUPER' ? 'سوپر ادمین' : 'معمولی'}</td>
-                          <td className="p-4 text-left">
-                            {admin.id !== currentAdmin.id && (
-                              <button onClick={() => setAdmins(admins.filter(a => a.id !== admin.id))} className="text-gray-300 hover:text-red-600 transition-all"><Trash2 size={18} /></button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
               </div>
             )}
 
             {activeTab === 'PROFILE' && (
-              <div className="max-w-md mx-auto animate-in zoom-in">
-                <div className="bg-white p-8 rounded-[2rem] border shadow-sm text-center">
-                  <div className="w-20 h-20 bg-gray-100 rounded-[1.5rem] flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-xl">
-                    <Shield size={40} className="text-red-600" />
-                  </div>
-                  <h3 className="text-xl font-black text-gray-800">{currentAdmin.fullName}</h3>
-                  <p className="text-gray-400 text-xs font-black mb-8 uppercase tracking-widest">{currentAdmin.role === 'SUPER' ? 'Super Admin' : 'Staff Admin'}</p>
-                  
-                  <div className="border-t pt-8">
-                    <h4 className="text-sm font-black text-gray-800 mb-6 flex items-center justify-center gap-2"><Lock size={16} /> تغییر رمز عبور پنل</h4>
-                    <form onSubmit={handleUpdatePassword} className="space-y-4 text-right">
-                      <div>
-                        <label className="text-[10px] font-black text-gray-400 block mb-1">رمز عبور فعلی</label>
-                        <input type="password" value={passwordForm.old} onChange={e => setPasswordForm({...passwordForm, old: e.target.value})} className="w-full bg-gray-50 border rounded-xl px-5 py-3.5 font-bold outline-none focus:border-red-600/20" required />
-                      </div>
-                      <div>
-                        <label className="text-[10px] font-black text-gray-400 block mb-1">رمز عبور جدید</label>
-                        <input type="password" value={passwordForm.new} onChange={e => setPasswordForm({...passwordForm, new: e.target.value})} className="w-full bg-gray-50 border rounded-xl px-5 py-3.5 font-bold outline-none focus:border-red-600/20" required />
-                      </div>
-                      <button type="submit" className="w-full bg-gray-900 text-white py-4 rounded-xl font-black text-lg active:scale-95 transition-all">بروزرسانی گذرواژه</button>
-                    </form>
-                  </div>
-                </div>
+              <div className="bg-white p-8 rounded-[2rem] border shadow-sm max-w-lg">
+                 <h3 className="text-lg font-black mb-6">تنظیمات امنیتی</h3>
+                 <p className="text-xs text-gray-400 font-bold mb-4">در این بخش می‌توانید تنظیمات ادمین خود را مدیریت کنید.</p>
+                 <div className="space-y-4">
+                    <div className="bg-gray-50 p-4 rounded-xl border">
+                       <span className="text-[10px] font-black text-gray-400 block mb-1">نام کاربر مدیریت</span>
+                       <span className="font-black text-gray-800">{currentAdmin.fullName}</span>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-xl border">
+                       <span className="text-[10px] font-black text-gray-400 block mb-1">سطح دسترسی</span>
+                       <span className={`font-black ${currentAdmin.role === 'SUPER' ? 'text-red-600' : 'text-blue-600'}`}>
+                         {currentAdmin.role === 'SUPER' ? 'سوپر ادمین (دسترسی کامل)' : 'ادمین معمولی'}
+                       </span>
+                    </div>
+                 </div>
               </div>
             )}
           </div>
         </main>
       </div>
 
-      {selectedUserDetail && (
-         <div className="fixed inset-0 z-[12000] bg-black/60 backdrop-blur-md flex items-center justify-center p-4" onClick={() => setSelectedUserDetail(null)}>
-            <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
-               <button onClick={() => setSelectedUserDetail(null)} className="absolute top-6 left-6 p-2 bg-gray-100 rounded-full hover:bg-gray-200"><X size={20} /></button>
-               <div className="flex flex-col items-center gap-4 mb-8">
-                  <div className="w-20 h-20 bg-gray-50 rounded-[1.5rem] overflow-hidden border-4 border-white shadow-xl flex items-center justify-center">
-                     {selectedUserDetail.avatarUrl ? <img src={selectedUserDetail.avatarUrl} className="w-full h-full object-cover" /> : <User size={32} className="text-gray-200" />}
-                  </div>
-                  <div className="text-center">
-                     <h2 className="text-xl font-black">{selectedUserDetail.firstName} {selectedUserDetail.lastName}</h2>
-                     <span className="text-red-600 font-black text-xs">{selectedUserDetail.phone}</span>
-                  </div>
-               </div>
-               <div className="grid grid-cols-3 gap-2 mb-8">
-                  <div className="bg-gray-50 p-3 rounded-xl text-center"><span className="text-[9px] font-black text-gray-400 block">املاک</span><span className="font-black">{selectedUserDetail.propertyCount}</span></div>
-                  <div className="bg-gray-50 p-3 rounded-xl text-center"><span className="text-[9px] font-black text-gray-400 block">شغل</span><span className="font-black">{selectedUserDetail.jobCount}</span></div>
-                  <div className="bg-gray-50 p-3 rounded-xl text-center"><span className="text-[9px] font-black text-gray-400 block">خدمات</span><span className="font-black">{selectedUserDetail.serviceCount}</span></div>
-               </div>
-               <div className="space-y-3">
-                  <textarea value={adminMessage} onChange={e => setAdminMessage(e.target.value)} placeholder="متن پیام به کاربر..." className="w-full bg-gray-50 border rounded-xl p-4 text-xs font-bold outline-none focus:border-red-600/20 h-24 resize-none"></textarea>
-                  <button onClick={() => handleAction('', 'MESSAGE')} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all"><Send size={18} /> ارسال پیام مستقیم</button>
-               </div>
-            </div>
-         </div>
-      )}
-
       {selectedItem && (
         <div className="fixed inset-0 z-[12000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => !isProcessing && setSelectedItem(null)}>
           <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
+            
             <div className="w-full md:w-1/2 h-[30vh] md:h-full bg-black relative flex items-center justify-center">
                <img src={selectedItem.images[activeImageIdx]} className="w-full h-full object-contain" />
                {selectedItem.images.length > 1 && (
@@ -379,7 +314,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                  </div>
                )}
             </div>
-            <div className="flex-1 flex flex-col h-full bg-white relative">
+
+            <div className="flex-1 flex flex-col h-full bg-white relative overflow-hidden">
                <div className="p-4 md:p-6 border-b flex justify-between items-center bg-gray-50 shrink-0">
                   <div className="flex items-center gap-2">
                     <FileText size={18} className="text-[#a62626]" />
@@ -387,50 +323,67 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                   <button onClick={() => setSelectedItem(null)} className="p-2 bg-white rounded-full hover:bg-gray-100 transition-all shadow-sm"><X size={24} /></button>
                </div>
-               <div className="flex-1 overflow-y-auto p-4 md:p-8 no-scrollbar space-y-6">
+
+               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 no-scrollbar">
                   <div>
                     <h3 className="text-xl font-black text-gray-900 leading-tight mb-2">{selectedItem.title}</h3>
                     <div className="flex gap-2 text-[10px] font-black">
                       <span className="bg-red-50 text-red-600 px-3 py-1 rounded-lg flex items-center gap-1"><MapPin size={10} /> {selectedItem.city}</span>
+                      <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-lg">{selectedItem.type || 'آگهی'}</span>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                        <span className="text-[9px] font-black text-gray-400 block uppercase mb-1">قیمت / عاید</span>
                        <span className="text-lg font-black text-red-600">{selectedItem.price?.toLocaleString() || selectedItem.salary?.toLocaleString() || 'توافقی'} AFN</span>
                     </div>
                     <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                       <span className="text-[9px] font-black text-gray-400 block uppercase mb-1">شماره کاربر</span>
+                       <span className="text-[9px] font-black text-gray-400 block uppercase mb-1">شماره تماس کاربر</span>
                        <div className="flex items-center gap-2">
                           <Phone size={12} className="text-green-600" />
                           <span className="text-lg font-black text-gray-800">{selectedItem.phoneNumber}</span>
                        </div>
                     </div>
                   </div>
+
                   <div className="space-y-2">
-                    <span className="text-[10px] font-black text-gray-400 uppercase">توضیحات:</span>
-                    <p className="text-xs md:text-sm font-medium text-gray-700 leading-7 bg-gray-50 p-4 rounded-2xl border border-gray-100">{selectedItem.description || 'توضیحاتی ندارد.'}</p>
+                    <span className="text-[10px] font-black text-gray-400 uppercase">توضیحات آگهی:</span>
+                    <p className="text-xs md:text-sm font-medium text-gray-700 leading-7 bg-gray-50 p-4 rounded-2xl border border-gray-100 whitespace-pre-wrap">{selectedItem.description || 'توضیحاتی ندارد.'}</p>
                   </div>
-                  <div className="pt-4">
+
+                  <div className="pt-6 border-t space-y-3">
+                    <div className="flex items-center gap-2 text-[#a62626] font-black text-xs">
+                      <MessageSquare size={16} />
+                      <span>ارسال پیام مستقیم به پنل کاربر:</span>
+                    </div>
                     <textarea 
                       value={adminMessage} onChange={e => setAdminMessage(e.target.value)}
-                      placeholder="پیامی برای کاربر بنویسید (دلیل رد یا تایید)..."
+                      placeholder="دلیل رد آگهی یا پیام راهنما را اینجا بنویسید..."
                       className="w-full bg-gray-50 border rounded-2xl p-4 text-sm font-bold outline-none focus:border-blue-300 resize-none h-24"
                     />
+                    <button 
+                      onClick={() => handleAction(selectedItem.id, 'MESSAGE')}
+                      disabled={isProcessing || !adminMessage}
+                      className="w-full bg-blue-600 text-white py-3 rounded-xl font-black flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 transition-all"
+                    >
+                      <Send size={18} /> ارسال پیام به کاربر
+                    </button>
                   </div>
                </div>
+
                <div className="p-4 md:p-6 border-t bg-gray-50 flex gap-4 shrink-0">
                   {selectedItem.status === 'PENDING' ? (
                     <>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-green-900/10">
-                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید انتشار
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-green-900/10 transition-all">
+                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید و انتشار آگهی
                       </button>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 transition-all">
-                        <Trash2 size={20} /> رد آگهی
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 transition-all active:scale-95">
+                        <Trash2 size={20} /> حذف دائمی
                       </button>
                     </>
                   ) : (
-                    <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="w-full bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center border border-red-100 transition-all">
+                    <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-all">
                       <Trash2 size={20} /> حذف دائمی از سیستم
                     </button>
                   )}
