@@ -52,7 +52,11 @@ const UserLocationHandler = () => {
   const [isLocating, setIsLocating] = useState(false);
 
   const handleLocate = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      alert("مرورگر شما از GPS پشتیبانی نمی‌کند.");
+      return;
+    }
+    
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -62,11 +66,19 @@ const UserLocationHandler = () => {
         }
         setIsLocating(false);
       },
-      () => {
+      (err) => {
         setIsLocating(false);
-        alert("لطفاً GPS را روشن کنید.");
+        if (err.code === 1) {
+          alert("لطفاً در تنظیمات مرورگر، اجازه دسترسی به موقعیت (Location) را تایید کنید.");
+        } else {
+          alert("خطا در دریافت موقعیت. لطفاً مطمئن شوید GPS روشن است و دوباره امتحان کنید.");
+        }
       },
-      { enableHighAccuracy: false, timeout: 5000 }
+      { 
+        enableHighAccuracy: true, 
+        timeout: 15000, 
+        maximumAge: 0 
+      }
     );
   }, [map]);
 
@@ -123,7 +135,6 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
     return null;
   }, [selectedItem]);
 
-  // Using components with any casting to bypass incorrectly resolved react-leaflet type definitions in this environment
   const MapContainerAny = MapContainer as any;
   const TileLayerAny = TileLayer as any;
   const MarkerAny = Marker as any;

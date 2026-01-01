@@ -1,7 +1,6 @@
 
-import React from 'react';
 import { Property, Language } from '../types';
-import { Bookmark, Home, Trash2, Clock } from 'lucide-react';
+import { Bookmark, Home, Trash2, Clock, Edit } from 'lucide-react';
 import { translations } from '../services/translations';
 import { getRelativeTime } from '../App';
 
@@ -12,10 +11,20 @@ interface PropertyCardProps {
   isSaved?: boolean;
   onToggleSave?: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
   lang: Language;
 }
 
-const PropertyCard: React.FC<PropertyCardProps> = ({ property, onClick, isVisited, isSaved, onToggleSave, onDelete, lang }) => {
+export default function PropertyCard({ 
+  property, 
+  onClick, 
+  isVisited, 
+  isSaved, 
+  onToggleSave, 
+  onDelete, 
+  onEdit, 
+  lang 
+}: PropertyCardProps) {
   const hasImages = property.images && property.images.length > 0;
   const t = translations[lang];
 
@@ -32,13 +41,22 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onClick, isVisite
                <span className="text-[9px] text-gray-400 font-bold flex items-center gap-0.5"><Clock size={10} /> {getRelativeTime(property.date, lang)}</span>
              </div>
              <div className="flex items-center gap-1">
+                {onEdit && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                    className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors z-20"
+                    title="ویرایش"
+                  >
+                    <Edit size={16} />
+                  </button>
+                )}
                 {onDelete && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onDelete(); }}
                     className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors z-20"
-                    title="حذف آگهی"
+                    title="حذف"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                   </button>
                 )}
                 <button 
@@ -83,6 +101,4 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onClick, isVisite
       </div>
     </div>
   );
-};
-
-export default PropertyCard;
+}

@@ -1,7 +1,6 @@
 
-import React from 'react';
 import { Service, Language } from '../types';
-import { Bookmark, Wrench, Trash2, Clock } from 'lucide-react';
+import { Bookmark, Wrench, Trash2, Clock, Edit } from 'lucide-react';
 import { translations } from '../services/translations';
 import { getRelativeTime } from '../App';
 
@@ -12,10 +11,20 @@ interface ServiceCardProps {
   isSaved?: boolean;
   onToggleSave?: () => void;
   onDelete?: () => void;
+  onEdit?: () => void;
   lang: Language;
 }
 
-const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, isVisited, isSaved, onToggleSave, onDelete, lang }) => {
+export default function ServiceCard({ 
+  service, 
+  onClick, 
+  isVisited, 
+  isSaved, 
+  onToggleSave, 
+  onDelete, 
+  onEdit, 
+  lang 
+}: ServiceCardProps) {
   const hasImages = service.images && service.images.length > 0;
   const t = translations[lang];
 
@@ -32,13 +41,22 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, isVisited, 
                <span className="text-[9px] text-gray-400 font-bold flex items-center gap-0.5"><Clock size={10} /> {getRelativeTime(service.date, lang)}</span>
              </div>
              <div className="flex items-center gap-1">
+                {onEdit && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
+                    className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors z-20"
+                    title="ویرایش"
+                  >
+                    <Edit size={16} />
+                  </button>
+                )}
                 {onDelete && (
                   <button 
                     onClick={(e) => { e.stopPropagation(); onDelete(); }}
                     className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors z-20"
-                    title="حذف آگهی"
+                    title="حذف"
                   >
-                    <Trash2 size={18} />
+                    <Trash2 size={16} />
                   </button>
                 )}
                 <button 
@@ -77,6 +95,4 @@ const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick, isVisited, 
       </div>
     </div>
   );
-};
-
-export default ServiceCard;
+}

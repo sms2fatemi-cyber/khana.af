@@ -15,6 +15,19 @@ interface AdminPanelProps {
   onExit: () => void;
 }
 
+const stringifyError = (err: any): string => {
+  if (!err) return "Unknown error";
+  if (typeof err === 'string') return err;
+  if (err.message) return String(err.message);
+  try {
+    const json = JSON.stringify(err);
+    if (json === '{}') return String(err);
+    return json;
+  } catch {
+    return String(err);
+  }
+};
+
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
   properties, setProperties, 
   jobs, setJobs, 
@@ -63,7 +76,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       const phone = item.phoneNumber || 'نامشخص';
       if (!usersMap[phone]) {
         const localProfile = localStorage.getItem(`profile_${phone}`);
-        const profileData = localProfile ? JSON.parse(localProfile) : { firstName: 'کاربر', lastName: 'افغان', avatarUrl: '' };
+        let profileData = { firstName: 'کاربر', lastName: 'افغان', avatarUrl: '' };
+        if (localProfile && localProfile !== "[object Object]") {
+          try {
+            profileData = JSON.parse(localProfile);
+          } catch (e) {
+            console.error("Failed to parse user profile from local storage", e);
+          }
+        }
         usersMap[phone] = { phone, propertyCount: 0, jobCount: 0, serviceCount: 0, total: 0, ...profileData };
       }
       if (properties.some(p => p.id === item.id)) usersMap[phone].propertyCount++;
@@ -91,14 +111,18 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         const confirmDelete = window.confirm("آیا از حذف دائمی این آگهی اطمینان دارید؟");
         if (!confirmDelete) { setIsProcessing(false); return; }
         
-        await supabase.from(tableName).delete().eq('id', id);
+        const { error } = await supabase.from(tableName).delete().eq('id', id);
+        if (error) throw error;
+
         setProperties(prev => prev.filter(it => it.id !== id));
         setJobs(prev => prev.filter(it => it.id !== id));
         setServices(prev => prev.filter(it => it.id !== id));
         setSelectedItem(null);
         alert("آگهی با موفقیت حذف شد.");
       } else if (action === 'APPROVE') {
-        await supabase.from(tableName).update({ status: 'APPROVED' }).eq('id', id);
+        const { error } = await supabase.from(tableName).update({ status: 'APPROVED' }).eq('id', id);
+        if (error) throw error;
+
         const updateState = (list: any[]) => list.map(it => it.id === id ? { ...it, status: 'APPROVED' } : it);
         setProperties(updateState(properties));
         setJobs(updateState(jobs));
@@ -109,18 +133,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         const phone = selectedUserDetail?.phone || selectedItem?.phoneNumber;
         if (!phone) throw new Error("شماره پیدا نشد");
         
-        await supabase.from(TABLES.MESSAGES).insert([{ 
-          targetPhone: phone, 
+        const { error } = await supabase.from(TABLES.MESSAGES).insert([{ 
+          target_phone: phone, 
           text: adminMessage, 
           date: new Date().toLocaleDateString('fa-AF'), 
-          isRead: false 
+          is_read: false 
         }]);
+        if (error) throw error;
+
         alert("پیام به کاربر ارسال شد.");
         setAdminMessage('');
       }
-    } catch (err) {
-      console.error(err);
-      alert("خطا در عملیات.");
+    } catch (err: any) {
+      const errorMsg = stringifyError(err);
+      console.error("Admin action error:", err);
+      alert("خطا در عملیات: " + errorMsg);
     } finally {
       setIsProcessing(false);
     }
@@ -147,7 +174,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <aside className="flex md:flex-col overflow-x-auto md:overflow-y-auto no-scrollbar w-full md:w-64 bg-white border-b md:border-l p-2 md:p-4 gap-2 shrink-0 shadow-md">
+        <aside className="flex md:flex-col overflow-x-auto md:overflow-y-auto w-full md:w-64 bg-white border-b md:border-l p-2 md:p-4 gap-2 shrink-0 shadow-md">
            {navItems.map((item) => (
              (!item.superOnly || currentAdmin.role === 'SUPER') && (
                <button 
@@ -162,7 +189,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
            ))}
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-10 no-scrollbar bg-[#FDFEFF]">
+        <main className="flex-1 overflow-y-auto p-4 md:p-10 bg-[#FDFEFF]">
           <div className="max-w-4xl mx-auto pb-24">
             {activeTab === 'DASHBOARD' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in zoom-in">
@@ -193,7 +220,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                        <input type="text" placeholder="جستجوی شماره..." value={userSearchTerm} onChange={e => setUserSearchTerm(e.target.value)} className="w-full bg-gray-100 rounded-xl pr-10 pl-4 py-2 text-xs font-black outline-none" />
                     </div>
                  </div>
-                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
+                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
                     <table className="w-full text-right text-sm">
                        <thead className="bg-gray-50 border-b">
                           <tr className="text-xs font-black text-gray-400">
@@ -211,10 +238,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                       <div className="w-10 h-10 bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
                                          {user.avatarUrl ? <img src={user.avatarUrl} className="w-full h-full object-cover" /> : <User size={18} className="text-gray-300" />}
                                       </div>
-                                      <span className="font-black text-gray-800">{user.firstName} {user.lastName}</span>
+                                      <span className="font-black text-gray-800 whitespace-nowrap">{user.firstName} {user.lastName}</span>
                                    </div>
                                 </td>
-                                <td className="p-4 font-black text-gray-500">{user.phone}</td>
+                                <td className="p-4 font-black text-gray-500 whitespace-nowrap">{user.phone}</td>
                                 <td className="p-4 text-center"><span className="bg-red-50 text-red-600 px-3 py-1 rounded-lg font-black">{user.total}</span></td>
                                 <td className="p-4 text-left"><ChevronLeft size={18} className="text-gray-300" /></td>
                              </tr>
@@ -226,7 +253,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             )}
 
             {['ESTATE', 'JOBS', 'SERVICES'].includes(activeTab) && (
-              <div className="space-y-6">
+              <div className="space-y-6 pb-12">
                  <div className="flex justify-between items-center border-b pb-4">
                     <h2 className="text-xl font-black">مدیریت آگهی‌ها</h2>
                     <div className="flex bg-gray-100 p-1 rounded-xl">
@@ -239,12 +266,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                      .filter(it => it.status === statusFilter)
                      .map(item => (
                        <div key={item.id} onClick={() => { setSelectedItem(item); setActiveImageIdx(0); setAdminMessage(''); }} className="bg-white rounded-2xl p-4 border flex items-center gap-4 transition-all hover:border-[#a62626]/30 cursor-pointer shadow-sm">
-                          <img src={item.images?.[0]} className="w-14 h-14 rounded-xl object-cover bg-gray-100" />
+                          <img src={item.images?.[0]} className="w-14 h-14 rounded-xl object-cover bg-gray-100 shrink-0" />
                           <div className="flex-1">
                              <h3 className="font-black text-sm text-gray-800 truncate">{item.title}</h3>
                              <p className="text-[10px] text-gray-400 font-bold">{item.city} | {item.phoneNumber}</p>
                           </div>
-                          <ChevronLeft size={18} className="text-gray-300" />
+                          <ChevronLeft size={18} className="text-gray-300 shrink-0" />
                        </div>
                      ))}
                  </div>
@@ -299,7 +326,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
       {selectedItem && (
         <div className="fixed inset-0 z-[12000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => !isProcessing && setSelectedItem(null)}>
-          <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
+          <div className="bg-white w-full max-w-4xl h-full max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
             <div className="w-full md:w-1/2 h-[30vh] md:h-full bg-black shrink-0 relative flex items-center justify-center">
                <img src={selectedItem.images?.[activeImageIdx]} className="w-full h-full object-contain" />
                {selectedItem.images?.length > 1 && (
@@ -322,7 +349,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   <button onClick={() => setSelectedItem(null)} className="p-2 bg-white rounded-full hover:bg-gray-100 transition-all shadow-sm"><X size={24} /></button>
                </div>
 
-               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 no-scrollbar">
+               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
                   <div>
                     <h3 className="text-xl font-black text-gray-900 leading-tight mb-2">{selectedItem.title}</h3>
                     <div className="flex gap-2 text-[10px] font-black">
@@ -350,7 +377,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <p className="text-xs md:text-sm font-medium text-gray-700 leading-7 bg-gray-50 p-4 rounded-2xl border border-gray-100 whitespace-pre-wrap">{selectedItem.description || 'توضیحاتی ندارد.'}</p>
                   </div>
 
-                  <div className="pt-6 border-t space-y-3">
+                  <div className="pt-6 border-t space-y-3 pb-8">
                     <div className="flex items-center gap-2 text-[#a62626] font-black text-xs">
                       <MessageSquare size={16} />
                       <span>ارسال پیام مستقیم به پنل کاربر:</span>
@@ -370,14 +397,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                </div>
 
-               <div className="p-4 md:p-6 border-t bg-gray-50 flex gap-4 shrink-0">
+               <div className="p-4 md:p-6 border-t bg-gray-50 flex gap-4 shrink-0 shadow-inner">
                   {selectedItem.status === 'PENDING' ? (
                     <>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-green-900/10 transition-all">
-                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید و انتشار آگهی
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-green-900/10 transition-all text-xs md:text-base">
+                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید آگهی
                       </button>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 transition-all active:scale-95">
-                        <Trash2 size={20} /> حذف دائمی
+                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 transition-all active:scale-95 text-xs md:text-base">
+                        <Trash2 size={20} /> حذف
                       </button>
                     </>
                   ) : (

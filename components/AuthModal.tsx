@@ -19,6 +19,19 @@ interface UserProfile {
   avatarUrl: string;
 }
 
+const stringifyError = (err: any): string => {
+  if (!err) return "Unknown error";
+  if (typeof err === 'string') return err;
+  if (err.message && typeof err.message === 'string') return err.message;
+  try {
+    const json = JSON.stringify(err);
+    if (json === '{}') return String(err);
+    return json;
+  } catch {
+    return String(err);
+  }
+};
+
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang }) => {
   const t = translations[lang];
   const [view, setView] = useState<'login' | 'otp' | 'profile' | 'messages'>('login');
@@ -36,7 +49,20 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       setView('profile');
       setPhoneNumber(savedPhone);
       const savedProfile = localStorage.getItem(`profile_${savedPhone}`);
-      if (savedProfile) setProfile(JSON.parse(savedProfile));
+      if (savedProfile && savedProfile !== "[object Object]") {
+        try {
+          const parsed = JSON.parse(savedProfile);
+          if (parsed && typeof parsed === 'object') {
+            setProfile({
+              firstName: parsed.firstName || '',
+              lastName: parsed.lastName || '',
+              avatarUrl: parsed.avatarUrl || ''
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse profile JSON", e);
+        }
+      }
     }
   }, []);
 
@@ -52,13 +78,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       const { data, error } = await supabase
         .from(TABLES.MESSAGES)
         .select('*')
-        .eq('targetPhone', phoneNumber)
+        .eq('target_phone', phoneNumber)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       setMessages(data || []);
-    } catch (e) {
-      console.error("Error fetching messages:", e);
+    } catch (e: any) {
+      const errorMsg = stringifyError(e);
+      console.error("Error fetching messages:", errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -75,7 +102,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       setIsLoading(false);
       setShowSaveSuccess(true);
       setTimeout(() => setShowSaveSuccess(false), 3000);
-    }, 6000);
+    }, 1000);
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,7 +129,20 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       localStorage.setItem('user_phone', phoneNumber);
       setView('profile');
       const savedProfile = localStorage.getItem(`profile_${phoneNumber}`);
-      if (savedProfile) setProfile(JSON.parse(savedProfile));
+      if (savedProfile && savedProfile !== "[object Object]") {
+        try {
+          const parsed = JSON.parse(savedProfile);
+          if (parsed && typeof parsed === 'object') {
+            setProfile({
+              firstName: parsed.firstName || '',
+              lastName: parsed.lastName || '',
+              avatarUrl: parsed.avatarUrl || ''
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse profile JSON on verify", e);
+        }
+      }
     }
   };
 
@@ -132,13 +172,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
 
   if (view === 'messages') return (
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-md max-h-[85vh] rounded-[3rem] p-8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => setView('profile')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft size={24} /></button>
+      <div className="bg-white w-full max-w-md h-full max-h-[85vh] rounded-[3rem] p-8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-6 shrink-0">
+          <button onClick={() => setView('profile')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft size={24} className={lang === 'dari' ? '' : 'rotate-180'} /></button>
           <h2 className="text-xl font-black">{t.notifications}</h2>
         </div>
         
-        <div className="flex-1 overflow-y-auto no-scrollbar space-y-4">
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
           {isLoading ? (
             <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#a62626]" /></div>
           ) : messages.length === 0 ? (
@@ -146,7 +186,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
           ) : (
             messages.map(msg => (
               <div key={msg.id} className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                <p className="text-xs text-gray-400 mb-2 font-black">{msg.date}</p>
+                <p className="text-[10px] text-gray-400 mb-2 font-black">{msg.date}</p>
                 <p className="text-sm font-medium leading-7 text-gray-700">{msg.text}</p>
               </div>
             ))
@@ -158,65 +198,67 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
 
   return (
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-sm max-h-[90vh] rounded-[3rem] p-8 shadow-2xl flex flex-col overflow-y-auto no-scrollbar relative" onClick={e => e.stopPropagation()}>
-        <div className="flex flex-col items-center gap-4 mb-8">
-           <div className="relative group">
-              <div className="w-24 h-24 bg-gray-100 rounded-[2.5rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-xl">
-                 {profile.avatarUrl ? <img src={profile.avatarUrl} className="w-full h-full object-cover" /> : <User size={48} className="text-gray-300" />}
-                 {isLoading && <div className="absolute inset-0 bg-black/20 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}
-              </div>
-              <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-1 -right-1 bg-[#a62626] text-white p-2 rounded-xl shadow-lg border-2 border-white active:scale-90 transition-transform"><Camera size={16} /></button>
-              <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" onChange={handleAvatarUpload} />
-           </div>
-           
-           <div className="w-full space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                 <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 pr-2">نام</label>
-                    <input type="text" value={profile.firstName} onChange={e => handleProfileUpdate('firstName', e.target.value)} placeholder="نام" className="w-full bg-gray-50 border rounded-xl px-4 py-2.5 text-center font-bold text-sm outline-none focus:border-red-200" />
-                 </div>
-                 <div className="space-y-1">
-                    <label className="text-[9px] font-black text-gray-400 pr-2">تخلص</label>
-                    <input type="text" value={profile.lastName} onChange={e => handleProfileUpdate('lastName', e.target.value)} placeholder="تخلص" className="w-full bg-gray-50 border rounded-xl px-4 py-2.5 text-center font-bold text-sm outline-none focus:border-red-200" />
-                 </div>
+      <div className="bg-white w-full max-w-sm max-h-[90vh] rounded-[3rem] p-8 shadow-2xl flex flex-col overflow-hidden relative" onClick={e => e.stopPropagation()}>
+        <div className="flex-1 overflow-y-auto pr-1">
+            <div className="flex flex-col items-center gap-4 mb-8">
+               <div className="relative group">
+                  <div className="w-24 h-24 bg-gray-100 rounded-[2.5rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-xl">
+                     {profile.avatarUrl ? <img src={profile.avatarUrl} className="w-full h-full object-cover" /> : <User size={48} className="text-gray-300" />}
+                     {isLoading && <div className="absolute inset-0 bg-black/20 flex items-center justify-center"><Loader2 className="animate-spin text-white" /></div>}
+                  </div>
+                  <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-1 -right-1 bg-[#a62626] text-white p-2 rounded-xl shadow-lg border-2 border-white active:scale-90 transition-transform"><Camera size={16} /></button>
+                  <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" onChange={handleAvatarUpload} />
+               </div>
+               
+               <div className="w-full space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                     <div className="space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 pr-2">نام</label>
+                        <input type="text" value={profile.firstName} onChange={e => handleProfileUpdate('firstName', e.target.value)} placeholder="نام" className="w-full bg-gray-50 border rounded-xl px-4 py-2.5 text-center font-bold text-sm outline-none focus:border-red-200" />
+                     </div>
+                     <div className="space-y-1">
+                        <label className="text-[9px] font-black text-gray-400 pr-2">تخلص</label>
+                        <input type="text" value={profile.lastName} onChange={e => handleProfileUpdate('lastName', e.target.value)} placeholder="تخلص" className="w-full bg-gray-50 border rounded-xl px-4 py-2.5 text-center font-bold text-sm outline-none focus:border-red-200" />
+                     </div>
+                  </div>
+                  
+                  <button 
+                    onClick={saveProfileToLocal} 
+                    disabled={isLoading}
+                    className={`w-full py-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 ${showSaveSuccess ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95'}`}
+                  >
+                    {isLoading ? <Loader2 size={16} className="animate-spin" /> : showSaveSuccess ? <><CheckCircle2 size={16} /> ذخیره شد</> : 'ذخیره تغییرات'}
+                  </button>
+               </div>
+               
+               <h3 className="font-black text-lg text-gray-800 tracking-tighter mt-2">{phoneNumber}</h3>
+            </div>
+
+            <div className="space-y-3 pb-4">
+              <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group">
+                <div className="flex items-center gap-3"><Bell size={20} /> {t.notifications}</div>
+                <ChevronRight className={`transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+              </button>
+              <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
+                <div className="flex items-center gap-3"><List size={20} /> {t.my_ads}</div>
+                <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+              </button>
+              <button onClick={onShowSaved} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
+                <div className="flex items-center gap-3"><Heart size={20} /> {t.saved}</div>
+                <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+              </button>
+              
+              <div className="pt-4 border-t space-y-2">
+                <button onClick={onClose} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all">
+                   <ArrowLeft size={18} className={lang === 'dari' ? '' : 'rotate-180'} /> بازگشت به برنامه
+                </button>
+                <button onClick={() => { localStorage.removeItem('user_phone'); window.location.reload(); }} className="w-full p-4 text-red-600 font-bold flex items-center justify-center gap-2">
+                   <LogOut size={18} /> خروج از حساب
+                </button>
               </div>
               
-              <button 
-                onClick={saveProfileToLocal} 
-                disabled={isLoading}
-                className={`w-full py-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 ${showSaveSuccess ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95'}`}
-              >
-                {isLoading ? <Loader2 size={16} className="animate-spin" /> : showSaveSuccess ? <><CheckCircle2 size={16} /> ذخیره شد</> : 'ذخیره تغییرات'}
-              </button>
-           </div>
-           
-           <h3 className="font-black text-lg text-gray-800 tracking-tighter mt-2">{phoneNumber}</h3>
-        </div>
-
-        <div className="space-y-3">
-          <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group">
-            <div className="flex items-center gap-3"><Bell size={20} /> {t.notifications}</div>
-            <ChevronRight className="rotate-180 group-hover:translate-x-1 transition-transform" />
-          </button>
-          <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
-            <div className="flex items-center gap-3"><List size={20} /> {t.my_ads}</div>
-            <ChevronRight className="rotate-180 text-gray-300 group-hover:translate-x-1 transition-transform" />
-          </button>
-          <button onClick={onShowSaved} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
-            <div className="flex items-center gap-3"><Heart size={20} /> {t.saved}</div>
-            <ChevronRight className="rotate-180 text-gray-300 group-hover:translate-x-1 transition-transform" />
-          </button>
-          
-          <div className="pt-4 border-t space-y-2">
-            <button onClick={onClose} className="w-full bg-gray-900 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 transition-all">
-               <ArrowLeft size={18} /> بازگشت به برنامه
-            </button>
-            <button onClick={() => { localStorage.removeItem('user_phone'); window.location.reload(); }} className="w-full p-4 text-red-600 font-bold flex items-center justify-center gap-2">
-               <LogOut size={18} /> خروج از حساب
-            </button>
-          </div>
-          
-          <button onClick={onAdminClick} className="w-full text-[10px] text-gray-300 font-bold mt-2 text-center">ورود به پنل مدیریت</button>
+              <button onClick={onAdminClick} className="w-full text-[10px] text-gray-300 font-bold mt-2 text-center pb-4">ورود به پنل مدیریت</button>
+            </div>
         </div>
       </div>
     </div>

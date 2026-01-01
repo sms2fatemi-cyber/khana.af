@@ -21,7 +21,6 @@ import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 
 type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
 
-// تابع کمکی برای نمایش زمان نسبی به زبان دری و پشتو
 export const getRelativeTime = (dateStr: string, lang: Language) => {
   if (!dateStr) return lang === 'dari' ? 'جدید' : 'نوې';
   const now = new Date();
@@ -36,7 +35,7 @@ export const getRelativeTime = (dateStr: string, lang: Language) => {
   if (diffInHours < 24) return lang === 'dari' ? `${diffInHours} ساعت پیش` : `${diffInHours} ساعت مخکې`;
   if (diffInDays < 7) return lang === 'dari' ? `${diffInDays} روز پیش` : `${diffInDays} ورځې مخکې`;
   
-  return dateStr; // اگر بیشتر از یک هفته بود خود تاریخ را نشان بده
+  return new Date(dateStr).toLocaleDateString('fa-AF');
 };
 
 function App() {
@@ -52,11 +51,12 @@ function App() {
   };
 
   const [appMode, setAppMode] = useState<AppMode>('ESTATE');
-  const [viewMode, setViewMode] = useState<'map' | 'list'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedItem, setSelectedItem] = useState<Property | Job | Service | null>(null);
+  const [editingItem, setEditingItem] = useState<Property | Job | Service | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [displaySearch, setDisplaySearch] = useState(''); // برای کنترل ورودی تایپی کاربر
+  const [displaySearch, setDisplaySearch] = useState('');
   const [selectedProvince, setSelectedProvince] = useState(t.provinces[0]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -65,7 +65,7 @@ function App() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
-  const [displayLimit, setDisplayLimit] = useState(20); // محدودیت تعداد نمایش اولیه
+  const [displayLimit, setDisplayLimit] = useState(20);
   
   const [properties, setProperties] = useState<Property[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -117,7 +117,11 @@ function App() {
         dealType: item.deal_type,
         phoneNumber: item.phone_number,
         status: item.status || 'APPROVED',
-        date: item.created_at // استفاده از زمان ثبت دیتابیس برای زمان نسبی
+        date: item.created_at,
+        mortgageAmount: item.mortgage_amount,
+        deposit: item.deposit, // Ensure deposit is mapped
+        hasStorage: item.has_storage,
+        providerName: item.provider_name
       });
 
       setProperties(pRes.data?.map(mapStatus) || []);
@@ -138,8 +142,8 @@ function App() {
 
     try {
       let tableName = '';
-      if (appMode === 'ESTATE') tableName = TABLES.PROPERTIES;
-      else if (appMode === 'JOBS') tableName = TABLES.JOBS;
+      if (properties.find(p => p.id === item.id)) tableName = TABLES.PROPERTIES;
+      else if (jobs.find(j => j.id === item.id)) tableName = TABLES.JOBS;
       else tableName = TABLES.SERVICES;
 
       const { error } = await supabase.from(tableName).delete().eq('id', item.id);
@@ -151,6 +155,11 @@ function App() {
     } catch (e) {
       alert(lang === 'dari' ? "خطا در حذف آگهی" : "د اعلان حذفولو کې تېروتنه");
     }
+  };
+
+  const handleEditItem = (item: Property | Job | Service) => {
+    setEditingItem(item);
+    setShowAddModal(true);
   };
 
   const filteredItems = useMemo(() => {
@@ -169,7 +178,6 @@ function App() {
       
       if (filterCategory !== 'MY_ADS' && !isApproved && !isOwner) return false;
 
-      // جستجوی منعطف: اگر کلمه در عنوان باشد نشان داده شود
       const titleMatch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
       const isAllCity = selectedProvince === translations.dari.provinces[0] || selectedProvince === translations.pashto.provinces[0];
       const cityMatch = isAllCity || item.city === selectedProvince;
@@ -198,6 +206,7 @@ function App() {
       alert(lang === 'dari' ? "لطفاً ابتدا وارد حساب کاربری خود شوید." : "مهرباني وکړئ لومړی خپل حساب ته ننوځئ.");
       setShowAuthModal(true);
     } else {
+      setEditingItem(null);
       setShowAddModal(true);
     }
   };
@@ -319,10 +328,37 @@ function App() {
                       <div className="absolute top-2 right-2 z-10 bg-amber-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">{lang === 'dari' ? 'در انتظار تایید' : 'تایید ته انتظار'}</div>
                     )}
                     {appMode === 'ESTATE' ? 
-                      <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} lang={lang} /> :
+                      <PropertyCard 
+                        property={item as Property} 
+                        onClick={() => handleSelectItem(item)} 
+                        isVisited={visitedIds.has(item.id)} 
+                        isSaved={savedIds.has(item.id)} 
+                        onToggleSave={() => handleToggleSave(item)} 
+                        onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} 
+                        onEdit={filterCategory === 'MY_ADS' ? () => handleEditItem(item) : undefined}
+                        lang={lang} 
+                      /> :
                      appMode === 'JOBS' ? 
-                      <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} lang={lang} /> :
-                      <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} lang={lang} />
+                      <JobCard 
+                        job={item as Job} 
+                        onClick={() => handleSelectItem(item)} 
+                        isVisited={visitedIds.has(item.id)} 
+                        isSaved={savedIds.has(item.id)} 
+                        onToggleSave={() => handleToggleSave(item)} 
+                        onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} 
+                        onEdit={filterCategory === 'MY_ADS' ? () => handleEditItem(item) : undefined}
+                        lang={lang} 
+                      /> :
+                      <ServiceCard 
+                        service={item as Service} 
+                        onClick={() => handleSelectItem(item)} 
+                        isVisited={visitedIds.has(item.id)} 
+                        isSaved={savedIds.has(item.id)} 
+                        onToggleSave={() => handleToggleSave(item)} 
+                        onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} 
+                        onEdit={filterCategory === 'MY_ADS' ? () => handleEditItem(item) : undefined}
+                        lang={lang} 
+                      />
                     }
                   </div>
                 ))}
@@ -369,9 +405,9 @@ function App() {
 
       {showAddModal && (
         <div className="z-[6000] fixed inset-0">
-          {appMode === 'ESTATE' && <AddPropertyModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} lang={lang} />}
-          {appMode === 'JOBS' && <AddJobModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} lang={lang} />}
-          {appMode === 'SERVICES' && <AddServiceModal onClose={() => { setShowAddModal(false); refreshData(); }} t={t} lang={lang} />}
+          {appMode === 'ESTATE' && <AddPropertyModal editData={editingItem as Property} onClose={() => { setShowAddModal(false); refreshData(); setEditingItem(null); }} t={t} lang={lang} />}
+          {appMode === 'JOBS' && <AddJobModal editData={editingItem as Job} onClose={() => { setShowAddModal(false); refreshData(); setEditingItem(null); }} t={t} lang={lang} />}
+          {appMode === 'SERVICES' && <AddServiceModal editData={editingItem as Service} onClose={() => { setShowAddModal(false); refreshData(); setEditingItem(null); }} t={t} lang={lang} />}
         </div>
       )}
 

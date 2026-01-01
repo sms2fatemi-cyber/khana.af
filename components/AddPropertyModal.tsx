@@ -1,36 +1,45 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Box, MapPinned, Crosshair, Check } from 'lucide-react';
-import { PropertyType, DealType } from '../types';
+import { Property, PropertyType, DealType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
 
 interface AddPropertyModalProps {
   onClose: () => void;
+  editData?: Property;
   t: any;
   lang: string;
 }
 
-const toEnglishDigits = (str: string) => {
-  if (!str) return '';
-  return str.toString().replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
+const toEnglishDigits = (str: any) => {
+  if (str === null || str === undefined) return '';
+  const s = str.toString();
+  return s.replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
 };
 
 const MapResizer = () => {
   const map = useMap();
   useEffect(() => {
-    const observer = new ResizeObserver(() => { map.invalidateSize(); });
-    observer.observe(map.getContainer());
-    return () => observer.disconnect();
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 400);
+    return () => clearTimeout(timer);
   }, [map]);
   return null;
 };
 
-const MapMoveHandler = ({ onChange }: { onChange: (latlng: any) => void }) => {
+const MapMoveHandler = ({ onChange, onMoveStart, onMoveEnd }: { 
+  onChange: (latlng: any) => void;
+  onMoveStart: () => void;
+  onMoveEnd: () => void;
+}) => {
   useMapEvents({
+    movestart: () => onMoveStart(),
     moveend: (e) => {
       const center = e.target.getCenter();
       onChange({ lat: center.lat, lng: center.lng });
+      onMoveEnd();
     }
   });
   return null;
@@ -49,11 +58,15 @@ const UserLocationHandler = () => {
         map.flyTo([lat, lng], 16, { animate: true });
         setIsLocating(false);
       },
-      () => {
+      (err) => {
         setIsLocating(false);
-        alert("لطفاً GPS را روشن کنید.");
+        if (err.code === 1) {
+          alert("لطفاً اجازه دسترسی به مکان را تایید کنید.");
+        } else {
+          alert("موقعیت یافت نشد. لطفاً GPS را چک کنید.");
+        }
       },
-      { enableHighAccuracy: false, timeout: 5000 }
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }, [map]);
 
@@ -68,31 +81,33 @@ const UserLocationHandler = () => {
   );
 };
 
-const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang }) => {
+export default function AddPropertyModal({ onClose, editData, t, lang }: AddPropertyModalProps) {
   const [view, setView] = useState<'form' | 'map'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isMapMoving, setIsMapMoving] = useState(false);
+  
   const [formData, setFormData] = useState({
-    title: '', 
-    price: '', 
-    deposit: '', 
-    mortgageAmount: '',
-    currency: 'AFN', 
-    dealType: DealType.SALE,
-    type: PropertyType.APARTMENT, 
-    area: '', 
-    bedrooms: '',
-    hasStorage: false, 
-    features: '',
-    city: t.provinces[1], 
-    address: '', 
-    description: '', 
-    phoneNumber: '',
-    location: { lat: 34.5553, lng: 69.2075 }
+    title: editData?.title || '', 
+    price: editData?.price?.toString() || '', 
+    deposit: editData?.deposit?.toString() || '', 
+    mortgageAmount: editData?.mortgageAmount?.toString() || '',
+    currency: editData?.currency || 'AFN', 
+    dealType: editData?.dealType || DealType.SALE,
+    type: editData?.type || PropertyType.APARTMENT, 
+    area: editData?.area?.toString() || '', 
+    bedrooms: editData?.bedrooms?.toString() || '',
+    hasStorage: editData?.hasStorage || false, 
+    features: editData?.features?.join('، ') || '',
+    city: editData?.city || t.provinces[1], 
+    address: editData?.address || '', 
+    description: editData?.description || '', 
+    phoneNumber: editData?.phoneNumber || localStorage.getItem('user_phone') || '',
+    location: editData?.location || { lat: 34.5553, lng: 69.2075 }
   });
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [previews, setPreviews] = useState<string[]>(editData?.images || []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -108,7 +123,11 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
   };
 
   const removeImage = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    const existingCount = editData?.images?.length || 0;
+    if (index >= existingCount) {
+       const fileIndex = index - existingCount;
+       setSelectedFiles(prev => prev.filter((_, i) => i !== fileIndex));
+    }
     setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
@@ -116,57 +135,76 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const imageUrls = await uploadMultipleImages(selectedFiles);
+      const uploadedUrls = await uploadMultipleImages(selectedFiles);
+      const allImages = [...previews.filter(p => p.startsWith('http')), ...uploadedUrls];
       const userPhone = localStorage.getItem('user_phone') || 'guest';
 
-      const payload = {
+      let finalPrice = 0;
+      if (formData.dealType === DealType.SALE) finalPrice = Number(toEnglishDigits(formData.price));
+      else if (formData.dealType === DealType.RENT) finalPrice = Number(toEnglishDigits(formData.price));
+      else if (formData.dealType === DealType.MORTGAGE) finalPrice = Number(toEnglishDigits(formData.mortgageAmount));
+
+      const featuresArray = formData.features
+        .split(/[،,]/)
+        .map(f => f.trim())
+        .filter(f => f.length > 0);
+
+      const payload: any = {
         title: formData.title,
-        price: Number(toEnglishDigits(formData.price || formData.mortgageAmount || '0')),
-        deposit: formData.dealType === DealType.RENT ? Number(toEnglishDigits(formData.deposit)) : null,
-        mortgage_amount: formData.dealType === DealType.MORTGAGE ? Number(toEnglishDigits(formData.mortgageAmount)) : null,
+        price: finalPrice || 0,
+        mortgage_amount: formData.dealType === DealType.MORTGAGE ? Number(toEnglishDigits(formData.mortgageAmount)) : 0,
+        deposit: formData.dealType === DealType.RENT ? Number(toEnglishDigits(formData.deposit)) : 0,
         currency: formData.currency,
         deal_type: formData.dealType,
         type: formData.type,
         area: Number(toEnglishDigits(formData.area)),
-        bedrooms: formData.type === PropertyType.LAND ? 0 : Number(toEnglishDigits(formData.bedrooms)),
+        bedrooms: formData.type === PropertyType.LAND ? 0 : (Number(toEnglishDigits(formData.bedrooms)) || 0),
         has_storage: formData.hasStorage,
-        features: formData.features.split('،').map(f => f.trim()).filter(f => f),
+        features: featuresArray,
         city: formData.city,
         address: formData.address,
         description: formData.description,
         phone_number: toEnglishDigits(formData.phoneNumber),
         location: formData.location,
-        images: imageUrls,
-        status: 'PENDING',
+        images: allImages,
+        status: editData ? editData.status : 'PENDING',
         owner_id: userPhone
       };
 
-      const { error } = await supabase.from(TABLES.PROPERTIES).insert([payload]);
+      let error;
+      if (editData) {
+        const { error: err } = await supabase.from(TABLES.PROPERTIES).update(payload).eq('id', editData.id);
+        error = err;
+      } else {
+        const { error: err } = await supabase.from(TABLES.PROPERTIES).insert([payload]);
+        error = err;
+      }
+
       if (error) throw error;
       setIsSuccess(true);
     } catch (err: any) {
-      console.error(err);
-      alert(lang === 'dari' ? `خطا در ثبت: ${err.message}` : `د ثبتولو تېروتنه: ${err.message}`);
+      console.error("Submit error:", err);
+      let msg = err.message || "خطای ناشناخته";
+      
+      if (msg.includes("column") && msg.includes("not found")) {
+        msg = `ستون جدید در دیتابیس یافت نشد. لطفاً کد SQL را در پنل Supabase اجرا کنید.\nستون خطا: ${msg}`;
+      }
+
+      alert(lang === 'dari' ? `خطا: ${msg}` : `تېروتنه: ${msg}`);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   if (isSuccess) return (
-    <div className="fixed inset-0 z-[11000] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center animate-in slide-in-from-bottom shadow-2xl">
-        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Check size={40} />
-        </div>
-        <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'با موفقیت ثبت شد' : 'په بري سره ثبت شو'}</h2>
+    <div className="fixed inset-0 z-[10001] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-sm:max-w-xs rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
+        <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
+        <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
         <p className="text-sm text-gray-500 font-bold mb-8 leading-7">
-          {lang === 'dari' 
-            ? 'ملک شما ثبت شد و پس از بررسی توسط تیم مدیریت منتشر خواهد شد.' 
-            : 'ستاسو اعلان ثبت شو او د ارزونې وروسته به خپور شي.'}
+          {lang === 'dari' ? 'آگهی ملک شما با موفقیت ثبت شد و پس از تایید منتشر می‌شود.' : 'ستاسو د ملک اعلان ثبت شو او د تایید وروسته به خپور شي.'}
         </p>
-        <button onClick={onClose} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black active:scale-95 transition-all shadow-lg shadow-red-900/20">
-          {lang === 'dari' ? 'متوجه شدم' : 'پوه شوم'}
-        </button>
+        <button onClick={onClose} className="w-full bg-[#a62626] text-white py-4 rounded-xl font-black active:scale-95">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
       </div>
     </div>
   );
@@ -179,28 +217,52 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
       <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl md:rounded-[2.5rem] flex flex-col overflow-hidden relative shadow-2xl" onClick={e => e.stopPropagation()}>
         
         {view === 'map' && (
-          <div className="absolute inset-0 z-[110] bg-white flex flex-col">
+          <div className="absolute inset-0 z-[110] bg-white flex flex-col animate-in fade-in duration-300">
             <div className="h-16 flex items-center px-6 border-b shrink-0">
-              <button onClick={() => setView('form')} className="p-2"><ChevronRight size={32} /></button>
-              <h2 className="font-black mr-2">{t.select_location}</h2>
+              <button onClick={() => setView('form')} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><ChevronRight size={32} /></button>
+              <h2 className="font-black mr-2 text-lg">{t.select_location}</h2>
             </div>
-            <div className="flex-1 relative">
-              <MapContainerAny center={[formData.location.lat, formData.location.lng]} zoom={14} style={{ height: '100%' }} zoomControl={false}>
+            <div className="flex-1 relative bg-gray-50">
+              <MapContainerAny 
+                center={[formData.location.lat, formData.location.lng]} 
+                zoom={14} 
+                style={{ height: '100%', width: '100%' }} 
+                zoomControl={false}
+              >
                 <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <UserLocationHandler />
-                <MapMoveHandler onChange={(loc) => setFormData(prev => ({ ...prev, location: loc }))} />
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none">
-                  <MapPin size={40} className="text-[#a62626] drop-shadow-xl" />
+                <MapMoveHandler 
+                  onMoveStart={() => setIsMapMoving(true)}
+                  onMoveEnd={() => setIsMapMoving(false)}
+                  onChange={(loc) => setFormData(prev => ({ ...prev, location: loc }))} 
+                />
+                
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none flex flex-col items-center">
+                   <div className={`mb-2 px-3 py-1 rounded-full text-[10px] font-black shadow-lg transition-all duration-300 ${isMapMoving ? 'bg-gray-800 text-white translate-y-2 opacity-0' : 'bg-green-600 text-white scale-110'}`}>
+                      {isMapMoving ? '...' : (lang === 'dari' ? 'مکان انتخاب شد' : 'ځای وټاکل شو')}
+                   </div>
+                   <MapPin 
+                    size={48} 
+                    className={`transition-all duration-300 drop-shadow-2xl ${isMapMoving ? 'text-gray-400 -translate-y-2 scale-90' : 'text-green-600 scale-100'}`} 
+                   />
                 </div>
               </MapContainerAny>
-              <button onClick={() => setView('form')} className="absolute bottom-10 left-8 right-8 z-[1000] bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-2xl active:scale-95">تایید محل ملک</button>
+              <div className="absolute bottom-10 left-8 right-8 z-[1000]">
+                <button 
+                  onClick={() => setView('form')} 
+                  disabled={isMapMoving}
+                  className={`w-full py-4 rounded-2xl font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 ${isMapMoving ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#a62626] text-white'}`}
+                >
+                  <Check size={20} /> تایید نهایی موقعیت
+                </button>
+              </div>
             </div>
           </div>
         )}
 
         <div className="flex justify-between items-center p-5 border-b shrink-0">
-          <h2 className="font-black text-xl text-gray-800">{lang === 'dari' ? 'ثبت ملک جدید' : 'د نوي ملک ثبتول'}</h2>
+          <h2 className="font-black text-xl text-gray-800">{editData ? (lang === 'dari' ? 'ویرایش ملک' : 'ملک ایډیټ') : (lang === 'dari' ? 'ثبت ملک جدید' : 'د نوي ملک ثبتول')}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={32} /></button>
         </div>
 
@@ -244,25 +306,32 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">
                      <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.monthly_rent} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
-                     <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">{t.rent}</div>
+                     <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
-                     <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder={lang === 'dari' ? 'مقدار پول ضمانت' : 'د ضمانت مقدار'} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
-                     <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-[10px] text-gray-500">{t.deposit}</div>
+                     <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder={lang === 'dari' ? 'مبلغ ضمانت' : 'د ضمانت مقدار'} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" />
+                     <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-[10px] text-gray-500">Deposit</div>
                   </div>
+                </div>
+              )}
+
+              {formData.dealType === DealType.MORTGAGE && (
+                <div className="grid grid-cols-3 gap-4">
+                   <input type="text" value={formData.mortgageAmount} onChange={e => setFormData({...formData, mortgageAmount: e.target.value})} placeholder={t.mortgage_amount} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
+                   <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
                 </div>
               )}
 
               <div className={`grid gap-4 ${formData.type === PropertyType.LAND ? 'grid-cols-1' : 'grid-cols-2'}`}>
                  <input type="text" value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})} placeholder={t.area} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
                  {formData.type !== PropertyType.LAND && (
-                   <input type="text" value={formData.bedrooms} onChange={e => setFormData({...formData, bedrooms: e.target.value})} placeholder={t.bedrooms} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
+                   <input type="text" value={formData.bedrooms} onChange={e => setFormData({...formData, bedrooms: e.target.value})} placeholder={t.bedrooms} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" />
                  )}
               </div>
               
               <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <button type="button" onClick={() => setFormData({...formData, hasStorage: !formData.hasStorage})} className={`w-12 h-6 rounded-full transition-all relative ${formData.hasStorage ? 'bg-green-500' : 'bg-gray-200'}`}>
-                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.hasStorage ? 'right-7' : 'right-1'}`} />
+                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.hasStorage ? (lang === 'dari' ? 'right-7' : 'left-7') : (lang === 'dari' ? 'right-1' : 'left-1')}`} />
                 </button>
                 <span className="text-xs font-black text-gray-600 flex items-center gap-1"><Box size={14} /> {lang === 'dari' ? 'دارای انباری / پارکینگ' : 'انباري / پارکینګ لري'}</span>
               </div>
@@ -274,8 +343,12 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
 
               <input type="tel" value={formData.phoneNumber} onChange={e => setFormData({...formData, phoneNumber: e.target.value})} placeholder={t.enter_phone} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none text-center dir-ltr" required />
               
-              <button type="button" onClick={() => setView('map')} className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-gray-400 font-black active:bg-gray-50">
-                <MapPin size={24} /> {t.select_location}
+              <button 
+                type="button" 
+                onClick={() => setView('map')} 
+                className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${formData.location.lat !== 34.5553 ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
+              >
+                {formData.location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">{t.location} انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">{t.select_location}</span></>}
               </button>
               
               <textarea rows={4} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder={t.description} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none resize-none focus:border-[#a62626]/40"></textarea>
@@ -292,6 +365,4 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
       </div>
     </div>
   );
-};
-
-export default AddPropertyModal;
+}
