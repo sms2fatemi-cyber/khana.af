@@ -81,7 +81,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           try {
             profileData = JSON.parse(localProfile);
           } catch (e) {
-            console.error("Failed to parse user profile from local storage", e);
+            console.error("Failed to parse user profile", e);
           }
         }
         usersMap[phone] = { phone, propertyCount: 0, jobCount: 0, serviceCount: 0, total: 0, ...profileData };
@@ -139,7 +139,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           date: new Date().toLocaleDateString('fa-AF'), 
           is_read: false 
         }]);
-        if (error) throw error;
+        
+        if (error) {
+          if (error.message.includes("not found")) {
+            throw new Error("جدول پیام‌ها در دیتابیس یافت نشد. لطفاً کد SQL را در پنل Supabase اجرا کنید.");
+          }
+          throw error;
+        }
 
         alert("پیام به کاربر ارسال شد.");
         setAdminMessage('');

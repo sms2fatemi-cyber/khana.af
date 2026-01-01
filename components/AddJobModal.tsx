@@ -51,6 +51,17 @@ const UserLocationHandler = () => {
   const handleLocate = useCallback(async () => {
     if (!navigator.geolocation) return;
     setIsLocating(true);
+
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        if (result.state === 'denied') {
+          alert("دسترسی GPS توسط شما مسدود شده است. لطفاً از بخش قفل (در بالای مرورگر) اجازه دسترسی بدهید.");
+          setIsLocating(false);
+          return;
+        }
+      } catch (e) {}
+    }
     
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -61,9 +72,9 @@ const UserLocationHandler = () => {
       (err) => {
         setIsLocating(false);
         if (err.code === 1) {
-          alert("لطفاً در تنظیمات مرورگر (آیکون قفل کنار آدرس) اجازه دسترسی به موقعیت را فعال کنید.");
+          alert("لطفاً در تنظیمات مرورگر اجازه دسترسی به موقعیت را صادر کنید.");
         } else {
-          alert("موقعیت یافت نشد. لطفاً GPS گوشی را روشن کنید.");
+          alert("موقعیت یافت نشد. لطفاً GPS را چک کنید.");
         }
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }

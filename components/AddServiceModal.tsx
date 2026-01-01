@@ -51,6 +51,17 @@ const UserLocationHandler = () => {
   const handleLocate = useCallback(async () => {
     if (!navigator.geolocation) return;
     setIsLocating(true);
+
+    if (navigator.permissions && navigator.permissions.query) {
+      try {
+        const result = await navigator.permissions.query({ name: 'geolocation' });
+        if (result.state === 'denied') {
+          alert("دسترسی GPS مسدود است. لطفاً از طریق آیکون قفل کنار آدرس در بالای مرورگر اجازه را صادر کنید.");
+          setIsLocating(false);
+          return;
+        }
+      } catch (e) {}
+    }
     
     navigator.geolocation.getCurrentPosition(
       (pos) => {
