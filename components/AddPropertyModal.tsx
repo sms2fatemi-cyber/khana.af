@@ -113,9 +113,17 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const PHOTO_LIMIT = 6;
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files) as File[];
+      const remainingSlots = PHOTO_LIMIT - previews.length;
+      if (remainingSlots <= 0) {
+        alert(lang === 'dari' ? `حداکثر ${PHOTO_LIMIT} عکس مجاز است.` : `تاسو یوازې ${PHOTO_LIMIT} عکسونه اضافه کولی شئ.`);
+        return;
+      }
+
+      const files = Array.from(e.target.files).slice(0, remainingSlots) as File[];
       setSelectedFiles(prev => [...prev, ...files]);
       files.forEach(file => {
         if (!file.name.toLowerCase().endsWith('.heic')) {
@@ -272,9 +280,11 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
                   <button type="button" onClick={() => removeImage(i)} className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-lg"><Trash2 size={16} /></button>
                 </div>
               ))}
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
-                <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
-              </button>
+              {previews.length < PHOTO_LIMIT && (
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
+                  <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
+                </button>
+              )}
               <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" multiple onChange={handleFileChange} />
             </div>
 
@@ -306,7 +316,7 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
                      <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
-                     <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder={lang === 'dari' ? 'مبلغ ضمانت' : 'د ضمانت مقدار'} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" />
+                     <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder={lang === 'dari' ? 'مبلغ پیش‌پرداخت (ضمانت)' : 'د مخکې تادیې مقدار (ضمانت)'} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" />
                      <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-[10px] text-gray-500">Deposit</div>
                   </div>
                 </div>
@@ -326,11 +336,14 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
                  )}
               </div>
               
-              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <button type="button" onClick={() => setFormData({...formData, hasStorage: !formData.hasStorage})} className={`w-12 h-6 rounded-full transition-all relative ${formData.hasStorage ? 'bg-green-500' : 'bg-gray-200'}`}>
+              <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <Box size={18} className={formData.hasStorage ? "text-[#a62626]" : "text-gray-400"} />
+                  <span className="text-xs font-black text-gray-700">{lang === 'dari' ? 'دارای انباری یا پارکینگ' : 'انباري یا پارکینګ لري'}</span>
+                </div>
+                <button type="button" onClick={() => setFormData({...formData, hasStorage: !formData.hasStorage})} className={`w-12 h-6 rounded-full transition-all relative ${formData.hasStorage ? 'bg-[#a62626]' : 'bg-gray-300'}`}>
                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.hasStorage ? (lang === 'dari' ? 'right-7' : 'left-7') : (lang === 'dari' ? 'right-1' : 'left-1')}`} />
                 </button>
-                <span className="text-xs font-black text-gray-600 flex items-center gap-1"><Box size={14} /> {lang === 'dari' ? 'دارای انباری / پارکینگ' : 'انباري / پارکینګ لري'}</span>
               </div>
 
               <div className="relative">
@@ -372,7 +385,7 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
           <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg disabled:bg-gray-300 active:scale-95">
             {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : t.submit}
           </button>
-          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black active:bg-gray-200">انصراف</button>
+          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">انصراف</button>
         </div>
       </div>
     </div>

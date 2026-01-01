@@ -6,6 +6,7 @@ import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
 
 interface AddServiceModalProps {
+  // Corrected prop type from void to () => void to allow assignment to event handlers
   onClose: () => void;
   editData?: Service;
   t: any;
@@ -92,13 +93,20 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
     location: editData?.location || { lat: 34.5553, lng: 69.2075 }
   });
 
+  const PHOTO_LIMIT = 5;
+
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files) as File[];
+      const remainingSlots = PHOTO_LIMIT - previews.length;
+      if (remainingSlots <= 0) {
+        alert(lang === 'dari' ? `حداکثر ${PHOTO_LIMIT} عکس مجاز است.` : `تاسو یوازې ${PHOTO_LIMIT} عکسونه اضافه کولی شئ.`);
+        return;
+      }
+      const files = Array.from(e.target.files).slice(0, remainingSlots) as File[];
       setSelectedFiles(prev => [...prev, ...files]);
       files.forEach(file => {
         if (!file.name.toLowerCase().endsWith('.heic')) {
@@ -216,9 +224,11 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
                   <button type="button" onClick={() => removeImage(i)} className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-lg"><Trash2 size={16} /></button>
                 </div>
               ))}
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
-                <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
-              </button>
+              {previews.length < PHOTO_LIMIT && (
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
+                  <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
+                </button>
+              )}
               <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" multiple onChange={handleFileChange} />
             </div>
 
