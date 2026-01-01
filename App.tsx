@@ -119,7 +119,7 @@ function App() {
         status: item.status || 'APPROVED',
         date: item.created_at,
         mortgageAmount: item.mortgage_amount,
-        deposit: item.deposit, // Ensure deposit is mapped
+        deposit: item.deposit,
         hasStorage: item.has_storage,
         providerName: item.provider_name
       });
@@ -167,23 +167,32 @@ function App() {
     let base = appMode === 'ESTATE' ? properties : appMode === 'JOBS' ? jobs : services;
     
     return base.filter(item => {
+      // اگر در حالت "آگهی‌های من" هستیم، فقط آگهی‌های کاربر را نشان بده (حتی اگر تایید نشده باشند)
       if (filterCategory === 'MY_ADS') {
         if (!userPhone || item.ownerId !== userPhone) return false;
-      } else if (filterCategory === 'SAVED') {
+        return true;
+      } 
+      
+      // اگر در حالت "نشان شده‌ها" هستیم
+      if (filterCategory === 'SAVED') {
         if (!savedIds.has(item.id)) return false;
       }
 
+      // در حالت عادی (نمایش عمومی): فقط آگهی‌های تایید شده را نشان بده
+      // مگر اینکه کاربر مالک آن آگهی باشد (که بتواند قبل از تایید هم آن را ببیند)
       const isApproved = item.status === 'APPROVED';
       const isOwner = userPhone && item.ownerId === userPhone;
       
-      if (filterCategory !== 'MY_ADS' && !isApproved && !isOwner) return false;
+      if (!isApproved && !isOwner) return false;
 
+      // فیلترهای جستجو و ولایت
       const titleMatch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
       const isAllCity = selectedProvince === translations.dari.provinces[0] || selectedProvince === translations.pashto.provinces[0];
       const cityMatch = isAllCity || item.city === selectedProvince;
       
       if (!titleMatch || !cityMatch) return false;
 
+      // فیلتر فروش/کرایه برای املاک
       if (appMode === 'ESTATE') {
         const p = item as Property;
         return activeDealFilter === 'ALL' || p.dealType === activeDealFilter;
