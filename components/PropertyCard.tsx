@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { Property, Language } from '../types';
-import { Bookmark, Home } from 'lucide-react';
+import { Bookmark, Home, Trash2, Clock } from 'lucide-react';
 import { translations } from '../services/translations';
+import { getRelativeTime } from '../App';
 
 interface PropertyCardProps {
   property: Property;
@@ -10,10 +11,11 @@ interface PropertyCardProps {
   isVisited?: boolean;
   isSaved?: boolean;
   onToggleSave?: () => void;
+  onDelete?: () => void;
   lang: Language;
 }
 
-const PropertyCard: React.FC<PropertyCardProps> = ({ property, onClick, isVisited, isSaved, onToggleSave, lang }) => {
+const PropertyCard: React.FC<PropertyCardProps> = ({ property, onClick, isVisited, isSaved, onToggleSave, onDelete, lang }) => {
   const hasImages = property.images && property.images.length > 0;
   const t = translations[lang];
 
@@ -25,13 +27,26 @@ const PropertyCard: React.FC<PropertyCardProps> = ({ property, onClick, isVisite
       <div className="flex-1 flex flex-col justify-between py-1 text-right">
         <div>
           <div className="flex justify-between items-start">
-             <span className="bg-red-50 text-red-500 text-[10px] font-black px-2 py-0.5 rounded-lg">{t.new}</span>
-             <button 
-                onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }}
-                className="p-2 -m-2 text-gray-300 hover:text-[#a62626] transition-colors"
-             >
-                <Bookmark size={18} className={isSaved ? "fill-[#a62626] text-[#a62626]" : ""} />
-             </button>
+             <div className="flex items-center gap-1.5">
+               <span className="bg-red-50 text-red-500 text-[9px] font-black px-2 py-0.5 rounded-lg">{t.new}</span>
+               <span className="text-[9px] text-gray-400 font-bold flex items-center gap-0.5"><Clock size={10} /> {getRelativeTime(property.date, lang)}</span>
+             </div>
+             <div className="flex items-center gap-1">
+                {onDelete && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                    className="p-2 -m-2 text-gray-400 hover:text-red-600 transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                )}
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }}
+                    className="p-2 -m-2 text-gray-300 hover:text-[#a62626] transition-colors"
+                >
+                    <Bookmark size={18} className={isSaved ? "fill-[#a62626] text-[#a62626]" : ""} />
+                </button>
+             </div>
           </div>
           <h3 className="font-black text-gray-800 text-[15px] leading-7 mt-2 line-clamp-2">
             {property.title}

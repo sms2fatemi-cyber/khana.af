@@ -1,6 +1,6 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, ArrowRight, Languages } from 'lucide-react';
+import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, ArrowRight, Languages, Search } from 'lucide-react';
 import MapView from './components/MapView';
 import PropertyCard from './components/PropertyCard';
 import PropertyDetails from './components/PropertyDetails';
@@ -21,6 +21,24 @@ import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 
 type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
 
+// تابع کمکی برای نمایش زمان نسبی به زبان دری و پشتو
+export const getRelativeTime = (dateStr: string, lang: Language) => {
+  if (!dateStr) return lang === 'dari' ? 'جدید' : 'نوې';
+  const now = new Date();
+  const past = new Date(dateStr);
+  const diffInMs = now.getTime() - past.getTime();
+  const diffInMins = Math.floor(diffInMs / (1000 * 60));
+  const diffInHours = Math.floor(diffInMins / 60);
+  const diffInDays = Math.floor(diffInHours / 24);
+
+  if (diffInMins < 1) return lang === 'dari' ? 'لحظاتی پیش' : 'همدا اوس';
+  if (diffInMins < 60) return lang === 'dari' ? `${diffInMins} دقیقه پیش` : `${diffInMins} دقیقې مخکې`;
+  if (diffInHours < 24) return lang === 'dari' ? `${diffInHours} ساعت پیش` : `${diffInHours} ساعت مخکې`;
+  if (diffInDays < 7) return lang === 'dari' ? `${diffInDays} روز پیش` : `${diffInDays} ورځې مخکې`;
+  
+  return dateStr; // اگر بیشتر از یک هفته بود خود تاریخ را نشان بده
+};
+
 function App() {
   const [lang, setLang] = useState<Language>(() => (localStorage.getItem('app_lang') as Language) || 'dari');
   const t = translations[lang];
@@ -38,6 +56,7 @@ function App() {
   const [selectedItem, setSelectedItem] = useState<Property | Job | Service | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [displaySearch, setDisplaySearch] = useState(''); // برای کنترل ورودی تایپی کاربر
   const [selectedProvince, setSelectedProvince] = useState(t.provinces[0]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -46,6 +65,7 @@ function App() {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
+  const [displayLimit, setDisplayLimit] = useState(20); // محدودیت تعداد نمایش اولیه
   
   const [properties, setProperties] = useState<Property[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -96,7 +116,8 @@ function App() {
         ownerId: item.owner_id || 'guest',
         dealType: item.deal_type,
         phoneNumber: item.phone_number,
-        status: item.status || 'APPROVED'
+        status: item.status || 'APPROVED',
+        date: item.created_at // استفاده از زمان ثبت دیتابیس برای زمان نسبی
       });
 
       setProperties(pRes.data?.map(mapStatus) || []);
@@ -110,6 +131,27 @@ function App() {
   }, []);
 
   useEffect(() => { refreshData(); }, [refreshData]);
+
+  const handleDeleteItem = async (item: Property | Job | Service) => {
+    const confirmMsg = lang === 'dari' ? "آیا از حذف این آگهی اطمینان دارید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟";
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      let tableName = '';
+      if (appMode === 'ESTATE') tableName = TABLES.PROPERTIES;
+      else if (appMode === 'JOBS') tableName = TABLES.JOBS;
+      else tableName = TABLES.SERVICES;
+
+      const { error } = await supabase.from(tableName).delete().eq('id', item.id);
+      if (error) throw error;
+      
+      refreshData();
+      setSelectedItem(null);
+      setIsDetailOpen(false);
+    } catch (e) {
+      alert(lang === 'dari' ? "خطا در حذف آگهی" : "د اعلان حذفولو کې تېروتنه");
+    }
+  };
 
   const filteredItems = useMemo(() => {
     const userPhone = localStorage.getItem('user_phone') || null;
@@ -127,6 +169,7 @@ function App() {
       
       if (filterCategory !== 'MY_ADS' && !isApproved && !isOwner) return false;
 
+      // جستجوی منعطف: اگر کلمه در عنوان باشد نشان داده شود
       const titleMatch = item.title.toLowerCase().includes(searchTerm.toLowerCase());
       const isAllCity = selectedProvince === translations.dari.provinces[0] || selectedProvince === translations.pashto.provinces[0];
       const cityMatch = isAllCity || item.city === selectedProvince;
@@ -140,6 +183,8 @@ function App() {
       return true;
     });
   }, [appMode, searchTerm, activeDealFilter, selectedProvince, properties, jobs, services, filterCategory, savedIds]);
+
+  const displayedItems = useMemo(() => filteredItems.slice(0, displayLimit), [filteredItems, displayLimit]);
 
   const handleSelectItem = (item: Property | Job | Service) => {
     setVisitedIds(prev => new Set(prev).add(item.id));
@@ -163,6 +208,12 @@ function App() {
     setIsDetailOpen(false);
     setViewMode('list');
     setFilterCategory('ALL');
+    setDisplayLimit(20);
+  };
+
+  const handleSearchClick = () => {
+    setSearchTerm(displaySearch);
+    setDisplayLimit(20);
   };
 
   if (isAdminMode) {
@@ -222,16 +273,22 @@ function App() {
                 </div>
               )}
               <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder={appMode === 'ESTATE' ? t.search_estate : appMode === 'JOBS' ? t.search_jobs : t.search_services} 
-                  className="flex-1 bg-gray-100 rounded-xl px-4 py-2.5 text-xs font-bold outline-none border border-transparent focus:border-[#a62626]/20 transition-all" 
-                  value={searchTerm} 
-                  onChange={(e) => setSearchTerm(e.target.value)} 
-                />
+                <div className="flex-1 relative flex items-center">
+                  <input 
+                    type="text" 
+                    placeholder={appMode === 'ESTATE' ? t.search_estate : appMode === 'JOBS' ? t.search_jobs : t.search_services} 
+                    className="w-full bg-gray-100 rounded-xl pr-4 pl-10 py-2.5 text-xs font-bold outline-none border border-transparent focus:border-[#a62626]/20 transition-all" 
+                    value={displaySearch} 
+                    onChange={(e) => setDisplaySearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearchClick()}
+                  />
+                  <button onClick={handleSearchClick} className="absolute left-2 p-1.5 bg-[#a62626] text-white rounded-lg active:scale-90 transition-transform">
+                    <Search size={14} />
+                  </button>
+                </div>
                 <select 
                   value={selectedProvince} 
-                  onChange={(e) => setSelectedProvince(e.target.value)} 
+                  onChange={(e) => { setSelectedProvince(e.target.value); setDisplayLimit(20); }} 
                   className="bg-gray-100 rounded-xl px-2 py-2.5 text-[10px] font-black outline-none border border-transparent focus:border-[#a62626]/20 max-w-[100px]"
                 >
                   {t.provinces.map(p => <option key={p} value={p}>{p}</option>)}
@@ -239,10 +296,10 @@ function App() {
               </div>
               {appMode === 'ESTATE' && (
                  <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
-                    <button onClick={() => setActiveDealFilter('ALL')} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === 'ALL' ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.all}</button>
-                    <button onClick={() => setActiveDealFilter(DealType.SALE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.SALE ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.sale}</button>
-                    <button onClick={() => setActiveDealFilter(DealType.RENT)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.RENT ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.rent}</button>
-                    <button onClick={() => setActiveDealFilter(DealType.MORTGAGE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.MORTGAGE ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.mortgage}</button>
+                    <button onClick={() => { setActiveDealFilter('ALL'); setDisplayLimit(20); }} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === 'ALL' ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.all}</button>
+                    <button onClick={() => { setActiveDealFilter(DealType.SALE); setDisplayLimit(20); }} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.SALE ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.sale}</button>
+                    <button onClick={() => { setActiveDealFilter(DealType.RENT); setDisplayLimit(20); }} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.RENT ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.rent}</button>
+                    <button onClick={() => { setActiveDealFilter(DealType.MORTGAGE); setDisplayLimit(20); }} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.MORTGAGE ? 'bg-[#a62626] text-white shadow-md' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>{t.mortgage}</button>
                  </div>
               )}
             </div>
@@ -255,19 +312,30 @@ function App() {
                  <p className="text-[10px] font-black text-gray-400">{lang === 'dari' ? 'در حال بروزرسانی لیست...' : 'د لست تازه کول...'}</p>
                </div>
             ) : (
-              filteredItems.map(item => (
-                <div key={item.id} className="relative">
-                  {item.status === 'PENDING' && (
-                    <div className="absolute top-2 right-2 z-10 bg-amber-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">{lang === 'dari' ? 'در انتظار تایید' : 'تایید ته انتظار'}</div>
-                  )}
-                  {appMode === 'ESTATE' ? 
-                    <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} /> :
-                   appMode === 'JOBS' ? 
-                    <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} /> :
-                    <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} />
-                  }
-                </div>
-              ))
+              <>
+                {displayedItems.map(item => (
+                  <div key={item.id} className="relative">
+                    {item.status === 'PENDING' && (
+                      <div className="absolute top-2 right-2 z-10 bg-amber-500 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">{lang === 'dari' ? 'در انتظار تایید' : 'تایید ته انتظار'}</div>
+                    )}
+                    {appMode === 'ESTATE' ? 
+                      <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} lang={lang} /> :
+                     appMode === 'JOBS' ? 
+                      <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} lang={lang} /> :
+                      <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteItem(item) : undefined} lang={lang} />
+                    }
+                  </div>
+                ))}
+                
+                {filteredItems.length > displayLimit && (
+                  <button 
+                    onClick={() => setDisplayLimit(prev => prev + 20)}
+                    className="w-full py-4 bg-gray-50 border border-gray-100 rounded-2xl text-[11px] font-black text-gray-500 hover:bg-gray-100 active:scale-95 transition-all mb-4"
+                  >
+                    {lang === 'dari' ? 'مشاهده آگهی‌های بیشتر' : 'نور اعلانونه وګورئ'}
+                  </button>
+                )}
+              </>
             )}
             {!isLoading && filteredItems.length === 0 && (
               <div className="text-center py-24 flex flex-col items-center gap-4 opacity-40">

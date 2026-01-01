@@ -1,5 +1,5 @@
 
-import { Component, ErrorInfo, ReactNode } from "react";
+import React, { ErrorInfo, ReactNode } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 interface Props {
@@ -14,9 +14,9 @@ interface State {
 
 /**
  * ErrorBoundary class component to catch JavaScript errors in child components.
- * Fix: Explicitly extending Component to resolve compilation issues with setState and props.
  */
-export class ErrorBoundary extends Component<Props, State> {
+// Fix: Explicitly extend React.Component to ensure setState and props are correctly inherited and recognized by the compiler
+export class ErrorBoundary extends React.Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
@@ -27,18 +27,19 @@ export class ErrorBoundary extends Component<Props, State> {
     super(props);
   }
 
-  // Fix: Static method correctly returns State for derived error updates
+  // Static method correctly returns State for derived error updates
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error, errorInfo: null };
   }
 
-  // Fix: Implementation of componentDidCatch to store error info using this.setState
+  // Implementation of componentDidCatch to store error info using this.setState
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
+    // Fix: Accessing setState which is inherited from React.Component
     this.setState({ errorInfo });
   }
 
-  // Fix: Using this.props correctly in render method
+  // Render method displays fallback UI if an error occurs
   public render() {
     if (this.state.hasError) {
       return (
@@ -68,6 +69,7 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
+    // Fix: Correctly access children from the inherited props property of React.Component
     return this.props.children;
   }
 }

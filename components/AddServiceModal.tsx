@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair } from 'lucide-react';
 import { ServiceCategory } from '../types';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
@@ -26,6 +26,38 @@ const MapResizer = () => {
   return null;
 };
 
+const UserLocationHandler = () => {
+  const map = useMap();
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleLocate = useCallback(() => {
+    if (!navigator.geolocation) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        map.flyTo([lat, lng], 16, { animate: true });
+        setIsLocating(false);
+      },
+      () => {
+        setIsLocating(false);
+        alert("لطفاً GPS را روشن کنید.");
+      },
+      { enableHighAccuracy: false, timeout: 5000 }
+    );
+  }, [map]);
+
+  return (
+    <button 
+      type="button"
+      onClick={handleLocate}
+      className="absolute bottom-24 right-6 z-[1000] w-14 h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-orange-600 border border-gray-100 active:scale-90 transition-transform"
+    >
+      {isLocating ? <Loader2 size={24} className="animate-spin" /> : <Crosshair size={28} />}
+    </button>
+  );
+};
+
 const AddServiceModal: React.FC<AddServiceModalProps> = ({ onClose, t, lang }) => {
   const [view, setView] = useState<'form' | 'map'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,7 +74,8 @@ const AddServiceModal: React.FC<AddServiceModalProps> = ({ onClose, t, lang }) =
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const files = Array.from(e.target.files);
+      // Fix: Cast Array.from result to File[] to ensure the compiler recognizes file.name and other properties
+      const files = Array.from(e.target.files) as File[];
       setSelectedFiles(prev => [...prev, ...files]);
       files.forEach(file => {
         if (!file.name.toLowerCase().endsWith('.heic')) {
@@ -90,7 +123,7 @@ const AddServiceModal: React.FC<AddServiceModalProps> = ({ onClose, t, lang }) =
 
   if (isSuccess) return (
     <div className="fixed inset-0 z-[10001] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-10 text-center animate-slide-up">
+      <div className="bg-white w-full max-sm:max-w-xs rounded-[2.5rem] p-10 text-center animate-slide-up">
         <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
         <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
         <button onClick={() => onClose()} className="w-full bg-orange-600 text-white py-4 rounded-xl font-black">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
@@ -113,6 +146,7 @@ const AddServiceModal: React.FC<AddServiceModalProps> = ({ onClose, t, lang }) =
               <MapContainerAny center={[formData.location.lat, formData.location.lng]} zoom={14} style={{ height: '100%' }} zoomControl={false}>
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
+                <UserLocationHandler />
                 <MapPin size={40} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] text-orange-600" />
               </MapContainerAny>
               <button onClick={() => setView('form')} className="absolute bottom-10 left-8 right-8 z-[1000] bg-orange-600 text-white py-4 rounded-2xl font-black shadow-2xl">{lang === 'dari' ? 'تایید محل خدمات' : 'د ځای تایید'}</button>
