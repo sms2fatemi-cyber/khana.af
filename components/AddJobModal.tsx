@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, ListChecks, MapPinned, Crosshair } from 'lucide-react';
 import { JobType } from '../types';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
 
 interface AddJobModalProps {
@@ -23,6 +23,16 @@ const MapResizer = () => {
     observer.observe(map.getContainer());
     return () => observer.disconnect();
   }, [map]);
+  return null;
+};
+
+const MapMoveHandler = ({ onChange }: { onChange: (latlng: any) => void }) => {
+  useMapEvents({
+    moveend: (e) => {
+      const center = e.target.getCenter();
+      onChange({ lat: center.lat, lng: center.lng });
+    }
+  });
   return null;
 };
 
@@ -115,8 +125,8 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
       const { error } = await supabase.from(TABLES.JOBS).insert([payload]);
       if (error) throw error;
       setIsSuccess(true);
-    } catch (err) {
-      alert(lang === 'dari' ? "خطا در ثبت شغل." : "د دندې ثبتولو کې ستونزه ده.");
+    } catch (err: any) {
+      alert(lang === 'dari' ? `خطا در ثبت شغل: ${err.message}` : `د دندې په ثبتولو کې تېروتنه: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -124,10 +134,13 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
 
   if (isSuccess) return (
     <div className="fixed inset-0 z-[10001] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-sm:max-w-xs rounded-[2.5rem] p-10 text-center animate-slide-up">
+      <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
         <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
         <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
-        <button onClick={() => onClose()} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
+        <p className="text-sm text-gray-500 font-bold mb-8 leading-7">
+          {lang === 'dari' ? 'آگهی استخدام شما ثبت شد و منتظر تایید است.' : 'ستاسو اعلان ثبت شو او د تایید په تمه دی.'}
+        </p>
+        <button onClick={onClose} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black active:scale-95">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
       </div>
     </div>
   );
@@ -136,7 +149,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl md:rounded-[2.5rem] flex flex-col overflow-hidden relative" onClick={e => e.stopPropagation()}>
+      <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl md:rounded-[2.5rem] flex flex-col overflow-hidden relative shadow-2xl" onClick={e => e.stopPropagation()}>
         {view === 'map' && (
           <div className="absolute inset-0 z-[110] bg-white flex flex-col">
             <div className="h-16 flex items-center px-6 border-b shrink-0">
@@ -148,9 +161,12 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <UserLocationHandler />
-                <MapPin size={40} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] text-blue-600" />
+                <MapMoveHandler onChange={(loc) => setFormData(prev => ({ ...prev, location: loc }))} />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none">
+                   <MapPin size={40} className="text-blue-600 drop-shadow-xl" />
+                </div>
               </MapContainerAny>
-              <button onClick={() => setView('form')} className="absolute bottom-10 left-8 right-8 z-[1000] bg-blue-600 text-white py-4 rounded-2xl font-black shadow-2xl">{lang === 'dari' ? 'تایید محل کار' : 'د ځای تایید'}</button>
+              <button onClick={() => setView('form')} className="absolute bottom-10 left-8 right-8 z-[1000] bg-blue-600 text-white py-4 rounded-2xl font-black shadow-2xl active:scale-95">{lang === 'dari' ? 'تایید محل کار' : 'د ځای تایید'}</button>
             </div>
           </div>
         )}
@@ -169,10 +185,9 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
                   <button type="button" onClick={() => removeImage(i)} className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-lg"><Trash2 size={16} /></button>
                 </div>
               ))}
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50">
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
                 <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
               </button>
-              {/* Fix: use the correct ref attribute instead of fileInputRef */}
               <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" multiple onChange={handleFileChange} />
             </div>
 
@@ -199,7 +214,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
 
               <input type="tel" value={formData.phoneNumber} onChange={e => setFormData({...formData, phoneNumber: e.target.value})} placeholder={t.enter_phone} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none text-center dir-ltr" required />
               
-              <button type="button" onClick={() => setView('map')} className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-gray-400 font-black">
+              <button type="button" onClick={() => setView('map')} className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-gray-400 font-black active:bg-gray-50">
                 <MapPin size={24} /> {t.select_location}
               </button>
               
@@ -209,7 +224,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
         </div>
 
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
-          <button form="job-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 text-white py-4 rounded-2xl font-black text-lg disabled:bg-gray-300">
+          <button form="job-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 text-white py-4 rounded-2xl font-black text-lg disabled:bg-gray-300 active:scale-95">
             {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : t.submit}
           </button>
           <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">{t.cancel}</button>

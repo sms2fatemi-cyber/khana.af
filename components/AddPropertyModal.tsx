@@ -144,9 +144,9 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
       const { error } = await supabase.from(TABLES.PROPERTIES).insert([payload]);
       if (error) throw error;
       setIsSuccess(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert(lang === 'dari' ? "خطا در ثبت ملک." : "د ملک ثبتولو کې ستونزه ده.");
+      alert(lang === 'dari' ? `خطا در ثبت: ${err.message}` : `د ثبتولو تېروتنه: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -154,17 +154,17 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
 
   if (isSuccess) return (
     <div className="fixed inset-0 z-[11000] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-sm:max-w-xs rounded-[2.5rem] p-10 text-center animate-in slide-in-from-bottom">
+      <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 text-center animate-in slide-in-from-bottom shadow-2xl">
         <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
           <Check size={40} />
         </div>
-        <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
+        <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'با موفقیت ثبت شد' : 'په بري سره ثبت شو'}</h2>
         <p className="text-sm text-gray-500 font-bold mb-8 leading-7">
           {lang === 'dari' 
-            ? 'ملک شما با موفقیت ثبت شد و پس از بررسی توسط ادمین منتشر می‌شود.' 
-            : 'ستاسو ملک په بریالیتوب سره ثبت شو او تر ارزونې وروسته به خپور شي.'}
+            ? 'ملک شما ثبت شد و پس از بررسی توسط تیم مدیریت منتشر خواهد شد.' 
+            : 'ستاسو اعلان ثبت شو او د ارزونې وروسته به خپور شي.'}
         </p>
-        <button onClick={() => onClose()} className="w-full bg-[#a62626] text-white py-4 rounded-xl font-black active:scale-95 transition-transform shadow-lg shadow-red-900/20">
+        <button onClick={onClose} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black active:scale-95 transition-all shadow-lg shadow-red-900/20">
           {lang === 'dari' ? 'متوجه شدم' : 'پوه شوم'}
         </button>
       </div>
@@ -176,7 +176,8 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl md:rounded-[2.5rem] flex flex-col overflow-hidden relative" onClick={e => e.stopPropagation()}>
+      <div className="bg-white w-full h-full md:h-auto md:max-h-[90vh] md:max-w-xl md:rounded-[2.5rem] flex flex-col overflow-hidden relative shadow-2xl" onClick={e => e.stopPropagation()}>
+        
         {view === 'map' && (
           <div className="absolute inset-0 z-[110] bg-white flex flex-col">
             <div className="h-16 flex items-center px-6 border-b shrink-0">
@@ -190,7 +191,7 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
                 <UserLocationHandler />
                 <MapMoveHandler onChange={(loc) => setFormData(prev => ({ ...prev, location: loc }))} />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none">
-                  <MapPin size={40} className="text-[#a62626] drop-shadow-lg" />
+                  <MapPin size={40} className="text-[#a62626] drop-shadow-xl" />
                 </div>
               </MapContainerAny>
               <button onClick={() => setView('form')} className="absolute bottom-10 left-8 right-8 z-[1000] bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-2xl active:scale-95">تایید محل ملک</button>
