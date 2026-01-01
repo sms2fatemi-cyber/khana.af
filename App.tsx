@@ -3,11 +3,11 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, ArrowRight, Languages, Search } from 'lucide-react';
 import MapView from './components/MapView';
 import PropertyCard from './components/PropertyCard';
-import PropertyDetails from './components/PropertyDetails';
+import PropertyDetails from './components/PropertyDetails.tsx';
 import JobCard from './components/JobCard';
-import JobDetails from './components/JobDetails';
+import JobDetails from './components/JobDetails.tsx';
 import ServiceCard from './components/ServiceCard';
-import ServiceDetails from './components/ServiceDetails';
+import ServiceDetails from './components/ServiceDetails.tsx';
 import AddPropertyModal from './components/AddPropertyModal';
 import AddJobModal from './components/AddJobModal';
 import AddServiceModal from './components/AddServiceModal';
@@ -139,7 +139,7 @@ function App() {
   useEffect(() => { 
     refreshData(); 
     
-    // سیستم اعلان پیام جدید
+    // سیستم اعلان پیام جدید به صورت زنده
     const userPhone = localStorage.getItem('user_phone');
     if (userPhone && isSupabaseReady()) {
       const checkMessages = async () => {
@@ -153,11 +153,14 @@ function App() {
       checkMessages();
       
       const channel = supabase
-        .channel('unread_chats_realtime')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLES.USER_CHATS }, payload => {
-          if (payload.new.receiver_phone === userPhone) {
-            setHasNewMessages(true);
-          }
+        .channel('global_unread_notifications')
+        .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: TABLES.USER_CHATS,
+          filter: `receiver_phone=eq.${userPhone}`
+        }, () => {
+          setHasNewMessages(true);
         })
         .subscribe();
       return () => { supabase.removeChannel(channel); };

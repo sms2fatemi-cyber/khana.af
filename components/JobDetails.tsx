@@ -53,7 +53,6 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
       
-      {/* Mobile Header */}
       <div className="md:hidden absolute top-0 left-0 right-0 h-14 z-50 flex items-center justify-between px-4 pt-2 pointer-events-none">
         <button onClick={onClose} className="p-2 active:scale-90 bg-white/80 backdrop-blur-md rounded-full shadow-sm pointer-events-auto text-gray-700"><ChevronRight size={24} /></button>
         <div className="flex gap-2 pointer-events-auto">
@@ -100,7 +99,7 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
         </div>
       </div>
 
-      <div className="bg-white border-t p-4 flex gap-3 z-30 shrink-0">
+      <div className="bg-white border-t p-4 flex gap-3 z-30 shrink-0 safe-area-bottom">
         <button onClick={handleChatOpen} className="flex-1 bg-gray-100 text-gray-700 h-14 rounded-2xl font-black text-lg flex items-center justify-center gap-3 active:scale-95">
             <MessageCircle size={22} /> {t.chat}
         </button>
