@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Property, Job, Service } from '../types';
-import { Trash2, Home, Shield, FileText, LayoutDashboard, Key, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Plus } from 'lucide-react';
+import { Trash2, Home, Shield, FileText, LayoutDashboard, Key, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase, TABLES } from '../services/supabaseClient';
 
 interface AdminPanelProps {
@@ -22,6 +22,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESTATE' | 'JOBS' | 'SERVICES' | 'ADMINS' | 'PROFILE'>('DASHBOARD');
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [activeImgIdx, setActiveImgIdx] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [adminMsg, setAdminMsg] = useState('');
   
@@ -39,6 +40,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   useEffect(() => {
     if (activeTab === 'ADMINS') fetchAdmins();
   }, [activeTab]);
+
+  useEffect(() => {
+    // Reset image index when selecting a new item
+    if (selectedItem) setActiveImgIdx(0);
+  }, [selectedItem]);
 
   const handleUpdateStatus = async (id: string, table: string, status: 'APPROVED' | 'REJECTED') => {
     setIsProcessing(true);
@@ -217,7 +223,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                        <img src={item.images[0]} className="w-16 h-16 rounded-2xl object-cover" />
                        <div>
                           <h4 className="font-black text-base text-gray-800">{item.title}</h4>
-                          <span className={`text-[10px] px-3 py-1 rounded-xl font-black ${item.status === 'PENDING' ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600'}`}>{item.status}</span>
+                          <span className={`text-[10px] px-3 py-1 rounded-xl font-black ${item.status === 'PENDING' ? 'bg-amber-100 text-amber-600' : item.status === 'REJECTED' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                            {item.status}
+                          </span>
                        </div>
                     </div>
                     <Eye size={20} className="text-gray-300" />
@@ -229,28 +237,106 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       </div>
 
       {selectedItem && (
-        <div className="fixed inset-0 z-[9500] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedItem(null)}>
-           <div className="bg-white w-full max-w-3xl max-h-[95vh] rounded-[3rem] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
-              <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
+        <div className="fixed inset-0 z-[9500] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={() => setSelectedItem(null)}>
+           <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
+              <div className="p-6 border-b flex justify-between items-center bg-gray-50/50 shrink-0">
                  <h3 className="font-black text-lg">بررسی جزئیات آگهی</h3>
                  <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400"><XCircle size={28} /></button>
               </div>
-              <div className="flex-1 overflow-y-auto p-8 space-y-6">
-                 <div className="aspect-video rounded-3xl overflow-hidden shadow-xl border-4 border-white mb-6">
-                    <img src={selectedItem.images[0]} className="w-full h-full object-cover" />
+              
+              <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 no-scrollbar">
+                 {/* بخش تصاویر اصلاح شده */}
+                 <div className="space-y-4">
+                    <div className="relative aspect-video rounded-3xl overflow-hidden bg-zinc-900 shadow-xl border-4 border-white">
+                        <img 
+                          src={selectedItem.images[activeImgIdx]} 
+                          className="w-full h-full object-contain" // نمایش کامل عکس بدون برش
+                          alt="Ad" 
+                        />
+                        {selectedItem.images.length > 1 && (
+                          <>
+                            <button onClick={() => setActiveImgIdx(prev => (prev > 0 ? prev - 1 : selectedItem.images.length - 1))} className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full transition-all">
+                                <ChevronLeft size={24} />
+                            </button>
+                            <button onClick={() => setActiveImgIdx(prev => (prev < selectedItem.images.length - 1 ? prev + 1 : 0))} className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/60 text-white p-2 rounded-full transition-all">
+                                <ChevronRight size={24} />
+                            </button>
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/40 px-3 py-1 rounded-full text-[10px] text-white font-black">
+                                {activeImgIdx + 1} از {selectedItem.images.length}
+                            </div>
+                          </>
+                        )}
+                    </div>
+                    
+                    {/* گالری تصاویر کوچک */}
+                    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+                       {selectedItem.images.map((img:string, idx:number) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => setActiveImgIdx(idx)}
+                            className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 cursor-pointer transition-all ${activeImgIdx === idx ? 'border-red-600 scale-105 shadow-md' : 'border-transparent opacity-60'}`}
+                          >
+                             <img src={img} className="w-full h-full object-cover" />
+                          </div>
+                       ))}
+                    </div>
                  </div>
-                 <h4 className="text-2xl font-black text-gray-900">{selectedItem.title}</h4>
-                 <p className="text-sm text-gray-500 leading-8 font-medium">{selectedItem.description}</p>
-                 <div className="bg-blue-50/50 p-6 rounded-[2.5rem] border border-blue-100 space-y-4">
-                    <h5 className="text-sm font-black flex items-center gap-2 text-blue-700"><MessageSquare size={18}/> ارسال پیام سیستمی به کاربر</h5>
-                    <textarea value={adminMsg} onChange={e => setAdminMsg(e.target.value)} placeholder="دلیل رد یا پیام تبریک..." className="w-full p-5 rounded-2xl border-2 border-blue-100 text-sm font-bold h-28 resize-none outline-none focus:border-blue-400 bg-white shadow-sm" />
-                    <button onClick={() => handleSendAdminMessage(selectedItem.phoneNumber)} className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black">ارسال پیام</button>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                       <h4 className="text-2xl font-black text-gray-900">{selectedItem.title}</h4>
+                       <p className="text-sm text-gray-500 leading-8 font-medium text-justify">{selectedItem.description}</p>
+                       <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex flex-col gap-1">
+                          <span className="text-[10px] font-black text-gray-400">اطلاعات تماس مالک</span>
+                          <span className="text-lg font-black text-gray-800" dir="ltr">{selectedItem.phoneNumber}</span>
+                          <span className="text-[11px] font-bold text-gray-500">{selectedItem.city} - {selectedItem.address}</span>
+                       </div>
+                    </div>
+
+                    <div className="bg-blue-50/50 p-6 rounded-[2.5rem] border border-blue-100 space-y-4 shadow-inner self-start">
+                       <h5 className="text-sm font-black flex items-center gap-2 text-blue-700"><MessageSquare size={18}/> ارسال پیام سیستمی به کاربر</h5>
+                       <textarea 
+                         value={adminMsg} 
+                         onChange={e => setAdminMsg(e.target.value)} 
+                         placeholder="دلیل رد یا پیام راهنما..." 
+                         className="w-full p-5 rounded-2xl border-2 border-blue-100 text-sm font-bold h-32 resize-none outline-none focus:border-blue-400 bg-white shadow-sm" 
+                       />
+                       <button 
+                         onClick={() => handleSendAdminMessage(selectedItem.phoneNumber)} 
+                         disabled={isProcessing || !adminMsg.trim()}
+                         className="bg-blue-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-lg shadow-blue-200 active:scale-95 transition-all disabled:opacity-50"
+                       >
+                         ارسال پیام ادمین
+                       </button>
+                    </div>
                  </div>
               </div>
-              <div className="p-6 border-t bg-gray-50/80 flex gap-3">
-                 <button onClick={() => handleUpdateStatus(selectedItem.id, selectedItem.typeTab === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.typeTab === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES, 'APPROVED')} className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2"><CheckCircle size={22}/> تایید</button>
-                 <button onClick={() => handleUpdateStatus(selectedItem.id, selectedItem.typeTab === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.typeTab === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES, 'REJECTED')} className="flex-1 bg-amber-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2"><XCircle size={22}/> رد</button>
-                 <button onClick={() => handleDeleteItem(selectedItem.id, selectedItem.typeTab)} className="bg-red-100 text-red-600 px-6 py-4 rounded-2xl font-black"><Trash2 size={24}/></button>
+
+              <div className="p-6 border-t bg-gray-50/80 flex flex-wrap md:flex-nowrap gap-3 shrink-0">
+                 <button 
+                    // @ts-ignore - Explicitly cast arguments from 'any' state to string to prevent type mismatch errors
+                    onClick={() => handleUpdateStatus(String(selectedItem.id), String(selectedItem.typeTab === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.typeTab === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES), 'APPROVED')} 
+                    disabled={isProcessing}
+                    className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-green-200 active:scale-95 transition-all"
+                 >
+                    <CheckCircle size={22}/> تایید و انتشار
+                 </button>
+                 <button 
+                    // @ts-ignore - Explicitly cast arguments from 'any' state to string to prevent type mismatch errors
+                    onClick={() => handleUpdateStatus(String(selectedItem.id), String(selectedItem.typeTab === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.typeTab === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES), 'REJECTED')} 
+                    disabled={isProcessing}
+                    className="flex-1 bg-amber-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-amber-200 active:scale-95 transition-all"
+                 >
+                    <XCircle size={22}/> رد محتوا
+                 </button>
+                 <button 
+                    onClick={() => handleDeleteItem(selectedItem.id, selectedItem.typeTab)} 
+                    disabled={isProcessing}
+                    className="bg-red-100 text-red-600 px-6 py-4 rounded-2xl font-black hover:bg-red-200 transition-colors"
+                    title="حذف دائمی"
+                 >
+                    <Trash2 size={24}/>
+                 </button>
               </div>
            </div>
         </div>
