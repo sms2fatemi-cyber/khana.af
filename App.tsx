@@ -66,7 +66,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
   const [displayLimit, setDisplayLimit] = useState(20);
-  const [hasNewMessages, setHasNewMessages] = useState(false);
+  
+  const [hasNewUserChats, setHasNewUserChats] = useState(false);
+  const [hasNewAdminMessages, setHasNewAdminMessages] = useState(false);
   
   const [properties, setProperties] = useState<Property[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -136,36 +138,43 @@ function App() {
     }
   }, []);
 
+  const checkUnreadNotifications = useCallback(async () => {
+    const userPhone = localStorage.getItem('user_phone');
+    if (!userPhone || !isSupabaseReady()) return;
+
+    const [chatsRes, adminRes] = await Promise.all([
+      supabase.from(TABLES.USER_CHATS).select('id', { count: 'exact', head: true }).eq('receiver_phone', userPhone).eq('is_read', false),
+      supabase.from(TABLES.MESSAGES).select('id', { count: 'exact', head: true }).eq('target_phone', userPhone).eq('is_read', false)
+    ]);
+
+    setHasNewUserChats((chatsRes.count || 0) > 0);
+    setHasNewAdminMessages((adminRes.count || 0) > 0);
+  }, []);
+
   useEffect(() => { 
     refreshData(); 
+    checkUnreadNotifications();
     
-    // سیستم اعلان پیام جدید به صورت زنده
     const userPhone = localStorage.getItem('user_phone');
     if (userPhone && isSupabaseReady()) {
-      const checkMessages = async () => {
-        const { count } = await supabase
-          .from(TABLES.USER_CHATS)
-          .select('*', { count: 'exact', head: true })
-          .eq('receiver_phone', userPhone)
-          .eq('is_read', false);
-        setHasNewMessages((count || 0) > 0);
-      };
-      checkMessages();
-      
       const channel = supabase
-        .channel('global_unread_notifications')
+        .channel('realtime_notifications')
         .on('postgres_changes', { 
-          event: 'INSERT', 
+          event: '*', 
           schema: 'public', 
           table: TABLES.USER_CHATS,
           filter: `receiver_phone=eq.${userPhone}`
-        }, () => {
-          setHasNewMessages(true);
-        })
+        }, () => checkUnreadNotifications())
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: TABLES.MESSAGES,
+          filter: `target_phone=eq.${userPhone}`
+        }, () => checkUnreadNotifications())
         .subscribe();
       return () => { supabase.removeChannel(channel); };
     }
-  }, [refreshData]);
+  }, [refreshData, checkUnreadNotifications]);
 
   const handleDeleteItem = async (item: Property | Job | Service) => {
     const confirmMsg = lang === 'dari' ? "آیا از حذف این آگهی اطمینان دارید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟";
@@ -293,7 +302,7 @@ function App() {
             <button onClick={handleOpenAddModal} className="bg-[#a62626] text-white px-5 py-2 rounded-xl font-black text-xs shadow-lg shadow-red-900/20 active:scale-95">ثبت آگهی</button>
             <button onClick={() => setShowAuthModal(true)} className="p-2.5 text-gray-500 hover:bg-gray-100 rounded-xl transition-colors relative">
                <User size={22} />
-               {hasNewMessages && <div className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border border-white"></div>}
+               {(hasNewUserChats || hasNewAdminMessages) && <div className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border border-white"></div>}
             </button>
           </div>
         </div>
@@ -427,7 +436,7 @@ function App() {
           <button onClick={() => setShowAuthModal(true)} className={`flex flex-col items-center flex-1 gap-1 transition-all relative ${showAuthModal ? 'text-[#a62626]' : 'text-gray-300'}`}>
             <User size={20} />
             <span className="text-[9px] font-black">{t.account}</span>
-            {hasNewMessages && <div className="absolute top-0 right-1/2 translate-x-3 w-2 h-2 bg-red-600 rounded-full border border-white"></div>}
+            {(hasNewUserChats || hasNewAdminMessages) && <div className="absolute top-0 right-1/2 translate-x-3 w-2 h-2 bg-red-600 rounded-full border border-white"></div>}
           </button>
         </div>
       </main>
@@ -448,7 +457,7 @@ function App() {
         </div>
       )}
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} hasUnreadChats={hasNewUserChats} hasUnreadAdmin={hasNewAdminMessages} onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} />}
       {showAdminLogin && <AdminLogin admins={ADMINS} onLogin={() => { setShowAdminLogin(false); setIsAdminMode(true); }} onCancel={() => setShowAdminLogin(false)} />}
     </div>
   );

@@ -22,10 +22,24 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, adId, adTitle, o
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const markAsRead = async () => {
+    try {
+      await supabase
+        .from(TABLES.USER_CHATS)
+        .update({ is_read: true })
+        .eq('ad_id', adId)
+        .eq('receiver_phone', userPhone)
+        .eq('sender_phone', receiverPhone)
+        .eq('is_read', false);
+    } catch (e) {
+      console.error("Error marking as read:", e);
+    }
+  };
+
   useEffect(() => {
     fetchMessages();
+    markAsRead();
     
-    // اشتراک در تغییرات زنده دیتابیس
     const channel = supabase
       .channel(`chat_room_${adId}`)
       .on('postgres_changes', { 
@@ -35,7 +49,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, adId, adTitle, o
         filter: `ad_id=eq.${adId}` 
       }, (payload) => {
         const newMsg = payload.new;
-        // بررسی اینکه آیا پیام مربوط به این گفتگو است
         const isParticipant = 
           (newMsg.sender_phone === userPhone && newMsg.receiver_phone === receiverPhone) ||
           (newMsg.sender_phone === receiverPhone && newMsg.receiver_phone === userPhone);
@@ -45,6 +58,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, adId, adTitle, o
             if (prev.find(m => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
           });
+          if (newMsg.receiver_phone === userPhone) markAsRead();
         }
       })
       .subscribe();

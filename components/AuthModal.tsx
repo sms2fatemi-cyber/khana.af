@@ -12,6 +12,8 @@ interface AuthModalProps {
   onShowSaved: () => void;
   onAdminClick: () => void;
   lang: 'dari' | 'pashto';
+  hasUnreadChats?: boolean;
+  hasUnreadAdmin?: boolean;
 }
 
 interface UserProfile {
@@ -20,7 +22,7 @@ interface UserProfile {
   avatarUrl: string;
 }
 
-const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang }) => {
+const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang, hasUnreadChats, hasUnreadAdmin }) => {
   const t = translations[lang];
   const [view, setView] = useState<'login' | 'otp' | 'profile' | 'messages' | 'user_chats'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -52,6 +54,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     }
   }, []);
 
+  const markAdminMessagesAsRead = async () => {
+    if (!phoneNumber) return;
+    try {
+      await supabase
+        .from(TABLES.MESSAGES)
+        .update({ is_read: true })
+        .eq('target_phone', phoneNumber)
+        .eq('is_read', false);
+    } catch (e) {
+      console.error("Error marking admin messages as read:", e);
+    }
+  };
+
   const fetchMessages = async () => {
     setIsLoading(true);
     try {
@@ -63,6 +78,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       
       if (error) throw error;
       setMessages(data || []);
+      markAdminMessagesAsRead();
     } catch (e: any) {
       console.error("Error fetching admin messages:", e);
     } finally {
@@ -272,13 +288,17 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
               <button onClick={() => setView('user_chats')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group relative">
                 <div className="flex items-center gap-3"><MessageSquare size={20} /> گفتگوهای من</div>
                 <div className="flex items-center gap-2">
+                   {hasUnreadChats && <div className="w-2.5 h-2.5 bg-red-600 rounded-full border border-white"></div>}
                    <ChevronRight className={`transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
                 </div>
               </button>
               
-              <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
+              <button onClick={() => setView('messages')} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group relative">
                 <div className="flex items-center gap-3"><Bell size={20} /> {t.notifications}</div>
-                <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+                <div className="flex items-center gap-2">
+                   {hasUnreadAdmin && <div className="w-2.5 h-2.5 bg-red-600 rounded-full border border-white"></div>}
+                   <ChevronRight className={`text-gray-300 transition-transform ${lang === 'dari' ? 'rotate-180 group-hover:translate-x-1' : 'group-hover:-translate-x-1'}`} />
+                </div>
               </button>
               
               <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group">
