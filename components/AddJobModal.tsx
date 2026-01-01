@@ -12,19 +12,6 @@ interface AddJobModalProps {
   lang: string;
 }
 
-const stringifyError = (err: any): string => {
-  if (!err) return "Unknown error";
-  if (typeof err === 'string') return err;
-  if (err.message) return String(err.message);
-  try {
-    const json = JSON.stringify(err);
-    if (json === '{}') return String(err);
-    return json;
-  } catch {
-    return String(err);
-  }
-};
-
 const toEnglishDigits = (str: string) => {
   if (!str) return '';
   return str.toString().replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
@@ -61,9 +48,10 @@ const UserLocationHandler = () => {
   const map = useMap();
   const [isLocating, setIsLocating] = useState(false);
 
-  const handleLocate = useCallback(() => {
+  const handleLocate = useCallback(async () => {
     if (!navigator.geolocation) return;
     setIsLocating(true);
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
@@ -73,9 +61,9 @@ const UserLocationHandler = () => {
       (err) => {
         setIsLocating(false);
         if (err.code === 1) {
-          alert("لطفاً اجازه دسترسی به مکان را تایید کنید.");
+          alert("لطفاً در تنظیمات مرورگر (آیکون قفل کنار آدرس) اجازه دسترسی به موقعیت را فعال کنید.");
         } else {
-          alert("خطا در دریافت موقعیت. لطفاً GPS را چک کنید.");
+          alert("موقعیت یافت نشد. لطفاً GPS گوشی را روشن کنید.");
         }
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -147,9 +135,9 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
       const payload = {
         title: formData.title,
         company: formData.company,
-        salary: Number(toEnglishDigits(formData.salary)),
+        salary: Number(toEnglishDigits(formData.salary)) || 0,
         job_type: formData.jobType,
-        requirements: formData.requirements.split('،').map(r => r.trim()).filter(r => r),
+        requirements: formData.requirements.split(/[،,]/).map(r => r.trim()).filter(r => r),
         city: formData.city,
         address: formData.address,
         description: formData.description,
@@ -172,8 +160,8 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
       if (error) throw error;
       setIsSuccess(true);
     } catch (err: any) {
-      const errorMsg = stringifyError(err);
-      alert(lang === 'dari' ? `خطا در ثبت شغل: ${errorMsg}` : `د دندې په ثبتولو کې تېروتنه: ${errorMsg}`);
+      console.error("Job submit error:", err);
+      alert(lang === 'dari' ? `خطا در ثبت آگهی: ${err.message}` : `تېروتنه: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -205,7 +193,6 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
             </div>
             <div className="flex-1 relative bg-gray-50">
               <MapContainerAny 
-                key={`job-picker-map-${view}`}
                 center={[formData.location.lat, formData.location.lng]} 
                 zoom={14} 
                 style={{ height: '100%', width: '100%' }} 

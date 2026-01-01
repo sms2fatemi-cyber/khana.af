@@ -12,19 +12,6 @@ interface AddServiceModalProps {
   lang: string;
 }
 
-const stringifyError = (err: any): string => {
-  if (!err) return "Unknown error";
-  if (typeof err === 'string') return err;
-  if (err.message) return String(err.message);
-  try {
-    const json = JSON.stringify(err);
-    if (json === '{}') return String(err);
-    return json;
-  } catch {
-    return String(err);
-  }
-};
-
 const toEnglishDigits = (str: string) => {
   if (!str) return '';
   return str.toString().replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
@@ -61,9 +48,10 @@ const UserLocationHandler = () => {
   const map = useMap();
   const [isLocating, setIsLocating] = useState(false);
 
-  const handleLocate = useCallback(() => {
+  const handleLocate = useCallback(async () => {
     if (!navigator.geolocation) return;
     setIsLocating(true);
+    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
@@ -73,7 +61,7 @@ const UserLocationHandler = () => {
       (err) => {
         setIsLocating(false);
         if (err.code === 1) {
-          alert("لطفاً اجازه دسترسی به مکان را تایید کنید.");
+          alert("لطفاً در تنظیمات مرورگر اجازه دسترسی به موقعیت را صادر کنید.");
         } else {
           alert("موقعیت یافت نشد. لطفاً GPS را چک کنید.");
         }
@@ -170,8 +158,8 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
       if (error) throw error;
       setIsSuccess(true);
     } catch (err: any) {
-      const errorMsg = stringifyError(err);
-      alert(lang === 'dari' ? `خطا در ثبت خدمات: ${errorMsg}` : `د خدمتونو ثبتولو کې تېروتنه: ${errorMsg}`);
+      console.error("Service submit error:", err);
+      alert(lang === 'dari' ? `خطا در ثبت خدمات: ${err.message}` : `د خدمتونو په ثبتولو کې تېروتنه: ${err.message}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -203,7 +191,6 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
             </div>
             <div className="flex-1 relative bg-gray-50">
               <MapContainerAny 
-                key={`service-picker-map-${view}`}
                 center={[formData.location.lat, formData.location.lng]} 
                 zoom={14} 
                 style={{ height: '100%', width: '100%' }} 
