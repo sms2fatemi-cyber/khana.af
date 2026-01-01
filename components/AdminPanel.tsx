@@ -1,8 +1,7 @@
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Property, Job, Service, AdminUser } from '../types';
-import { Check, Trash2, Home, Briefcase, Wrench, Shield, X, FileText, AlertCircle, LayoutDashboard, ChevronLeft, ChevronRight, Loader2, Users, Search, Send, MessageSquare } from 'lucide-react';
-import { ADMINS as initialAdmins } from '../services/mockData';
+import React, { useState, useEffect } from 'react';
+import { Property, Job, Service } from '../types';
+import { Trash2, Home, Shield, FileText, LayoutDashboard, Plus, Key, Briefcase, Wrench } from 'lucide-react';
 import { supabase, TABLES } from '../services/supabaseClient';
 
 interface AdminPanelProps {
@@ -17,360 +16,217 @@ interface AdminPanelProps {
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
   properties, setProperties, 
-  jobs, setJobs, 
+  jobs, setJobs,
   services, setServices,
   onExit 
 }) => {
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESTATE' | 'JOBS' | 'SERVICES' | 'ADMINS' | 'PROFILE' | 'USERS'>('DASHBOARD');
-  const [statusFilter, setStatusFilter] = useState<'PENDING' | 'APPROVED'>('PENDING');
-  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'ESTATE' | 'JOBS' | 'SERVICES' | 'ADMINS' | 'PROFILE'>('DASHBOARD');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [adminMessage, setAdminMessage] = useState('');
-  const [activeImageIdx, setActiveImageIdx] = useState(0);
-  const [isImageLoading, setIsImageLoading] = useState(false);
-  const [userSearchTerm, setUserSearchTerm] = useState('');
   
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [systemAdmins, setSystemAdmins] = useState<any[]>([]);
+  const [newAdmin, setNewAdmin] = useState({ username: '', password: '', fullName: '', role: 'NORMAL' });
+  const [changePwd, setChangePwd] = useState({ old: '', new: '', confirm: '' });
 
-  const [admins] = useState<AdminUser[]>(() => {
-    const saved = localStorage.getItem('admins_list');
-    return saved ? JSON.parse(saved) : initialAdmins;
-  });
-  
-  const [currentAdmin] = useState<AdminUser>(() => {
-    const saved = localStorage.getItem('current_admin_user');
-    return saved ? JSON.parse(saved) : admins[0];
-  });
+  const currentAdmin = JSON.parse(localStorage.getItem('current_admin_user') || '{}');
 
-  const nextImage = useCallback(() => {
-    if (selectedItem?.images?.length > 1) {
-      setIsImageLoading(true);
-      setActiveImageIdx(prev => (prev < selectedItem.images.length - 1 ? prev + 1 : 0));
-    }
-  }, [selectedItem]);
-
-  const prevImage = useCallback(() => {
-    if (selectedItem?.images?.length > 1) {
-      setIsImageLoading(true);
-      setActiveImageIdx(prev => (prev > 0 ? prev - 1 : selectedItem.images.length - 1));
-    }
-  }, [selectedItem]);
+  const fetchAdmins = async () => {
+    const { data } = await supabase.from('system_admins').select('*');
+    setSystemAdmins(data || []);
+  };
 
   useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      if (!selectedItem) return;
-      if (e.key === 'ArrowRight') (document.dir === 'rtl' ? prevImage() : nextImage());
-      if (e.key === 'ArrowLeft') (document.dir === 'rtl' ? nextImage() : prevImage());
-      if (e.key === 'Escape') setSelectedItem(null);
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [selectedItem, nextImage, prevImage]);
+    if (activeTab === 'ADMINS') fetchAdmins();
+  }, [activeTab]);
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
+  const handleAddAdmin = async () => {
+    if (!newAdmin.username || !newAdmin.password) return alert("نام کاربری و رمز الزامی است");
+    setIsProcessing(true);
+    const { error } = await supabase.from('system_admins').insert([newAdmin]);
+    if (!error) {
+      alert("ادمین اضافه شد");
+      setNewAdmin({ username: '', password: '', fullName: '', role: 'NORMAL' });
+      fetchAdmins();
+    } else {
+      alert("خطا: احتمالا نام کاربری تکراری است");
+    }
+    setIsProcessing(false);
   };
 
-  const onTouchMove = (e: React.TouchEvent) => setTouchEnd(e.targetTouches[0].clientX);
-
-  const onTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-    if (isLeftSwipe) nextImage();
-    if (isRightSwipe) prevImage();
-  };
-
-  const stats = useMemo(() => {
-    const all = [...properties, ...jobs, ...services];
-    return {
-      totalPosts: all.length,
-      pendingPosts: all.filter(it => it.status === 'PENDING').length,
-      approvedCount: all.filter(it => it.status === 'APPROVED').length,
-    };
-  }, [properties, jobs, services]);
-
-  const allUsersList = useMemo(() => {
-    const allItems = [...properties, ...jobs, ...services];
-    const usersMap: Record<string, any> = {};
-    allItems.forEach(item => {
-      const phone = item.phoneNumber || 'نامشخص';
-      if (!usersMap[phone]) {
-        const localProfile = localStorage.getItem(`profile_${phone}`);
-        let profileData = { firstName: 'کاربر', lastName: 'افغان', avatarUrl: '' };
-        if (localProfile) {
-          try { profileData = JSON.parse(localProfile); } catch (e) {}
-        }
-        usersMap[phone] = { phone, total: 0, ...profileData };
+  const handleChangePassword = async () => {
+    if (changePwd.new !== changePwd.confirm) return alert("رمز جدید با تاییدیه مطابقت ندارد");
+    setIsProcessing(true);
+    const { data } = await supabase.from('system_admins').select('*').eq('id', currentAdmin.id).eq('password', changePwd.old).single();
+    if (data) {
+      const { error } = await supabase.from('system_admins').update({ password: changePwd.new }).eq('id', currentAdmin.id);
+      if (!error) {
+        alert("رمز عبور تغییر کرد. لطفاً دوباره وارد شوید.");
+        localStorage.removeItem('current_admin_user');
+        onExit();
       }
-      usersMap[phone].total++;
-    });
-    return Object.values(usersMap).filter(u => u.phone.includes(userSearchTerm));
-  }, [properties, jobs, services, userSearchTerm]);
+    } else {
+      alert("رمز عبور فعلی اشتباه است");
+    }
+    setIsProcessing(false);
+  };
 
-  const handleAction = async (id: string, action: 'APPROVE' | 'DELETE' | 'MESSAGE') => {
-    if (action === 'MESSAGE' && !adminMessage) return alert("متن پیام الزامی است.");
-    
+  const handleDeleteItem = async (id: string, type: 'ESTATE' | 'JOBS' | 'SERVICES') => {
+    if (!window.confirm("حذف دائمی این مورد؟")) return;
     setIsProcessing(true);
     try {
-      let tableName = '';
-      if (activeTab === 'ESTATE' || properties.some(p => p.id === id)) tableName = TABLES.PROPERTIES;
-      else if (activeTab === 'JOBS' || jobs.some(j => j.id === id)) tableName = TABLES.JOBS;
-      else if (activeTab === 'SERVICES' || services.some(s => s.id === id)) tableName = TABLES.SERVICES;
-
-      if (!tableName && action !== 'MESSAGE') throw new Error("آگهی در سیستم یافت نشد.");
-
-      if (action === 'DELETE') {
-        if (!window.confirm("آیا از حذف دائمی این آگهی اطمینان دارید؟")) { setIsProcessing(false); return; }
-        const { error } = await supabase.from(tableName).delete().eq('id', id);
-        if (error) throw error;
-        
-        setProperties(prev => prev.filter(it => it.id !== id));
-        setJobs(prev => prev.filter(it => it.id !== id));
-        setServices(prev => prev.filter(it => it.id !== id));
-        alert("آگهی با موفقیت حذف شد.");
-      } 
-      else if (action === 'APPROVE') {
-        const { error } = await supabase.from(tableName).update({ status: 'APPROVED' }).eq('id', id);
-        if (error) throw error;
-        
-        const updateFn = (list: any[]) => list.map(it => it.id === id ? { ...it, status: 'APPROVED' } : it);
-        if (tableName === TABLES.PROPERTIES) setProperties(updateFn);
-        if (tableName === TABLES.JOBS) setJobs(updateFn);
-        if (tableName === TABLES.SERVICES) setServices(updateFn);
-        
-        alert("آگهی تایید شد و اکنون برای عموم قابل مشاهده است.");
-      } 
-      else if (action === 'MESSAGE') {
-        const phone = selectedItem?.phoneNumber;
-        const { error } = await supabase.from(TABLES.MESSAGES).insert([{ 
-          target_phone: phone, 
-          text: adminMessage, 
-          date: new Date().toLocaleDateString('fa-AF'), 
-          is_read: false 
-        }]);
-        if (error) throw error;
-        alert("پیام شما برای کاربر ارسال شد.");
-        setAdminMessage('');
-        return; 
+      let table = type === 'ESTATE' ? TABLES.PROPERTIES : type === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (!error) {
+        if (type === 'ESTATE') setProperties(prev => prev.filter(p => p.id !== id));
+        if (type === 'JOBS') setJobs(prev => prev.filter(j => j.id !== id));
+        if (type === 'SERVICES') setServices(prev => prev.filter(s => s.id !== id));
+        alert("حذف شد");
       }
-      setSelectedItem(null);
-    } catch (err: any) {
-      alert("خطا در انجام عملیات: " + (err.message || "ناموفق"));
-    } finally {
-      setIsProcessing(false);
-    }
+    } catch (e) {} finally { setIsProcessing(false); }
   };
-
-  const navItems = [
-    { id: 'DASHBOARD', label: 'داشبورد', icon: LayoutDashboard },
-    { id: 'ESTATE', label: 'املاک', icon: Home },
-    { id: 'JOBS', label: 'استخدام', icon: Briefcase },
-    { id: 'SERVICES', label: 'خدمات', icon: Wrench },
-    { id: 'USERS', label: 'کاربران', icon: Users },
-    { id: 'ADMINS', label: 'ادمین‌ها', icon: Shield, superOnly: true },
-    { id: 'PROFILE', label: 'تنظیمات', icon: FileText },
-  ];
 
   return (
     <div className="fixed inset-0 z-[9000] bg-[#F8F9FA] font-[Vazirmatn] flex flex-col h-screen overflow-hidden" dir="rtl">
       <header className="bg-gray-900 text-white px-4 py-3 flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2">
           <Shield size={18} className="text-red-500" />
-          <h1 className="text-sm font-black uppercase tracking-widest">پنل مدیریت</h1>
+          <h1 className="text-sm font-black uppercase">پنل مدیریت</h1>
         </div>
-        <button onClick={onExit} className="bg-red-600 px-4 py-2 rounded-xl text-xs font-black">خروج</button>
+        <div className="flex items-center gap-4">
+           <span className="text-[10px] font-bold text-gray-400">{currentAdmin.fullName}</span>
+           <button onClick={onExit} className="bg-red-600 px-3 py-1.5 rounded-lg text-[10px] font-black">خروج</button>
+        </div>
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <aside className="flex md:flex-col overflow-x-auto md:overflow-y-auto w-full md:w-64 bg-white border-b md:border-l p-2 md:p-4 gap-2 shrink-0 shadow-sm">
-           {navItems.map((item) => (
-             (!item.superOnly || currentAdmin.role === 'SUPER') && (
-               <button key={item.id} onClick={() => setActiveTab(item.id as any)} className={`flex-none flex items-center gap-3 px-5 py-3 md:py-4 rounded-xl font-black transition-all ${activeTab === item.id ? 'bg-[#a62626] text-white shadow-md' : 'text-gray-400 hover:bg-gray-50'}`}>
-                 <item.icon size={18} /> <span className="text-[11px] md:text-sm">{item.label}</span>
-               </button>
-             )
-           ))}
+        <aside className="w-full md:w-64 bg-white border-l p-4 flex md:flex-col gap-2 overflow-x-auto shrink-0 shadow-sm">
+           <button onClick={() => setActiveTab('DASHBOARD')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black shrink-0 ${activeTab === 'DASHBOARD' ? 'bg-red-600 text-white' : 'text-gray-400'}`}><LayoutDashboard size={18}/> داشبورد</button>
+           <button onClick={() => setActiveTab('ESTATE')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black shrink-0 ${activeTab === 'ESTATE' ? 'bg-red-600 text-white' : 'text-gray-400'}`}><Home size={18}/> املاک</button>
+           <button onClick={() => setActiveTab('JOBS')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black shrink-0 ${activeTab === 'JOBS' ? 'bg-red-600 text-white' : 'text-gray-400'}`}><Briefcase size={18}/> مشاغل</button>
+           <button onClick={() => setActiveTab('SERVICES')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black shrink-0 ${activeTab === 'SERVICES' ? 'bg-red-600 text-white' : 'text-gray-400'}`}><Wrench size={18}/> خدمات</button>
+           {currentAdmin.role === 'SUPER' && <button onClick={() => setActiveTab('ADMINS')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black shrink-0 ${activeTab === 'ADMINS' ? 'bg-red-600 text-white' : 'text-gray-400'}`}><Shield size={18}/> مدیریت ادمین</button>}
+           <button onClick={() => setActiveTab('PROFILE')} className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black shrink-0 ${activeTab === 'PROFILE' ? 'bg-red-600 text-white' : 'text-gray-400'}`}><Key size={18}/> تنظیمات رمز</button>
         </aside>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-10">
-          <div className="max-w-4xl mx-auto">
-            {activeTab === 'DASHBOARD' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <main className="flex-1 overflow-y-auto p-6 md:p-10 no-scrollbar">
+          {activeTab === 'ADMINS' && (
+            <div className="max-w-4xl mx-auto space-y-8">
+               <div className="bg-white p-6 rounded-3xl border shadow-sm">
+                  <h3 className="font-black mb-4 flex items-center gap-2"><Plus className="text-green-600" /> افزودن ادمین</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                     <input type="text" placeholder="نام" value={newAdmin.fullName} onChange={e => setNewAdmin({...newAdmin, fullName: e.target.value})} className="bg-gray-50 border p-3 rounded-xl text-sm font-bold" />
+                     <input type="text" placeholder="یوزرنیم" value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} className="bg-gray-50 border p-3 rounded-xl text-sm font-bold dir-ltr" />
+                     <input type="password" placeholder="رمز" value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} className="bg-gray-50 border p-3 rounded-xl text-sm font-bold dir-ltr" />
+                     <button onClick={handleAddAdmin} disabled={isProcessing} className="bg-gray-900 text-white p-3 rounded-xl font-black text-sm">ثبت</button>
+                  </div>
+               </div>
+               <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
+                  <table className="w-full text-right">
+                     <thead className="bg-gray-50 border-b text-[10px] font-black text-gray-400">
+                        <tr><th className="p-4">نام</th><th className="p-4">یوزرنیم</th><th className="p-4">نقش</th><th className="p-4">عملیات</th></tr>
+                     </thead>
+                     <tbody className="divide-y text-sm font-bold">
+                        {systemAdmins.map((adm, i) => (
+                          <tr key={i}>
+                            <td className="p-4">{adm.fullName}</td>
+                            <td className="p-4 dir-ltr">{adm.username}</td>
+                            <td className="p-4">{adm.role}</td>
+                            <td className="p-4"><button className="text-red-600"><Trash2 size={16} /></button></td>
+                          </tr>
+                        ))}
+                     </tbody>
+                  </table>
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'ESTATE' && (
+             <div className="space-y-4">
+               <h2 className="text-xl font-black mb-6">لیست کل املاک</h2>
+               {properties.map(p => (
+                 <div key={p.id} className="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                     <img src={p.images[0]} className="w-12 h-12 rounded-lg object-cover" />
+                     <div>
+                       <h4 className="font-black text-sm">{p.title}</h4>
+                       <p className="text-[10px] text-gray-400">{p.phoneNumber}</p>
+                     </div>
+                   </div>
+                   <button onClick={() => handleDeleteItem(p.id, 'ESTATE')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+                 </div>
+               ))}
+             </div>
+          )}
+
+          {activeTab === 'JOBS' && (
+             <div className="space-y-4">
+               <h2 className="text-xl font-black mb-6">لیست کل آگهی‌های شغلی</h2>
+               {jobs.map(j => (
+                 <div key={j.id} className="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                     <img src={j.images[0]} className="w-12 h-12 rounded-lg object-cover" />
+                     <div>
+                       <h4 className="font-black text-sm">{j.title}</h4>
+                       <p className="text-[10px] text-gray-400">{j.company}</p>
+                     </div>
+                   </div>
+                   <button onClick={() => handleDeleteItem(j.id, 'JOBS')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+                 </div>
+               ))}
+             </div>
+          )}
+
+          {activeTab === 'SERVICES' && (
+             <div className="space-y-4">
+               <h2 className="text-xl font-black mb-6">لیست کل خدمات</h2>
+               {services.map(s => (
+                 <div key={s.id} className="bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                     <img src={s.images[0]} className="w-12 h-12 rounded-lg object-cover" />
+                     <div>
+                       <h4 className="font-black text-sm">{s.title}</h4>
+                       <p className="text-[10px] text-gray-400">{s.providerName}</p>
+                     </div>
+                   </div>
+                   <button onClick={() => handleDeleteItem(s.id, 'SERVICES')} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
+                 </div>
+               ))}
+             </div>
+          )}
+
+          {activeTab === 'PROFILE' && (
+            <div className="max-w-md mx-auto bg-white p-8 rounded-3xl border shadow-sm space-y-6">
+               <h3 className="font-black text-xl text-center">تغییر رمز عبور</h3>
+               <div className="space-y-4">
+                  <input type="password" placeholder="رمز فعلی" value={changePwd.old} onChange={e => setChangePwd({...changePwd, old: e.target.value})} className="w-full bg-gray-50 border p-4 rounded-2xl text-sm font-bold dir-ltr" />
+                  <input type="password" placeholder="رمز جدید" value={changePwd.new} onChange={e => setChangePwd({...changePwd, new: e.target.value})} className="w-full bg-gray-50 border p-4 rounded-2xl text-sm font-bold dir-ltr" />
+                  <input type="password" placeholder="تکرار رمز جدید" value={changePwd.confirm} onChange={e => setChangePwd({...changePwd, confirm: e.target.value})} className="w-full bg-gray-50 border p-4 rounded-2xl text-sm font-bold dir-ltr" />
+                  <button onClick={handleChangePassword} disabled={isProcessing} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black shadow-lg">بروزرسانی</button>
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'DASHBOARD' && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white p-8 rounded-[2rem] border shadow-sm text-center">
                   <FileText className="text-blue-500 mx-auto mb-2" size={32} />
-                  <span className="text-gray-400 text-[10px] font-black block uppercase">کل آگهی‌ها</span>
-                  <span className="text-3xl font-black">{stats.totalPosts}</span>
+                  <span className="text-gray-400 text-[10px] font-black block uppercase">املاک</span>
+                  <span className="text-3xl font-black">{properties.length}</span>
                 </div>
                 <div className="bg-white p-8 rounded-[2rem] border shadow-sm text-center">
-                  <AlertCircle className="text-amber-500 mx-auto mb-2" size={32} />
-                  <span className="text-gray-400 text-[10px] font-black block uppercase">در انتظار تایید</span>
-                  <span className="text-3xl font-black text-amber-600">{stats.pendingPosts}</span>
+                  <Briefcase className="text-green-500 mx-auto mb-2" size={32} />
+                  <span className="text-gray-400 text-[10px] font-black block uppercase">مشاغل</span>
+                  <span className="text-3xl font-black">{jobs.length}</span>
                 </div>
                 <div className="bg-white p-8 rounded-[2rem] border shadow-sm text-center">
-                  <Users className="text-green-500 mx-auto mb-2" size={32} />
-                  <span className="text-gray-400 text-[10px] font-black block uppercase">کاربران فعال</span>
-                  <span className="text-3xl font-black text-green-600">{allUsersList.length}</span>
+                  <Wrench className="text-orange-500 mx-auto mb-2" size={32} />
+                  <span className="text-gray-400 text-[10px] font-black block uppercase">خدمات</span>
+                  <span className="text-3xl font-black">{services.length}</span>
                 </div>
-              </div>
-            )}
-
-            {['ESTATE', 'JOBS', 'SERVICES'].includes(activeTab) && (
-              <div className="space-y-6">
-                 <div className="flex justify-between items-center border-b pb-4">
-                    <h2 className="text-xl font-black">مدیریت آگهی‌ها</h2>
-                    <div className="flex bg-gray-100 p-1 rounded-xl shadow-inner">
-                      <button onClick={() => setStatusFilter('PENDING')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${statusFilter === 'PENDING' ? 'bg-[#a62626] text-white shadow-md' : 'text-gray-500'}`}>در انتظار</button>
-                      <button onClick={() => setStatusFilter('APPROVED')} className={`px-4 py-1.5 rounded-lg text-[10px] font-black transition-all ${statusFilter === 'APPROVED' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500'}`}>تایید شده</button>
-                    </div>
-                 </div>
-                 <div className="grid gap-3">
-                   {(activeTab === 'ESTATE' ? properties : activeTab === 'JOBS' ? jobs : services)
-                     .filter(it => it.status === statusFilter)
-                     .map(item => (
-                       <div key={item.id} onClick={() => { setSelectedItem(item); setActiveImageIdx(0); }} className="bg-white rounded-2xl p-4 border flex items-center gap-4 hover:border-[#a62626]/30 cursor-pointer shadow-sm transition-all hover:shadow-md">
-                          <img src={item.images?.[0]} className="w-14 h-14 rounded-xl object-cover bg-gray-100 shrink-0" alt="" />
-                          <div className="flex-1">
-                             <h3 className="font-black text-sm text-gray-800 truncate">{item.title}</h3>
-                             <p className="text-[10px] text-gray-400 font-bold">{item.city} | {item.phoneNumber}</p>
-                          </div>
-                          <ChevronLeft size={18} className="text-gray-300" />
-                       </div>
-                     ))}
-                 </div>
-              </div>
-            )}
-
-            {activeTab === 'USERS' && (
-              <div className="space-y-6">
-                 <div className="flex justify-between items-center border-b pb-4">
-                    <h2 className="text-xl font-black">لیست کاربران</h2>
-                    <div className="relative">
-                      <Search className="absolute right-3 top-2.5 text-gray-400" size={16} />
-                      <input type="text" placeholder="جستجوی شماره..." value={userSearchTerm} onChange={e => setUserSearchTerm(e.target.value)} className="bg-gray-100 rounded-xl pr-10 pl-4 py-2 text-xs font-black outline-none border border-transparent focus:border-red-200" />
-                    </div>
-                 </div>
-                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden">
-                    <table className="w-full text-right text-sm">
-                       <thead className="bg-gray-50 border-b text-xs font-black text-gray-400">
-                          <tr><th className="p-4 text-right">کاربر</th><th className="p-4 text-right">شماره تماس</th><th className="p-4 text-center">آگهی</th><th className="p-4"></th></tr>
-                       </thead>
-                       <tbody className="divide-y">
-                          {allUsersList.map((user, idx) => (
-                             <tr key={idx} className="hover:bg-gray-50">
-                                <td className="p-4 font-black">{user.firstName} {user.lastName}</td>
-                                <td className="p-4 font-black text-gray-500">{user.phone}</td>
-                                <td className="p-4 text-center"><span className="bg-red-50 text-red-600 px-3 py-1 rounded-lg font-black">{user.total}</span></td>
-                                <td className="p-4 text-left"><ChevronLeft size={18} className="text-gray-300" /></td>
-                             </tr>
-                          ))}
-                       </tbody>
-                    </table>
-                 </div>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </main>
       </div>
-
-      {selectedItem && (
-        <div className="fixed inset-0 z-[12000] bg-black/95 flex items-center justify-center p-2 md:p-4 backdrop-blur-md" onClick={() => !isProcessing && setSelectedItem(null)}>
-          <div className="bg-white w-full max-w-4xl h-full md:h-auto md:max-h-[90vh] rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col md:flex-row animate-slide-up" onClick={e => e.stopPropagation()}>
-            <div 
-              className="w-full md:w-1/2 h-[35vh] md:h-full bg-black shrink-0 flex items-center justify-center relative group overflow-hidden select-none touch-none"
-              onTouchStart={onTouchStart}
-              onTouchMove={onTouchMove}
-              onTouchEnd={onTouchEnd}
-            >
-               {/* key={activeImageIdx} باعث می‌شود React تگ تصویر قبلی را کاملا حذف و تگ جدید بسازد، لذا تصویر قبلی نمی‌ماند */}
-               <img 
-                 key={activeImageIdx}
-                 src={selectedItem.images?.[activeImageIdx]} 
-                 className={`w-full h-full object-contain pointer-events-none transition-opacity duration-200 ${isImageLoading ? 'opacity-0' : 'opacity-100'}`}
-                 alt="" 
-                 onLoad={() => setIsImageLoading(false)}
-               />
-               
-               {isImageLoading && (
-                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                    <Loader2 className="animate-spin text-white" size={32} />
-                 </div>
-               )}
-               
-               {/* Controls for Desktop */}
-               {selectedItem.images?.length > 1 && (
-                 <>
-                   <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 bg-black/40 text-white p-3 rounded-full hover:bg-black/60 z-50 transition-all"><ChevronRight size={24} /></button>
-                   <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 bg-black/40 text-white p-3 rounded-full hover:bg-black/60 z-50 transition-all"><ChevronLeft size={24} /></button>
-                 </>
-               )}
-
-               {/* Indicator Dots */}
-               {selectedItem.images?.length > 1 && (
-                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 bg-black/30 p-2 rounded-full z-50">
-                   {selectedItem.images.map((_: any, i: number) => (
-                     <button key={i} onClick={() => { setIsImageLoading(true); setActiveImageIdx(i); }} className={`w-2 h-2 rounded-full transition-all ${i === activeImageIdx ? 'bg-red-600 scale-125' : 'bg-white/40'}`} />
-                   ))}
-                 </div>
-               )}
-            </div>
-            
-            <div className="flex-1 flex flex-col min-h-0 bg-white relative">
-               <div className="p-4 border-b flex justify-between items-center bg-gray-50 shrink-0">
-                  <h2 className="font-black text-sm text-gray-700">بررسی جزئیات آگهی</h2>
-                  <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-400"><X size={20} /></button>
-               </div>
-               
-               <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 no-scrollbar">
-                  <h3 className="text-lg md:text-xl font-black text-gray-900 leading-relaxed">{selectedItem.title}</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-gray-50 p-4 rounded-2xl border">
-                       <span className="text-[9px] font-black text-gray-400 block mb-1 uppercase">قیمت / معاش</span>
-                       <span className="text-lg font-black text-red-600">{(selectedItem.price || selectedItem.salary)?.toLocaleString() || 'توافقی'}</span>
-                    </div>
-                    <div className="bg-gray-50 p-4 rounded-2xl border">
-                       <span className="text-[9px] font-black text-gray-400 block mb-1 uppercase">شماره تماس</span>
-                       <span className="text-lg font-black text-gray-800">{selectedItem.phoneNumber}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <span className="text-[10px] font-black text-gray-400 uppercase">توضیحات آگهی</span>
-                    <p className="text-sm font-medium text-gray-700 leading-7 bg-gray-50 p-5 rounded-2xl border border-gray-100 whitespace-pre-wrap">{selectedItem.description}</p>
-                  </div>
-                  
-                  <div className="pt-6 border-t border-dashed space-y-4">
-                    <span className="text-[#a62626] font-black text-xs flex items-center gap-2"><MessageSquare size={16}/> ارسال پیام مستقیم به کاربر:</span>
-                    <textarea value={adminMessage} onChange={e => setAdminMessage(e.target.value)} placeholder="مثلاً: آگهی شما به دلیل نقص در تصاویر رد شد..." className="w-full bg-gray-50 border rounded-2xl p-4 text-sm font-bold resize-none h-24 outline-none focus:border-blue-400 transition-all shadow-inner" />
-                    <button onClick={() => handleAction(selectedItem.id, 'MESSAGE')} disabled={isProcessing || !adminMessage} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 disabled:opacity-50 shadow-lg active:scale-95 transition-all text-sm"><Send size={18}/> ارسال پیام به کاربر</button>
-                  </div>
-               </div>
-               
-               <div className="p-6 border-t bg-gray-50 flex gap-4 shrink-0">
-                  {selectedItem.status === 'PENDING' ? (
-                    <>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'APPROVE')} className="flex-[2] bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-sm">
-                        {isProcessing ? <Loader2 className="animate-spin" /> : <Check size={20} />} تایید و انتشار
-                      </button>
-                      <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="flex-1 bg-red-50 text-red-600 py-4 rounded-2xl font-black flex items-center justify-center gap-2 border border-red-100 active:scale-95 transition-all text-sm">
-                        <Trash2 size={20} /> حذف
-                      </button>
-                    </>
-                  ) : (
-                    <button disabled={isProcessing} onClick={() => handleAction(selectedItem.id, 'DELETE')} className="w-full bg-red-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all text-sm">
-                      <Trash2 size={20} /> حذف دائمی این آگهی
-                    </button>
-                  )}
-               </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-
 export default AdminPanel;
