@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, Box, Sparkles, MapPinned, Crosshair } from 'lucide-react';
+import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Box, MapPinned, Crosshair, Check } from 'lucide-react';
 import { PropertyType, DealType } from '../types';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
 
 interface AddPropertyModalProps {
@@ -23,6 +23,16 @@ const MapResizer = () => {
     observer.observe(map.getContainer());
     return () => observer.disconnect();
   }, [map]);
+  return null;
+};
+
+const MapMoveHandler = ({ onChange }: { onChange: (latlng: any) => void }) => {
+  useMapEvents({
+    moveend: (e) => {
+      const center = e.target.getCenter();
+      onChange({ lat: center.lat, lng: center.lng });
+    }
+  });
   return null;
 };
 
@@ -87,7 +97,6 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      // Fix: Cast Array.from result to File[] to ensure the compiler recognizes file.name and other properties
       const files = Array.from(e.target.files) as File[];
       setSelectedFiles(prev => [...prev, ...files]);
       files.forEach(file => {
@@ -108,6 +117,7 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
     setIsSubmitting(true);
     try {
       const imageUrls = await uploadMultipleImages(selectedFiles);
+      const userPhone = localStorage.getItem('user_phone') || 'guest';
 
       const payload = {
         title: formData.title,
@@ -128,13 +138,14 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
         location: formData.location,
         images: imageUrls,
         status: 'PENDING',
-        owner_id: localStorage.getItem('user_phone') || 'guest'
+        owner_id: userPhone
       };
 
       const { error } = await supabase.from(TABLES.PROPERTIES).insert([payload]);
       if (error) throw error;
       setIsSuccess(true);
     } catch (err) {
+      console.error(err);
       alert(lang === 'dari' ? "خطا در ثبت ملک." : "د ملک ثبتولو کې ستونزه ده.");
     } finally {
       setIsSubmitting(false);
@@ -142,16 +153,26 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
   };
 
   if (isSuccess) return (
-    <div className="fixed inset-0 z-[10001] bg-black/80 flex items-center justify-center p-4">
-      <div className="bg-white w-full max-sm:max-w-xs rounded-[2.5rem] p-10 text-center animate-slide-up">
-        <div className="w-20 h-20 bg-red-100 text-[#a62626] rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
+    <div className="fixed inset-0 z-[11000] bg-black/80 flex items-center justify-center p-4">
+      <div className="bg-white w-full max-sm:max-w-xs rounded-[2.5rem] p-10 text-center animate-in slide-in-from-bottom">
+        <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Check size={40} />
+        </div>
         <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
-        <button onClick={() => onClose()} className="w-full bg-[#a62626] text-white py-4 rounded-xl font-black">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
+        <p className="text-sm text-gray-500 font-bold mb-8 leading-7">
+          {lang === 'dari' 
+            ? 'ملک شما با موفقیت ثبت شد و پس از بررسی توسط ادمین منتشر می‌شود.' 
+            : 'ستاسو ملک په بریالیتوب سره ثبت شو او تر ارزونې وروسته به خپور شي.'}
+        </p>
+        <button onClick={() => onClose()} className="w-full bg-[#a62626] text-white py-4 rounded-xl font-black active:scale-95 transition-transform shadow-lg shadow-red-900/20">
+          {lang === 'dari' ? 'متوجه شدم' : 'پوه شوم'}
+        </button>
       </div>
     </div>
   );
 
   const MapContainerAny = MapContainer as any;
+  const TileLayerAny = TileLayer as any;
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center" onClick={onClose}>
@@ -164,12 +185,15 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
             </div>
             <div className="flex-1 relative">
               <MapContainerAny center={[formData.location.lat, formData.location.lng]} zoom={14} style={{ height: '100%' }} zoomControl={false}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <UserLocationHandler />
-                <MapPin size={40} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] text-[#a62626]" />
+                <MapMoveHandler onChange={(loc) => setFormData(prev => ({ ...prev, location: loc }))} />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none">
+                  <MapPin size={40} className="text-[#a62626] drop-shadow-lg" />
+                </div>
               </MapContainerAny>
-              <button onClick={() => setView('form')} className="absolute bottom-10 left-8 right-8 z-[1000] bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-2xl">{lang === 'dari' ? 'تایید محل ملک' : 'د ځای تایید'}</button>
+              <button onClick={() => setView('form')} className="absolute bottom-10 left-8 right-8 z-[1000] bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-2xl active:scale-95">تایید محل ملک</button>
             </div>
           </div>
         )}
@@ -188,14 +212,14 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
                   <button type="button" onClick={() => removeImage(i)} className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-lg"><Trash2 size={16} /></button>
                 </div>
               ))}
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50">
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
                 <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
               </button>
               <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" multiple onChange={handleFileChange} />
             </div>
 
             <div className="space-y-4">
-              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder={t.title} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder={t.title} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none focus:border-[#a62626]/40" required />
               
               <div className="grid grid-cols-2 gap-4">
                  <select value={formData.dealType} onChange={e => setFormData({...formData, dealType: e.target.value as any})} className="bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none">
@@ -209,14 +233,14 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
               </div>
 
               {formData.dealType === DealType.SALE && (
-                <div className="grid grid-cols-3 gap-4 animate-in slide-in-from-top-2">
+                <div className="grid grid-cols-3 gap-4">
                    <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.total_price} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
                    <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
                 </div>
               )}
 
               {formData.dealType === DealType.RENT && (
-                <div className="space-y-4 animate-in slide-in-from-top-2">
+                <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-4">
                      <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.monthly_rent} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
                      <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">{t.rent}</div>
@@ -225,13 +249,6 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
                      <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder={lang === 'dari' ? 'مقدار پول ضمانت' : 'د ضمانت مقدار'} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
                      <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-[10px] text-gray-500">{t.deposit}</div>
                   </div>
-                </div>
-              )}
-
-              {formData.dealType === DealType.MORTGAGE && (
-                <div className="grid grid-cols-3 gap-4 animate-in slide-in-from-top-2">
-                   <input type="text" value={formData.mortgageAmount} onChange={e => setFormData({...formData, mortgageAmount: e.target.value})} placeholder={t.mortgage_amount} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
-                   <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">{t.mortgage}</div>
                 </div>
               )}
 
@@ -250,31 +267,26 @@ const AddPropertyModal: React.FC<AddPropertyModalProps> = ({ onClose, t, lang })
               </div>
 
               <div className="relative">
-                <Sparkles size={18} className="absolute right-4 top-4 text-amber-500" />
-                <input type="text" value={formData.features} onChange={e => setFormData({...formData, features: e.target.value})} placeholder={lang === 'dari' ? 'امکانات (آفتاب‌گیر، نوساز...)' : 'اسانتیاوې'} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-11 py-4 font-bold outline-none" />
-              </div>
-
-              <div className="relative">
                 <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder={t.address} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-11 py-4 font-bold outline-none" required />
+                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder={t.address} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-11 py-4 font-bold outline-none focus:border-[#a62626]/40" required />
               </div>
 
               <input type="tel" value={formData.phoneNumber} onChange={e => setFormData({...formData, phoneNumber: e.target.value})} placeholder={t.enter_phone} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none text-center dir-ltr" required />
               
-              <button type="button" onClick={() => setView('map')} className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-gray-400 font-black">
+              <button type="button" onClick={() => setView('map')} className="w-full border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-gray-400 font-black active:bg-gray-50">
                 <MapPin size={24} /> {t.select_location}
               </button>
               
-              <textarea rows={4} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder={t.description} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
+              <textarea rows={4} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder={t.description} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none resize-none focus:border-[#a62626]/40"></textarea>
             </div>
           </form>
         </div>
 
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
-          <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg disabled:bg-gray-300">
+          <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg disabled:bg-gray-300 active:scale-95">
             {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : t.submit}
           </button>
-          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">{t.cancel}</button>
+          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black active:bg-gray-200">انصراف</button>
         </div>
       </div>
     </div>

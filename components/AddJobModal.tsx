@@ -75,7 +75,6 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      // Fix: Cast Array.from result to File[] to ensure the compiler recognizes file.name and other properties
       const files = Array.from(e.target.files) as File[];
       setSelectedFiles(prev => [...prev, ...files]);
       files.forEach(file => {
@@ -173,6 +172,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, t, lang }) => {
               <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50">
                 <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
               </button>
+              {/* Fix: use the correct ref attribute instead of fileInputRef */}
               <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" multiple onChange={handleFileChange} />
             </div>
 

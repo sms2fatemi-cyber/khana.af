@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Property, Job, Service, AdminUser } from '../types';
-import { Check, Trash2, Home, Briefcase, Wrench, Shield, X, Key, FileText, AlertCircle, LayoutDashboard, ChevronLeft, Loader2, Users, Phone, MapPin, User, Search, Send, MessageSquare } from 'lucide-react';
+import { Check, Trash2, Home, Briefcase, Wrench, Shield, X, FileText, AlertCircle, LayoutDashboard, ChevronLeft, Loader2, Users, Phone, MapPin, User, Search, Send, MessageSquare } from 'lucide-react';
 import { ADMINS as initialAdmins } from '../services/mockData';
 import { supabase, TABLES } from '../services/supabaseClient';
 
@@ -133,7 +133,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     { id: 'SERVICES', label: 'خدمات', icon: Wrench },
     { id: 'USERS', label: 'کاربران', icon: Users },
     { id: 'ADMINS', label: 'ادمین‌ها', icon: Shield, superOnly: true },
-    { id: 'PROFILE', label: 'تنظیمات', icon: Key },
+    { id: 'PROFILE', label: 'تنظیمات', icon: FileText },
   ];
 
   return (
@@ -278,8 +278,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
             {activeTab === 'PROFILE' && (
               <div className="bg-white p-8 rounded-[2rem] border shadow-sm max-w-lg">
-                 <h3 className="text-lg font-black mb-6">تنظیمات امنیتی</h3>
-                 <p className="text-xs text-gray-400 font-bold mb-4">در این بخش می‌توانید تنظیمات ادمین خود را مدیریت کنید.</p>
+                 <h3 className="text-lg font-black mb-6">تنظیمات ادمین</h3>
                  <div className="space-y-4">
                     <div className="bg-gray-50 p-4 rounded-xl border">
                        <span className="text-[10px] font-black text-gray-400 block mb-1">نام کاربر مدیریت</span>
@@ -288,7 +287,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <div className="bg-gray-50 p-4 rounded-xl border">
                        <span className="text-[10px] font-black text-gray-400 block mb-1">سطح دسترسی</span>
                        <span className={`font-black ${currentAdmin.role === 'SUPER' ? 'text-red-600' : 'text-blue-600'}`}>
-                         {currentAdmin.role === 'SUPER' ? 'سوپر ادمین (دسترسی کامل)' : 'ادمین معمولی'}
+                         {currentAdmin.role === 'SUPER' ? 'سوپر ادمین' : 'ادمین معمولی'}
                        </span>
                     </div>
                  </div>
@@ -301,10 +300,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       {selectedItem && (
         <div className="fixed inset-0 z-[12000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md" onClick={() => !isProcessing && setSelectedItem(null)}>
           <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden animate-in slide-in-from-bottom flex flex-col md:flex-row" onClick={e => e.stopPropagation()}>
-            
-            <div className="w-full md:w-1/2 h-[30vh] md:h-full bg-black relative flex items-center justify-center">
-               <img src={selectedItem.images[activeImageIdx]} className="w-full h-full object-contain" />
-               {selectedItem.images.length > 1 && (
+            <div className="w-full md:w-1/2 h-[30vh] md:h-full bg-black shrink-0 relative flex items-center justify-center">
+               <img src={selectedItem.images?.[activeImageIdx]} className="w-full h-full object-contain" />
+               {selectedItem.images?.length > 1 && (
                  <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 px-4 overflow-x-auto no-scrollbar">
                    {selectedItem.images.map((img: string, idx: number) => (
                      <button key={idx} onClick={() => setActiveImageIdx(idx)} className={`w-10 h-10 rounded-lg border-2 shrink-0 transition-all ${idx === activeImageIdx ? 'border-red-500 scale-110 shadow-lg' : 'border-white/20'}`}>
