@@ -1,7 +1,7 @@
 
 import { Job, Language } from '../types';
 import { Bookmark, Building2, Briefcase, Trash2, Clock, Edit } from 'lucide-react';
-import { getRelativeTime } from '../App';
+import { getRelativeTime } from '../services/translations';
 
 interface JobCardProps {
   job: Job;
@@ -35,32 +35,12 @@ export default function JobCard({
         <div>
           <div className="flex justify-between items-start">
              <div className="flex items-center gap-1.5">
-               <span className="bg-blue-50 text-blue-600 text-[9px] font-black px-2 py-0.5 rounded-lg">{lang === 'dari' ? 'استخدام' : 'استخدام'}</span>
                <span className="text-[9px] text-gray-400 font-bold flex items-center gap-0.5"><Clock size={10} /> {getRelativeTime(job.date, lang)}</span>
              </div>
              <div className="flex items-center gap-1">
-                {onEdit && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                    className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors z-20"
-                    title="ویرایش"
-                  >
-                    <Edit size={16} />
-                  </button>
-                )}
-                {onDelete && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors z-20"
-                    title="حذف"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-                <button 
-                    onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }}
-                    className="p-2 text-gray-300 hover:text-blue-600 transition-colors"
-                >
+                {onEdit && <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Edit size={16} /></button>}
+                {onDelete && <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 bg-red-50 text-red-600 rounded-lg"><Trash2 size={16} /></button>}
+                <button onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }} className="p-2 text-gray-300 hover:text-blue-600">
                     <Bookmark size={18} className={isSaved ? "fill-blue-600 text-blue-600" : ""} />
                 </button>
              </div>
@@ -70,29 +50,16 @@ export default function JobCard({
             <Building2 size={12} /> <span>{job.company}</span>
           </div>
         </div>
-        
         <div className="mt-4 flex items-baseline gap-1">
-          <span className="text-blue-700 font-black text-xl tracking-tight">
-            {job.salary?.toLocaleString() || (lang === 'dari' ? 'توافقی' : 'توافقي')}
-          </span>
+          <span className="text-blue-700 font-black text-xl tracking-tight">{job.salary?.toLocaleString() || 'توافقی'}</span>
           <small className="text-gray-400 text-[10px] font-black uppercase">افغانی</small>
         </div>
       </div>
-
-      <div className="w-[110px] h-[110px] rounded-[1.8rem] overflow-hidden bg-gray-50 shrink-0 relative shadow-inner flex items-center justify-center">
+      <div className="w-[110px] h-[110px] rounded-[1.8rem] overflow-hidden bg-gray-50 shrink-0 relative flex items-center justify-center">
         {hasImages ? (
-          <img 
-            src={job.images[0]} 
-            alt={job.title} 
-            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
-          />
+          <img src={job.images[0]} alt={job.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
         ) : (
           <Briefcase size={40} className="text-gray-200" />
-        )}
-        {isVisited && (
-          <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
-             <span className="bg-white/90 text-black text-[9px] px-2 py-1 rounded-lg font-black shadow-sm">{lang === 'dari' ? 'دیده شده' : 'لیدل شوی'}</span>
-          </div>
         )}
       </div>
     </div>

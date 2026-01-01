@@ -1,4 +1,23 @@
 
+import { Language } from '../types';
+
+export const getRelativeTime = (dateStr: string, lang: Language) => {
+  if (!dateStr) return lang === 'dari' ? 'جدید' : 'نوې';
+  const now = new Date();
+  const past = new Date(dateStr);
+  const diffInMs = now.getTime() - past.getTime();
+  const diffInMins = Math.floor(diffInMs / (1000 * 60));
+  const diffInHours = Math.floor(diffInMins / 60);
+  const diffInDays = Math.floor(diffInHours / 24);
+
+  if (diffInMins < 1) return lang === 'dari' ? 'لحظاتی پیش' : 'همدا اوس';
+  if (diffInMins < 60) return lang === 'dari' ? `${diffInMins} دقیقه پیش` : `${diffInMins} دقیقې مخکې`;
+  if (diffInHours < 24) return lang === 'dari' ? `${diffInHours} ساعت پیش` : `${diffInHours} ساعت مخکې`;
+  if (diffInDays < 7) return lang === 'dari' ? `${diffInDays} روز پیش` : `${diffInDays} ورځې مخکې`;
+  
+  return new Date(dateStr).toLocaleDateString('fa-AF');
+};
+
 export const translations = {
   dari: {
     estate: 'املاک',
