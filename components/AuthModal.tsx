@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import { List, Heart, LogOut, User, Loader2, ChevronRight, Camera, ArrowLeft, MessageSquare, Phone, UserCircle } from 'lucide-react';
-import { translations } from '../services/translations';
+import { useState, useEffect, useRef } from 'react';
+import { List, Heart, LogOut, User, Loader2, ChevronRight, Camera, ArrowLeft, MessageSquare, Phone, UserCircle, Bell, CheckCheck, Shield } from 'lucide-react';
+import { translations, getRelativeTime } from '../services/translations';
 import { supabase, TABLES, uploadImage } from '../services/supabaseClient';
 import ChatWindow from './ChatWindow.tsx';
 
@@ -17,12 +17,13 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang, hasUnreadChats, onCheckNotifications }) => {
   const t = translations[lang];
-  const [view, setView] = useState<'login' | 'profile' | 'user_chats'>('login');
+  const [view, setView] = useState<'login' | 'profile' | 'user_chats' | 'admin_notifications'>('login');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [fullName, setFullName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [profile, setProfile] = useState({ fullName: '', avatarUrl: '' });
   const [userConversations, setUserConversations] = useState<any[]>([]);
+  const [adminMessages, setAdminMessages] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,7 +37,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
   const loadProfile = async (phone: string) => {
     setPhoneNumber(phone);
     const { data } = await supabase.from('profiles').select('*').eq('phone', phone).single();
-    // اگر پروفایل وجود داشت و نام هم داشت، برو به پروفایل. در غیر این صورت برو به لاگین برای تکمیل نام
     if (data && data.full_name) {
       setProfile({ fullName: data.full_name, avatarUrl: data.avatar_url || '' });
       setFullName(data.full_name);
@@ -114,7 +114,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         
         if (!conversationsMap[key]) {
           const { data: pData } = await supabase.from('profiles').select('full_name').eq('phone', otherPhone).single();
-          // اصلاح مهم: اگر نام نبود، شماره موبایل نمایش داده شود
           conversationsMap[key] = { ...msg, otherName: pData?.full_name || otherPhone };
         }
       }
@@ -122,8 +121,26 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     } catch (e) {} finally { setIsLoading(false); }
   };
 
+  const fetchAdminMessages = async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await supabase.from(TABLES.MESSAGES)
+        .select('*')
+        .eq('target_phone', phoneNumber)
+        .order('date', { ascending: false });
+      
+      setAdminMessages(data || []);
+      
+      if (data && data.length > 0) {
+        await supabase.from(TABLES.MESSAGES).update({ is_read: true }).eq('target_phone', phoneNumber);
+        onCheckNotifications();
+      }
+    } catch (e) {} finally { setIsLoading(false); }
+  };
+
   useEffect(() => {
     if (view === 'user_chats') fetchUserChats();
+    if (view === 'admin_notifications') fetchAdminMessages();
   }, [view]);
 
   if (view === 'login') return (
@@ -135,41 +152,51 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
           </div>
           <h2 className="text-xl font-black">{t.login_title}</h2>
         </div>
-        
         <div className="space-y-4">
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 mr-2">نام و تخلص (اجباری)</label>
-            <input 
-              type="text" 
-              value={fullName} 
-              onChange={e => setFullName(e.target.value)} 
-              placeholder="مثلاً: احمد ولی" 
-              className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none focus:border-[#a62626] transition-all" 
-            />
+            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="مثلاً: احمد ولی" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none focus:border-[#a62626] transition-all" />
           </div>
-
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 mr-2">شماره تماس (07...)</label>
-            <div className="relative">
-              <input 
-                type="tel" 
-                value={phoneNumber} 
-                onChange={e => setPhoneNumber(e.target.value)} 
-                maxLength={10}
-                placeholder="07XXXXXXXX" 
-                className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-lg font-black text-left dir-ltr outline-none focus:border-[#a62626] transition-all" 
-              />
-            </div>
+            <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} maxLength={10} placeholder="07XXXXXXXX" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-lg font-black text-left dir-ltr outline-none focus:border-[#a62626] transition-all" />
           </div>
-          
-          <button 
-            onClick={handleLogin} 
-            disabled={isLoading} 
-            className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center"
-          >
+          <button onClick={handleLogin} disabled={isLoading} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center">
             {isLoading ? <Loader2 className="animate-spin" /> : 'ورود به برنامه'}
           </button>
         </div>
+      </div>
+    </div>
+  );
+
+  if (view === 'admin_notifications') return (
+    <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white w-full max-md:max-w-md h-full max-h-[85vh] rounded-[3rem] p-8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 mb-6 shrink-0">
+          <button onClick={() => setView('profile')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft size={24} className={lang === 'dari' ? '' : 'rotate-180'} /></button>
+          <h2 className="text-xl font-black">{t.notifications}</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar">
+          {isLoading ? ( <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#a62626]" /></div> ) : adminMessages.length === 0 ? ( <div className="text-center py-20 flex flex-col items-center gap-4"> <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center text-gray-300"><Bell size={32} /></div> <p className="text-gray-400 font-bold text-sm">پیامی از طرف مدیریت دریافت نشده است.</p> </div> ) : (
+            adminMessages.map((msg, i) => (
+              <div key={i} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden group">
+                 <div className="absolute top-0 right-0 w-1 h-full bg-[#a62626]"></div>
+                 <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2 bg-red-50 px-3 py-1 rounded-full">
+                       <Shield size={12} className="text-[#a62626]" />
+                       <span className="text-[10px] font-black text-[#a62626]">پیام سیستم</span>
+                    </div>
+                    <span className="text-[10px] text-gray-400 font-bold">{getRelativeTime(msg.date, lang)}</span>
+                 </div>
+                 <p className="text-sm font-bold text-gray-700 leading-7">{msg.text}</p>
+                 <div className="mt-3 pt-3 border-t border-gray-50 flex justify-end">
+                    <CheckCheck size={14} className="text-blue-500" />
+                 </div>
+              </div>
+            ))
+          )}
+        </div>
+        <button onClick={() => setView('profile')} className="w-full bg-gray-100 text-gray-600 py-4 rounded-2xl font-black mt-4 active:scale-95 transition-all">بازگشت</button>
       </div>
     </div>
   );
@@ -188,9 +215,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
               return (
                 <div key={i} onClick={() => setActiveChat({ phone: otherPhone, name: conv.otherName, id: conv.ad_id, title: conv.ad_title })} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 flex items-center justify-between cursor-pointer hover:bg-white hover:shadow-md transition-all active:scale-[0.98]">
                   <div className="flex items-center gap-3">
-                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-red-600 shadow-sm border font-black text-lg">
-                        {conv.otherName[0]}
-                     </div>
+                     <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-red-600 shadow-sm border font-black text-lg">{conv.otherName[0]}</div>
                      <div className="max-w-[180px]">
                         <h4 className="font-black text-sm text-gray-800 truncate">{conv.otherName}</h4>
                         <p className="text-[10px] text-gray-400 font-bold truncate">{conv.ad_title}</p>
@@ -220,7 +245,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
                   <button onClick={() => fileInputRef.current?.click()} className="absolute -bottom-1 -right-1 bg-[#a62626] text-white p-2 rounded-xl shadow-lg border-2 border-white active:scale-90 transition-transform"><Camera size={16} /></button>
                   <input type="file" ref={fileInputRef} hidden accept="image/*" onChange={handleAvatarUpload} />
                </div>
-               
                <div className="w-full text-center">
                   <h3 className="text-lg font-black text-gray-800">{profile.fullName || phoneNumber}</h3>
                   <div className="flex items-center justify-center gap-2 text-gray-400 font-bold text-sm mt-1">
@@ -230,10 +254,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
             </div>
 
             <div className="space-y-3 pb-4">
-              <button onClick={() => setView('user_chats')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group relative transition-all">
+              <button onClick={() => setView('admin_notifications')} className="w-full flex items-center justify-between p-4 bg-blue-50 rounded-2xl text-blue-700 font-black relative transition-all active:scale-95 group">
+                <div className="flex items-center gap-3"><Bell size={20} className="group-hover:rotate-12 transition-transform" /> {t.notifications}</div>
+                <div className="flex items-center gap-2">
+                   <div className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg text-[10px]">سیستم</div>
+                   <ChevronRight size={18} />
+                </div>
+              </button>
+
+              <button onClick={() => setView('user_chats')} className="w-full flex items-center justify-between p-4 bg-red-50 rounded-2xl text-[#a62626] font-black group relative transition-all active:scale-95">
                 <div className="flex items-center gap-3"><MessageSquare size={20} /> گفتگوهای من</div>
                 <div className="flex items-center gap-2"> {hasUnreadChats && <div className="w-2.5 h-2.5 bg-red-600 rounded-full border border-white"></div>} <ChevronRight size={18} /> </div>
               </button>
+              
               <button onClick={onShowMyAds} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group transition-all"> <div className="flex items-center gap-3"><List size={20} /> {t.my_ads}</div> <ChevronRight size={18} /> </button>
               <button onClick={onShowSaved} className="w-full flex items-center justify-between p-4 hover:bg-gray-50 rounded-2xl font-bold group transition-all"> <div className="flex items-center gap-3"><Heart size={20} /> {t.saved}</div> <ChevronRight size={18} /> </button>
               

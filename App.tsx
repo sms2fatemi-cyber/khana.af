@@ -42,7 +42,7 @@ function App() {
   const [selectedProvince, setSelectedProvince] = useState(t.provinces[0]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [activeDealFilter] = useState<'ALL' | DealType>('ALL');
+  const [activeDealFilter, setActiveDealFilter] = useState<'ALL' | DealType>('ALL');
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
@@ -110,8 +110,6 @@ function App() {
     if (!error) {
       alert(lang === 'dari' ? "آگهی با موفقیت حذف شد." : "اعلان په بریالیتوب سره حذف شو.");
       refreshData();
-    } else {
-      alert("Error deleting ad.");
     }
   };
 
@@ -203,11 +201,12 @@ function App() {
 
       if (appMode === 'ESTATE') {
         const p = item as Property;
-        return activeDealFilter === 'ALL' || p.dealType === activeDealFilter;
+        if (activeDealFilter !== 'ALL' && p.dealType !== activeDealFilter) return false;
       }
+
       return true;
     });
-  }, [appMode, searchTerm, activeDealFilter, selectedProvince, properties, jobs, services, filterCategory, savedIds]);
+  }, [appMode, searchTerm, selectedProvince, properties, jobs, services, filterCategory, savedIds, activeDealFilter]);
 
   const displayedItems = useMemo(() => filteredItems.slice(0, displayLimit), [filteredItems, displayLimit]);
 
@@ -223,15 +222,19 @@ function App() {
     setIsDetailOpen(false);
     setViewMode('list');
     setFilterCategory('ALL');
+    setActiveDealFilter('ALL');
     setDisplayLimit(20);
   };
 
   if (isAdminMode) {
     return (
       <AdminPanel 
-        properties={properties} setProperties={setProperties} 
-        jobs={jobs} setJobs={setJobs}
-        services={services} setServices={setServices}
+        properties={properties} 
+        setProperties={setProperties} 
+        jobs={jobs} 
+        setJobs={setJobs}
+        services={services} 
+        setServices={setServices}
         onExit={() => { setIsAdminMode(false); refreshData(); }} 
       />
     );
@@ -268,6 +271,15 @@ function App() {
                   {t.provinces.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
+              
+              {appMode === 'ESTATE' && (
+                <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
+                  <button onClick={() => setActiveDealFilter('ALL')} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === 'ALL' ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{t.all}</button>
+                  <button onClick={() => setActiveDealFilter(DealType.SALE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.SALE ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{t.sale}</button>
+                  <button onClick={() => setActiveDealFilter(DealType.RENT)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.RENT ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{t.rent}</button>
+                  <button onClick={() => setActiveDealFilter(DealType.MORTGAGE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.MORTGAGE ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{t.mortgage}</button>
+                </div>
+              )}
             </div>
           </div>
           
@@ -401,7 +413,17 @@ function App() {
         </div>
       )}
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} hasUnreadChats={hasNewUserChats} onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} onCheckNotifications={checkUnreadNotifications} />}
+      {showAuthModal && (
+        <AuthModal 
+          onClose={() => setShowAuthModal(false)} 
+          lang={lang} 
+          hasUnreadChats={hasNewUserChats} 
+          onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} 
+          onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} 
+          onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} 
+          onCheckNotifications={checkUnreadNotifications} 
+        />
+      )}
       {showAdminLogin && <AdminLogin onLogin={() => { setShowAdminLogin(false); setIsAdminMode(true); }} onCancel={() => setShowAdminLogin(false)} />}
     </div>
   );
