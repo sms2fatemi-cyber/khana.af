@@ -1,6 +1,6 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, Languages, Search, RefreshCcw } from 'lucide-react';
+import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, Languages, Search, RefreshCcw, Sparkles } from 'lucide-react';
 import MapView from './components/MapView';
 import PropertyCard from './components/PropertyCard';
 import PropertyDetails from './components/PropertyDetails.tsx';
@@ -19,23 +19,6 @@ import { translations } from './services/translations';
 import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 
 type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
-
-export const getRelativeTime = (dateStr: string, lang: Language) => {
-  if (!dateStr) return lang === 'dari' ? 'جدید' : 'نوې';
-  const now = new Date();
-  const past = new Date(dateStr);
-  const diffInMs = now.getTime() - past.getTime();
-  const diffInMins = Math.floor(diffInMs / (1000 * 60));
-  const diffInHours = Math.floor(diffInMins / 60);
-  const diffInDays = Math.floor(diffInHours / 24);
-
-  if (diffInMins < 1) return lang === 'dari' ? 'لحظاتی پیش' : 'همدا اوس';
-  if (diffInMins < 60) return lang === 'dari' ? `${diffInMins} دقیقه پیش` : `${diffInMins} دقیقې مخکې`;
-  if (diffInHours < 24) return lang === 'dari' ? `${diffInHours} ساعت پیش` : `${diffInHours} ساعت مخکې`;
-  if (diffInDays < 7) return lang === 'dari' ? `${diffInDays} روز پیش` : `${diffInDays} ورځې مخکې`;
-  
-  return new Date(dateStr).toLocaleDateString('fa-AF');
-};
 
 function App() {
   const [lang, setLang] = useState<Language>(() => (localStorage.getItem('app_lang') as Language) || 'dari');
@@ -100,8 +83,11 @@ function App() {
         date: item.created_at,
         mortgageAmount: item.mortgage_amount,
         deposit: item.deposit,
-        hasStorage: item.has_storage,
-        providerName: item.provider_name
+        hasStorage: item.has_storage ?? false,
+        providerName: item.provider_name,
+        address: item.address || '',
+        area: item.area || 0,
+        bedrooms: item.bedrooms || 0
       });
 
       setProperties(pRes.data?.map(mapStatus) || []);
@@ -359,9 +345,24 @@ function App() {
               </>
             )}
             {!isLoading && filteredItems.length === 0 && (
-              <div className="text-center py-24 flex flex-col items-center gap-4 opacity-40">
-                <Building2 size={64} className="text-gray-300" />
-                <p className="font-black text-xs">{t.no_results}</p>
+              <div className="text-center py-24 flex flex-col items-center gap-4 opacity-70 px-8">
+                <div className="w-24 h-24 bg-red-50 text-red-600 rounded-[3rem] flex items-center justify-center mb-2">
+                  <Sparkles size={48} className="animate-pulse" />
+                </div>
+                <h3 className="font-black text-gray-800 text-lg">{t.no_results}</h3>
+                <p className="text-[11px] font-bold text-gray-400 leading-7">
+                  {lang === 'dari' 
+                    ? 'هنوز آگهی تایید شده‌ای در این بخش وجود ندارد. اگر به تازگی آگهی ثبت کرده‌اید، پس از تایید مدیریت در اینجا نمایش داده می‌شود.' 
+                    : 'په دې برخه کې لا تر اوسه تایید شوی اعلان نشته. که تاسو نوی اعلان ثبت کړی وي، د مدیریت له تایید وروسته به دلته ښکاره شي.'}
+                </p>
+                {filterCategory === 'ALL' && (
+                  <button 
+                    onClick={() => { if(!localStorage.getItem('user_phone')) setShowAuthModal(true); else setShowAddModal(true); }}
+                    className="mt-4 bg-[#a62626] text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl active:scale-95 transition-all"
+                  >
+                    اولین آگهی را ثبت کنید
+                  </button>
+                )}
               </div>
             )}
           </div>

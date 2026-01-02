@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Property, DealType } from '../types';
-import { Bookmark, ChevronRight, Phone, MapPinned, Share2, X, ChevronLeft, MessageCircle } from 'lucide-react';
+import { Bookmark, ChevronRight, Phone, MapPinned, Share2, X, ChevronLeft, MessageCircle, Box, Clock } from 'lucide-react';
 import ChatWindow from './ChatWindow';
+import { getRelativeTime } from '../services/translations';
 
 interface PropertyDetailsProps {
   property: Property;
@@ -160,12 +161,20 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
                     </div>
 
                     <h1 className="md:hidden text-2xl font-black text-gray-900 leading-tight mb-2 pt-2">{property.title}</h1>
-                    <p className="text-gray-400 font-bold text-xs mb-6">{property.date} در {property.city}</p>
+                    <div className="flex items-center gap-2 mb-6 text-gray-400 font-bold text-xs">
+                       <Clock size={12} /> {getRelativeTime(property.date, 'dari')} در {property.city}
+                    </div>
 
-                    <div className="grid grid-cols-3 gap-4 py-6 border-y border-gray-100 text-center">
-                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.area}</span><span className="font-black text-sm">{property.area} متر</span></div>
-                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.bedrooms}</span><span className="font-black text-sm">{property.bedrooms} خوابه</span></div>
-                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.type}</span><span className="font-black text-sm">{property.type}</span></div>
+                    <div className="grid grid-cols-4 gap-4 py-6 border-y border-gray-100 text-center">
+                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.area}</span><span className="font-black text-xs">{property.area} متر</span></div>
+                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.bedrooms}</span><span className="font-black text-xs">{property.bedrooms} خواب</span></div>
+                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.type}</span><span className="font-black text-xs">{property.type}</span></div>
+                        <div className="bg-gray-50 p-3 rounded-2xl">
+                           <span className="block text-gray-400 text-[9px] font-black mb-1 uppercase flex items-center justify-center gap-1"><Box size={10} /> {t.storage}</span>
+                           <span className={`font-black text-xs ${property.hasStorage ? 'text-green-600' : 'text-gray-400'}`}>
+                              {property.hasStorage ? t.has_storage : t.no_storage}
+                           </span>
+                        </div>
                     </div>
 
                     <div className="bg-red-50/50 p-6 rounded-[1.8rem] border border-red-100 my-8">
@@ -202,9 +211,9 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
 
                     <div className="space-y-6">
                         {property.address && (
-                            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                                <h3 className="text-sm font-black text-gray-900 mb-2 flex items-center gap-2"><MapPinned size={16} className="text-red-600" /> آدرس دقیق</h3>
-                                <p className="text-xs font-bold text-gray-600">{property.address}</p>
+                            <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
+                                <h3 className="text-sm font-black text-gray-900 mb-2 flex items-center gap-2"><MapPinned size={18} className="text-red-600" /> آدرس دقیق</h3>
+                                <p className="text-xs font-bold text-gray-600 leading-7">{property.address}</p>
                             </div>
                         )}
                         

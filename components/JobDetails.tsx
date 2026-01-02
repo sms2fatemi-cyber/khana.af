@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Job } from '../types';
 import { Building2, ChevronRight, Bookmark, MapPinned, Phone, X, Share2, MessageCircle, ChevronLeft, Clock } from 'lucide-react';
 import ChatWindow from './ChatWindow.tsx';
-import { getRelativeTime } from '../App';
+import { getRelativeTime } from '../services/translations';
 
 interface JobDetailsProps {
   job: Job;

@@ -1,6 +1,9 @@
 
 import { Language } from '../types';
 
+/**
+ * Utility function to calculate and return a human-readable relative time string.
+ */
 export const getRelativeTime = (dateStr: string, lang: Language) => {
   if (!dateStr) return lang === 'dari' ? 'جدید' : 'نوې';
   const now = new Date();

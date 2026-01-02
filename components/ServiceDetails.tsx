@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Service } from '../types';
 import { User, ChevronRight, Bookmark, MapPinned, Phone, X, Share2, MessageCircle, ChevronLeft, Clock, Wrench } from 'lucide-react';
 import ChatWindow from './ChatWindow.tsx';
-import { getRelativeTime } from '../App';
+import { getRelativeTime } from '../services/translations';
 
 interface ServiceDetailsProps {
   service: Service;
