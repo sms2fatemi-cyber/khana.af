@@ -106,10 +106,26 @@ function App() {
     if (!window.confirm(lang === 'dari' ? "آیا از حذف این آگهی مطمئن هستید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟")) return;
     
     const table = mode === 'ESTATE' ? TABLES.PROPERTIES : mode === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
-    const { error } = await supabase.from(table).delete().eq('id', id);
-    if (!error) {
-      alert(lang === 'dari' ? "آگهی با موفقیت حذف شد." : "اعلان په بریالیتوب سره حذف شو.");
-      refreshData();
+    
+    try {
+      // استفاده از count: 'exact' برای چک کردن اینکه واقعاً ردیفی حذف شده یا نه
+      const { error, count } = await supabase
+        .from(table)
+        .delete({ count: 'exact' })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      if (count === 0) {
+        alert(lang === 'dari' 
+          ? "خطا: آگهی حذف نشد. احتمالاً دسترسی لازم را ندارید یا آگهی قبلاً حذف شده است." 
+          : "تېروتنه: اعلان حذف نشو.");
+      } else {
+        alert(lang === 'dari' ? "آگهی با موفقیت حذف شد." : "اعلان په بریالیتوب سره حذف شو.");
+        refreshData();
+      }
+    } catch (e: any) {
+      alert("Error: " + e.message);
     }
   };
 

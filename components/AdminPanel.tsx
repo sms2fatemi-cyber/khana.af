@@ -106,17 +106,31 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     if (!window.confirm("آیا از حذف دائمی این آگهی مطمئن هستید؟")) return;
     setIsProcessing(true);
     const table = type === 'ESTATE' ? TABLES.PROPERTIES : type === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
+    
     try {
-      const { error } = await supabase.from(table).delete().eq('id', id);
+      // اضافه کردن count: 'exact' برای چک کردن حذف واقعی
+      const { error, count } = await supabase
+        .from(table)
+        .delete({ count: 'exact' })
+        .eq('id', id);
+
       if (error) throw error;
-      const filterFn = (prev: any[]) => prev.filter(item => item.id !== id);
-      if (type === 'ESTATE') setProperties(filterFn);
-      if (type === 'JOBS') setJobs(filterFn);
-      if (type === 'SERVICES') setServices(filterFn);
-      alert("آگهی حذف شد.");
-      setSelectedItem(null);
-    } catch (e) { alert("خطا در حذف."); }
-    finally { setIsProcessing(false); }
+
+      if (count === 0) {
+        alert("خطا: ردیفی در دیتابیس حذف نشد. لطفاً تنظیمات RLS دیتابیس را برای اجازه DELETE چک کنید.");
+      } else {
+        const filterFn = (prev: any[]) => prev.filter(item => item.id !== id);
+        if (type === 'ESTATE') setProperties(filterFn);
+        if (type === 'JOBS') setJobs(filterFn);
+        if (type === 'SERVICES') setServices(filterFn);
+        alert("آگهی با موفقیت از دیتابیس حذف شد.");
+        setSelectedItem(null);
+      }
+    } catch (e: any) { 
+      alert("خطا در حذف: " + e.message); 
+    } finally { 
+      setIsProcessing(false); 
+    }
   };
 
   const handleSendAdminMessage = async (targetPhone: string, textOverride?: string) => {
