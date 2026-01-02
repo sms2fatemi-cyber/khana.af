@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { Property } from '../types';
-import { Bookmark, ChevronRight, Phone, MapPinned, X, ChevronLeft, MessageCircle, Clock, MapPin } from 'lucide-react';
+import { Bookmark, ChevronRight, Phone, MapPinned, X, ChevronLeft, MessageCircle, Clock, MapPin, Box, Car } from 'lucide-react';
 import ChatWindow from './ChatWindow';
 import { getRelativeTime } from '../services/translations';
 
@@ -99,6 +99,20 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
                     <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase">{t.area}</span><span className="font-black text-xs">{property.area} متر</span></div>
                     <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase">{t.bedrooms}</span><span className="font-black text-xs">{property.bedrooms} خواب</span></div>
                     <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase">{t.type}</span><span className="font-black text-xs">{property.type}</span></div>
+                </div>
+
+                {/* Features Grid */}
+                <div className="flex gap-4">
+                  {property.hasParking && (
+                    <div className="flex-1 flex items-center justify-center gap-2 bg-blue-50 text-blue-700 py-3 rounded-2xl font-black text-sm border border-blue-100">
+                      <Car size={18} /> پارکینگ دارد
+                    </div>
+                  )}
+                  {property.hasStorage && (
+                    <div className="flex-1 flex items-center justify-center gap-2 bg-amber-50 text-amber-700 py-3 rounded-2xl font-black text-sm border border-amber-100">
+                      <Box size={18} /> انباری دارد
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-red-50/50 p-6 rounded-[1.8rem] border border-red-100 my-8">

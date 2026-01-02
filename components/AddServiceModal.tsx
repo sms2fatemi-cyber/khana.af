@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair } from 'lucide-react';
+import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Eye, EyeOff } from 'lucide-react';
 import { Service, ServiceCategory } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
@@ -11,6 +10,11 @@ interface AddServiceModalProps {
   t: any;
   lang: string;
 }
+
+const toEnglishDigits = (str: string) => {
+  if (!str) return '';
+  return str.toString().replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
+};
 
 const MapResizer = () => {
   const map = useMap();
@@ -68,7 +72,7 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
     providerName: editData?.providerName || '', 
     category: editData?.category || ServiceCategory.TECHNICAL,
     experience: editData?.experience || '', 
-    phoneNumber: userPhone, 
+    phoneNumber: editData?.phoneNumber || userPhone, 
     showPhoneNumber: editData?.showPhoneNumber ?? true,
     city: editData?.city || t.provinces[1], 
     address: editData?.address || '', 
@@ -105,17 +109,33 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
       const uploadedUrls = await uploadMultipleImages(selectedFiles);
       const allImages = [...previews.filter(p => p.startsWith('http')), ...uploadedUrls];
       const payload = {
-        title: formData.title, provider_name: formData.providerName,
-        category: formData.category, experience: formData.experience,
-        phone_number: userPhone, show_phone: formData.showPhoneNumber,
-        city: formData.city, address: formData.address, description: formData.description,
-        location: formData.location, images: allImages, status: editData ? editData.status : 'PENDING',
+        title: formData.title, 
+        provider_name: formData.providerName,
+        category: formData.category, 
+        experience: formData.experience,
+        phone_number: formData.phoneNumber, 
+        show_phone: formData.showPhoneNumber,
+        city: formData.city, 
+        address: formData.address, 
+        description: formData.description,
+        location: formData.location, 
+        images: allImages, 
+        status: editData ? editData.status : 'PENDING',
         owner_id: userPhone
       };
-      if (editData) await supabase.from(TABLES.SERVICES).update(payload).eq('id', editData.id);
-      else await supabase.from(TABLES.SERVICES).insert([payload]);
+      
+      let result;
+      if (editData) result = await supabase.from(TABLES.SERVICES).update(payload).eq('id', editData.id);
+      else result = await supabase.from(TABLES.SERVICES).insert([payload]);
+      
+      if (result.error) throw result.error;
+      
       setIsSuccess(true);
-    } catch (_err) { alert("خطا در ثبت اطلاعات"); } finally { setIsSubmitting(false); }
+    } catch (err: any) { 
+      alert("خطا در ثبت: " + (err.message || "لطفاً دوباره تلاش کنید.")); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   if (isSuccess) return (
@@ -123,9 +143,6 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
       <div className="bg-white w-full max-sm:max-w-xs rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
         <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
         <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
-        <p className="text-sm text-gray-500 font-bold mb-8 leading-7">
-          {lang === 'dari' ? 'آگهی خدمات شما با موفقیت ثبت شد و پس از تایید مدیریت منتشر می‌شود.' : 'ستاسو د خدماتو اعلان ثبت شو او د مدیریت له تایید وروسته به خپور شي.'}
-        </p>
         <button onClick={onClose} className="w-full bg-orange-600 text-white py-4 rounded-xl font-black active:scale-95">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
       </div>
     </div>
@@ -180,19 +197,38 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
             </div>
 
             <div className="space-y-4">
-              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="عنوان خدمات (مثلاً: ترمیم یخچال)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="عنوان خدمات" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               <input type="text" value={formData.providerName} onChange={e => setFormData({...formData, providerName: e.target.value})} placeholder="نام متخصص یا شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="grid grid-cols-2 gap-4">
                  <select value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {t.provinces.slice(1).map((p: string) => (<option key={p} value={p}>{p}</option>))}
                  </select>
-                 <input type="text" value={formData.experience} onChange={e => setFormData({...formData, experience: e.target.value})} placeholder="سابقه کاری (مثلاً ۵ سال)" className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+                 <input type="text" value={formData.experience} onChange={e => setFormData({...formData, experience: e.target.value})} placeholder="سابقه کاری" className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               </div>
 
               <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                  {Object.values(ServiceCategory).map(cat => (<option key={cat} value={cat}>{cat}</option>))}
               </select>
+
+              {/* Phone and Toggle */}
+              <div className="flex gap-2">
+                <input 
+                  type="tel" 
+                  value={formData.phoneNumber} 
+                  onChange={e => setFormData({...formData, phoneNumber: toEnglishDigits(e.target.value)})} 
+                  placeholder="شماره تماس" 
+                  className="flex-1 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left" 
+                  required 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setFormData({...formData, showPhoneNumber: !formData.showPhoneNumber})}
+                  className={`px-4 rounded-2xl border flex items-center justify-center transition-all ${formData.showPhoneNumber ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                >
+                  {formData.showPhoneNumber ? <Eye size={20} /> : <EyeOff size={20} />}
+                </button>
+              </div>
 
               <div className="relative">
                 <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />

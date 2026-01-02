@@ -83,6 +83,7 @@ function App() {
         mortgageAmount: item.mortgage_amount,
         deposit: item.deposit,
         hasStorage: item.has_storage ?? false,
+        hasParking: item.has_parking ?? false,
         providerName: item.provider_name,
         address: item.address || '',
         city: item.city || (lang === 'dari' ? 'نامشخص' : 'نامعلوم'), 

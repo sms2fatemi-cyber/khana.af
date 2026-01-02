@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair } from 'lucide-react';
+import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Eye, EyeOff } from 'lucide-react';
 import { Job, JobType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
@@ -77,7 +76,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
     city: editData?.city || t.provinces[1], 
     address: editData?.address || '', 
     description: editData?.description || '', 
-    phoneNumber: userPhone,
+    phoneNumber: editData?.phoneNumber || userPhone,
     showPhoneNumber: editData?.showPhoneNumber ?? true,
     location: editData?.location || { lat: 34.5553, lng: 69.2075 }
   });
@@ -111,18 +110,34 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
       const urls = await uploadMultipleImages(selectedFiles);
       const allImages = [...previews.filter(p => p.startsWith('http')), ...urls];
       const payload = {
-        title: formData.title, company: formData.company,
+        title: formData.title, 
+        company: formData.company,
         salary: Number(toEnglishDigits(formData.salary)) || 0,
-        job_type: formData.jobType, city: formData.city, address: formData.address,
-        description: formData.description, phone_number: userPhone,
-        show_phone: formData.showPhoneNumber, location: formData.location, images: allImages,
-        status: editData ? editData.status : 'PENDING', owner_id: userPhone,
+        job_type: formData.jobType, 
+        city: formData.city, 
+        address: formData.address,
+        description: formData.description, 
+        phone_number: formData.phoneNumber,
+        show_phone: formData.showPhoneNumber, 
+        location: formData.location, 
+        images: allImages,
+        status: editData ? editData.status : 'PENDING', 
+        owner_id: userPhone,
         requirements: formData.requirements.split(/[،,]/).map(r => r.trim()).filter(r => r)
       };
-      if (editData) await supabase.from(TABLES.JOBS).update(payload).eq('id', editData.id);
-      else await supabase.from(TABLES.JOBS).insert([payload]);
+      
+      let result;
+      if (editData) result = await supabase.from(TABLES.JOBS).update(payload).eq('id', editData.id);
+      else result = await supabase.from(TABLES.JOBS).insert([payload]);
+      
+      if (result.error) throw result.error;
+      
       setIsSuccess(true);
-    } catch (err) { alert("خطا در ثبت اطلاعات"); } finally { setIsSubmitting(false); }
+    } catch (err: any) { 
+      alert("خطا در ثبت: " + (err.message || "لطفاً دوباره تلاش کنید.")); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   if (isSuccess) return (
@@ -130,9 +145,6 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
       <div className="bg-white w-full max-sm:max-w-xs rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
         <div className="w-20 h-20 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
         <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
-        <p className="text-sm text-gray-500 font-bold mb-8 leading-7">
-          {lang === 'dari' ? 'آگهی استخدام شما با موفقیت ثبت شد و پس از تایید مدیریت منتشر می‌شود.' : 'ستاسو د دندې اعلان ثبت شو او د مدیریت له تایید وروسته به خپور شي.'}
-        </p>
         <button onClick={onClose} className="w-full bg-blue-600 text-white py-4 rounded-xl font-black active:scale-95">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
       </div>
     </div>
@@ -187,7 +199,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
             </div>
 
             <div className="space-y-4">
-              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="عنوان شغل (مثلاً: راننده)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="عنوان شغل" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               <input type="text" value={formData.company} onChange={e => setFormData({...formData, company: e.target.value})} placeholder="نام شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="grid grid-cols-2 gap-4">
@@ -197,6 +209,25 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
                  <select value={formData.jobType} onChange={e => setFormData({...formData, jobType: e.target.value as any})} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {Object.values(JobType).map(jt => (<option key={jt} value={jt}>{jt}</option>))}
                  </select>
+              </div>
+
+              {/* Phone and Toggle */}
+              <div className="flex gap-2">
+                <input 
+                  type="tel" 
+                  value={formData.phoneNumber} 
+                  onChange={e => setFormData({...formData, phoneNumber: toEnglishDigits(e.target.value)})} 
+                  placeholder="شماره تماس" 
+                  className="flex-1 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left" 
+                  required 
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setFormData({...formData, showPhoneNumber: !formData.showPhoneNumber})}
+                  className={`px-4 rounded-2xl border flex items-center justify-center transition-all ${formData.showPhoneNumber ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                >
+                  {formData.showPhoneNumber ? <Eye size={20} /> : <EyeOff size={20} />}
+                </button>
               </div>
 
               <div className="grid grid-cols-3 gap-4">

@@ -1,9 +1,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Box, MapPinned, Crosshair, Check, Eye, EyeOff } from 'lucide-react';
+import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Box, MapPinned, Crosshair, Check, Globe, Car, Eye, EyeOff } from 'lucide-react';
 import { Property, PropertyType, DealType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
+
+/* 
+  توجه: برای اجرای صحیح این بخش، کد SQL زیر را در Supabase اجرا کنید:
+  ALTER TABLE properties ADD COLUMN IF NOT EXISTS has_parking BOOLEAN DEFAULT FALSE;
+  ALTER TABLE properties ADD COLUMN IF NOT EXISTS has_storage BOOLEAN DEFAULT FALSE;
+*/
 
 interface AddPropertyModalProps {
   onClose: () => void;
@@ -58,13 +64,9 @@ const UserLocationHandler = () => {
         map.flyTo([lat, lng], 16, { animate: true });
         setIsLocating(false);
       },
-      (err) => {
+      () => {
         setIsLocating(false);
-        if (err.code === 1) {
-          alert("لطفاً اجازه دسترسی به مکان را تایید کنید.");
-        } else {
-          alert("موقعیت یافت نشد. لطفاً GPS را چک کنید.");
-        }
+        alert("موقعیت یافت نشد.");
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -100,11 +102,11 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
     area: editData?.area?.toString() || '', 
     bedrooms: editData?.bedrooms?.toString() || '',
     hasStorage: editData?.hasStorage || false, 
-    features: editData?.features?.join('، ') || '',
+    hasParking: editData?.hasParking || false,
     city: editData?.city || t.provinces[1], 
     address: editData?.address || '', 
     description: editData?.description || '', 
-    phoneNumber: userPhone,
+    phoneNumber: editData?.phoneNumber || userPhone,
     showPhoneNumber: editData?.showPhoneNumber ?? true,
     location: editData?.location || { lat: 34.5553, lng: 69.2075 }
   });
@@ -136,6 +138,11 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.title || !formData.price || !formData.address || !formData.phoneNumber) {
+      alert("لطفاً فیلدهای ستاره‌دار و شماره تماس را پر کنید.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const uploadedUrls = await uploadMultipleImages(selectedFiles);
@@ -146,11 +153,6 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
       else if (formData.dealType === DealType.RENT) finalPrice = Number(toEnglishDigits(formData.price));
       else if (formData.dealType === DealType.MORTGAGE) finalPrice = Number(toEnglishDigits(formData.mortgageAmount));
 
-      const featuresArray = formData.features
-        .split(/[،,]/)
-        .map(f => f.trim())
-        .filter(f => f.length > 0);
-
       const payload: any = {
         title: formData.title,
         price: finalPrice || 0,
@@ -159,14 +161,14 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
         currency: formData.currency,
         deal_type: formData.dealType,
         type: formData.type,
-        area: Number(toEnglishDigits(formData.area)),
+        area: Number(toEnglishDigits(formData.area)) || 0,
         bedrooms: formData.type === PropertyType.LAND ? 0 : (Number(toEnglishDigits(formData.bedrooms)) || 0),
         has_storage: formData.hasStorage,
-        features: featuresArray,
+        has_parking: formData.hasParking,
         city: formData.city,
         address: formData.address,
         description: formData.description,
-        phone_number: userPhone,
+        phone_number: formData.phoneNumber,
         show_phone: formData.showPhoneNumber,
         location: formData.location,
         images: allImages,
@@ -174,20 +176,15 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
         owner_id: userPhone
       };
 
-      let error;
-      if (editData) {
-        const { error: err } = await supabase.from(TABLES.PROPERTIES).update(payload).eq('id', editData.id);
-        error = err;
-      } else {
-        const { error: err } = await supabase.from(TABLES.PROPERTIES).insert([payload]);
-        error = err;
-      }
+      const { error } = editData 
+        ? await supabase.from(TABLES.PROPERTIES).update(payload).eq('id', editData.id)
+        : await supabase.from(TABLES.PROPERTIES).insert([payload]);
 
       if (error) throw error;
       setIsSuccess(true);
     } catch (err: any) {
-      console.error("Submit error:", err);
-      alert(lang === 'dari' ? `خطا: ${err.message}` : `تېروتنه: ${err.message}`);
+      console.error("Database Submit Error:", err);
+      alert("خطا در ثبت: " + (err.message || "لطفاً دوباره تلاش کنید."));
     } finally {
       setIsSubmitting(false);
     }
@@ -198,16 +195,10 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
       <div className="bg-white w-full max-sm:max-w-xs rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
         <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
         <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
-        <p className="text-sm text-gray-500 font-bold mb-8 leading-7">
-          {lang === 'dari' ? 'آگهی ملک شما با موفقیت ثبت شد و پس از تایید منتشر می‌شود.' : 'ستاسو د ملک اعلان ثبت شو او د تایید وروسته به خپور شي.'}
-        </p>
         <button onClick={onClose} className="w-full bg-[#a62626] text-white py-4 rounded-xl font-black active:scale-95">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
       </div>
     </div>
   );
-
-  const MapContainerAny = MapContainer as any;
-  const TileLayerAny = TileLayer as any;
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center" onClick={onClose}>
@@ -220,163 +211,156 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
               <h2 className="font-black mr-2 text-lg">{t.select_location}</h2>
             </div>
             <div className="flex-1 relative bg-gray-50">
-              <MapContainerAny 
-                center={[formData.location.lat, formData.location.lng]} 
-                zoom={14} 
-                style={{ height: '100%', width: '100%' }} 
-                zoomControl={false}
-              >
-                <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <MapContainer center={[formData.location.lat, formData.location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <UserLocationHandler />
-                <MapMoveHandler 
-                  onMoveStart={() => setIsMapMoving(true)}
-                  onMoveEnd={() => setIsMapMoving(false)}
-                  onChange={(loc) => setFormData(prev => ({ ...prev, location: loc }))} 
-                />
-                
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none flex flex-col items-center">
-                   <div className={`mb-2 px-3 py-1 rounded-full text-[10px] font-black shadow-lg transition-all duration-300 ${isMapMoving ? 'bg-gray-800 text-white translate-y-2 opacity-0' : 'bg-green-600 text-white scale-110'}`}>
-                      {isMapMoving ? '...' : (lang === 'dari' ? 'مکان انتخاب شد' : 'ځای وټاکل شو')}
-                   </div>
-                   <MapPin 
-                    size={48} 
-                    className={`transition-all duration-300 drop-shadow-2xl ${isMapMoving ? 'text-gray-400 -translate-y-2 scale-90' : 'text-green-600 scale-100'}`} 
-                   />
+                <MapMoveHandler onMoveStart={() => setIsMapMoving(true)} onMoveEnd={() => setIsMapMoving(false)} onChange={(loc: any) => setFormData(prev => ({ ...prev, location: loc }))} />
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none">
+                   <MapPin size={48} className={isMapMoving ? 'text-gray-400' : 'text-[#a62626]'} />
                 </div>
-              </MapContainerAny>
+              </MapContainer>
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
-                <button 
-                  onClick={() => setView('form')} 
-                  disabled={isMapMoving}
-                  className={`w-full py-4 rounded-2xl font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-2 ${isMapMoving ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#a62626] text-white'}`}
-                >
-                  <Check size={20} /> تایید نهایی موقعیت
-                </button>
+                <button onClick={() => setView('form')} disabled={isMapMoving} className="w-full py-4 rounded-2xl font-black bg-[#a62626] text-white shadow-xl">تایید موقعیت</button>
               </div>
             </div>
           </div>
         )}
 
         <div className="flex justify-between items-center p-5 border-b shrink-0">
-          <h2 className="font-black text-xl text-gray-800">{editData ? (lang === 'dari' ? 'ویرایش ملک' : 'ملک ایډیټ') : (lang === 'dari' ? 'ثبت ملک جدید' : 'د نوي ملک ثبتول')}</h2>
+          <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش ملک' : 'ثبت ملک جدید'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={32} /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 no-scrollbar pb-32">
-          <form id="property-form" onSubmit={handleSubmit} className="space-y-6">
+          <form id="property-form" onSubmit={handleSubmit} className="space-y-6 text-right">
+            {/* Photos */}
             <div className="grid grid-cols-4 gap-3">
               {previews.map((src, i) => (
                 <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border">
-                  <img src={src} className="w-full h-full object-cover" />
+                  <img src={src} className="w-full h-full object-cover" alt="" />
                   <button type="button" onClick={() => removeImage(i)} className="absolute top-1 right-1 bg-black/60 text-white p-1 rounded-lg"><Trash2 size={16} /></button>
                 </div>
               ))}
               <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
-                <Camera size={32} /> <span className="text-[10px] mt-1 font-black">{t.upload_photo}</span>
+                <Camera size={32} /> <span className="text-[10px] mt-1 font-black">افزودن عکس</span>
               </button>
-              <input type="file" ref={fileInputRef} hidden accept=".heic,.HEIC,image/*" multiple onChange={handleFileChange} />
+              <input type="file" ref={fileInputRef} hidden multiple onChange={handleFileChange} />
             </div>
 
             <div className="space-y-4">
-              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder={t.title} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none focus:border-[#a62626]/40" required />
+              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder={t.title} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="grid grid-cols-2 gap-4">
-                 <select value={formData.dealType} onChange={e => setFormData({...formData, dealType: e.target.value as any})} className="bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none">
+                 <select value={formData.dealType} onChange={e => setFormData({...formData, dealType: e.target.value as any})} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    <option value={DealType.SALE}>{t.sale}</option>
                    <option value={DealType.RENT}>{t.rent}</option>
                    <option value={DealType.MORTGAGE}>{t.mortgage}</option>
                  </select>
-                 <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})} className="bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none">
+                 <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {Object.values(PropertyType).map(pt => (<option key={pt} value={pt}>{pt}</option>))}
                  </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <select value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none">
+              {/* Province Selection */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 mr-2 flex items-center gap-1 uppercase tracking-widest"><Globe size={12}/> انتخاب ولایت</label>
+                <select 
+                  value={formData.city} 
+                  onChange={e => setFormData({...formData, city: e.target.value})} 
+                  className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 py-4 font-black text-gray-700 outline-none focus:border-[#a62626] transition-all"
+                  required
+                >
                   {t.provinces.slice(1).map((p: string) => (<option key={p} value={p}>{p}</option>))}
                 </select>
-                <input type="text" value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})} placeholder={t.area} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
+              </div>
+
+              {/* Phone and Visibility Toggle */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 mr-2 flex items-center gap-1 uppercase tracking-widest">شماره تماس و نمایش عمومی</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="tel" 
+                    value={formData.phoneNumber} 
+                    onChange={e => setFormData({...formData, phoneNumber: toEnglishDigits(e.target.value)})} 
+                    placeholder="شماره تماس" 
+                    className="flex-1 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left" 
+                    required 
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setFormData({...formData, showPhoneNumber: !formData.showPhoneNumber})}
+                    className={`px-4 rounded-2xl border flex items-center justify-center transition-all ${formData.showPhoneNumber ? 'bg-green-50 text-green-600 border-green-100' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
+                  >
+                    {formData.showPhoneNumber ? <Eye size={20} /> : <EyeOff size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black text-gray-400 mr-2">مساحت (متر)</label>
+                   <input type="text" value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})} placeholder={t.area} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+                </div>
+                {formData.type !== PropertyType.LAND && (
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-gray-400 mr-2">تعداد اتاق خواب</label>
+                    <input type="text" value={formData.bedrooms} onChange={e => setFormData({...formData, bedrooms: e.target.value})} placeholder={t.bedrooms} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" />
+                  </div>
+                )}
+              </div>
+
+              {/* Checkboxes for Features */}
+              <div className="grid grid-cols-2 gap-4 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setFormData({...formData, hasParking: !formData.hasParking})}
+                  className={`flex items-center justify-center gap-3 py-4 rounded-2xl font-black transition-all border-2 ${formData.hasParking ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}
+                >
+                  <Car size={20} /> پارکینگ
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setFormData({...formData, hasStorage: !formData.hasStorage})}
+                  className={`flex items-center justify-center gap-3 py-4 rounded-2xl font-black transition-all border-2 ${formData.hasStorage ? 'bg-amber-50 border-amber-500 text-amber-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}
+                >
+                  <Box size={20} /> انباری
+                </button>
               </div>
 
               {formData.dealType === DealType.SALE && (
                 <div className="grid grid-cols-3 gap-4">
-                   <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.total_price} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
+                   <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.total_price} className="col-span-2 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
                    <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
                 </div>
               )}
 
               {formData.dealType === DealType.RENT && (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                     <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.monthly_rent} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
-                     <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                     <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder={lang === 'dari' ? 'مبلغ ضمانت' : 'د ضمانت مقدار'} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" />
-                     <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-[10px] text-gray-500">Deposit</div>
-                  </div>
+                   <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.monthly_rent} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+                   <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder="مبلغ ضمانت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" />
                 </div>
               )}
-
-              {formData.dealType === DealType.MORTGAGE && (
-                <div className="grid grid-cols-3 gap-4">
-                   <input type="text" value={formData.mortgageAmount} onChange={e => setFormData({...formData, mortgageAmount: e.target.value})} placeholder={t.mortgage_amount} className="col-span-2 bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" required />
-                   <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
-                </div>
-              )}
-
-              {formData.type !== PropertyType.LAND && (
-                <input type="text" value={formData.bedrooms} onChange={e => setFormData({...formData, bedrooms: e.target.value})} placeholder={t.bedrooms} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none" />
-              )}
-              
-              <div className="flex items-center gap-3 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <button type="button" onClick={() => setFormData({...formData, hasStorage: !formData.hasStorage})} className={`w-12 h-6 rounded-full transition-all relative ${formData.hasStorage ? 'bg-green-500' : 'bg-gray-200'}`}>
-                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.hasStorage ? (lang === 'dari' ? 'right-7' : 'left-7') : (lang === 'dari' ? 'right-1' : 'left-1')}`} />
-                </button>
-                <span className="text-xs font-black text-gray-600 flex items-center gap-1"><Box size={14} /> {lang === 'dari' ? 'دارای انباری / پارکینگ' : 'انباري / پارکینګ لري'}</span>
-              </div>
 
               <div className="relative">
                 <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder={t.address} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-11 py-4 font-bold outline-none focus:border-[#a62626]/40" required />
+                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder={t.address} className="w-full bg-gray-50 border rounded-2xl px-11 py-4 font-bold outline-none" required />
               </div>
 
-              <div className="space-y-3">
-                <div className="relative">
-                  <input type="tel" value={formData.phoneNumber} readOnly className="w-full bg-gray-100 border border-gray-200 rounded-2xl px-5 py-4 font-black text-center dir-ltr text-gray-500" />
-                  <div className="absolute top-1/2 -translate-y-1/2 right-4 bg-gray-200 text-gray-500 px-2 py-1 rounded-lg text-[10px] font-bold">ثابت</div>
-                </div>
-                
-                <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                   <div className="flex items-center gap-3">
-                      {formData.showPhoneNumber ? <Eye size={18} className="text-green-600" /> : <EyeOff size={18} className="text-gray-400" />}
-                      <span className="text-xs font-black text-gray-700">نمایش شماره به دیگران</span>
-                   </div>
-                   <button type="button" onClick={() => setFormData({...formData, showPhoneNumber: !formData.showPhoneNumber})} className={`w-12 h-6 rounded-full transition-all relative ${formData.showPhoneNumber ? 'bg-green-500' : 'bg-gray-300'}`}>
-                      <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${formData.showPhoneNumber ? (lang === 'dari' ? 'right-7' : 'left-7') : (lang === 'dari' ? 'right-1' : 'left-1')}`} />
-                   </button>
-                </div>
-              </div>
-              
-              <button 
-                type="button" 
-                onClick={() => setView('map')} 
-                className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${formData.location.lat !== 34.5553 ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}
-              >
-                {formData.location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">{t.location} انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">{t.select_location}</span></>}
+              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${formData.location.lat !== 34.5553 ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400'}`}>
+                {formData.location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">مکان انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">{t.select_location}</span></>}
               </button>
               
-              <textarea rows={4} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder={t.description} className="w-full bg-gray-50 border border-gray-200 rounded-2xl px-5 py-4 font-bold outline-none resize-none focus:border-[#a62626]/40"></textarea>
+              <textarea rows={4} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder={t.description} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
             </div>
           </form>
         </div>
 
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
-          <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg disabled:bg-gray-300 active:scale-95">
+          <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg">
             {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : t.submit}
           </button>
-          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black active:bg-gray-200">انصراف</button>
+          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">انصراف</button>
         </div>
       </div>
     </div>

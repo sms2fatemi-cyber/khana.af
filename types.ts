@@ -55,6 +55,7 @@ export interface Property {
   images: string[];
   bedrooms: number;
   hasStorage: boolean;
+  hasParking: boolean;
   area: number;
   type: PropertyType;
   dealType: DealType;
