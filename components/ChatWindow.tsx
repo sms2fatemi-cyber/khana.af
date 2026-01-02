@@ -24,9 +24,23 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const markAsRead = async () => {
+    if (!userPhone) return;
+    try {
+      await supabase
+        .from(TABLES.USER_CHATS)
+        .update({ is_read: true })
+        .eq('ad_id', adId)
+        .eq('receiver_phone', userPhone)
+        .eq('sender_phone', receiverPhone)
+        .eq('is_read', false);
+    } catch (e) {
+      console.error("Error marking as read:", e);
+    }
+  };
+
   useEffect(() => {
     const fetchProfile = async () => {
-      // اگر نام ارسال نشده بود یا خالی بود، از دیتابیس بگیر
       if (!receiverName) {
         const { data } = await supabase.from('profiles').select('full_name').eq('phone', receiverPhone).single();
         if (data && data.full_name) {
@@ -38,6 +52,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
     };
     fetchProfile();
     fetchMessages();
+    markAsRead(); // علامت‌گذاری پیام‌ها به محض باز شدن چت
     
     const channel = supabase
       .channel(`chat_room_${adId}`)
@@ -51,6 +66,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
         if ((newMsg.sender_phone === userPhone && newMsg.receiver_phone === receiverPhone) ||
             (newMsg.sender_phone === receiverPhone && newMsg.receiver_phone === userPhone)) {
           setMessages(prev => [...prev, newMsg]);
+          if (newMsg.receiver_phone === userPhone) markAsRead(); // اگر پیام جدید برای من بود، خوانده شده کن
         }
       })
       .subscribe();
@@ -121,7 +137,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
         <form onSubmit={sendMessage} className="p-4 border-t bg-white flex gap-2">
           <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="پیام خود را بنویسید..." className="flex-1 bg-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none" />
           <button type="submit" disabled={!inputText.trim() || isSending} className="w-12 h-12 bg-[#a62626] text-white rounded-xl flex items-center justify-center active:scale-90 disabled:opacity-50 transition-all">
-            {isSending ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} className="rotate-180" />}
+            {isSending ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} className="rotate-180" />}
           </button>
         </form>
       </div>

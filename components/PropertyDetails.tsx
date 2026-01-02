@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Property, DealType } from '../types';
-import { Bookmark, ChevronRight, Phone, MapPinned, Share2, X, ChevronLeft, MessageCircle, Box, Clock } from 'lucide-react';
+import { Bookmark, ChevronRight, Phone, MapPinned, Share2, X, ChevronLeft, MessageCircle, Box, Clock, MapPin } from 'lucide-react';
 import ChatWindow from './ChatWindow';
 import { getRelativeTime } from '../services/translations';
 
@@ -107,7 +107,7 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto no-scrollbar md:flex md:flex-row md:overflow-hidden">
+      <div className="flex-1 overflow-y-auto no-scrollbar md:flex md:flex-row md:overflow-hidden bg-gray-50">
         {/* Image Section */}
         <div 
             className="w-full h-[40vh] md:w-[60%] md:h-full bg-zinc-900 relative shrink-0 flex items-center justify-center group select-none overflow-hidden"
@@ -165,13 +165,13 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
                        <Clock size={12} /> {getRelativeTime(property.date, 'dari')} در {property.city}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-4 py-6 border-y border-gray-100 text-center">
-                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.area}</span><span className="font-black text-xs">{property.area} متر</span></div>
-                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.bedrooms}</span><span className="font-black text-xs">{property.bedrooms} خواب</span></div>
-                        <div className="bg-gray-50 p-3 rounded-2xl"><span className="block text-gray-400 text-[9px] font-black mb-1 uppercase">{t.type}</span><span className="font-black text-xs">{property.type}</span></div>
-                        <div className="bg-gray-50 p-3 rounded-2xl">
-                           <span className="block text-gray-400 text-[9px] font-black mb-1 uppercase flex items-center justify-center gap-1"><Box size={10} /> {t.storage}</span>
-                           <span className={`font-black text-xs ${property.hasStorage ? 'text-green-600' : 'text-gray-400'}`}>
+                    <div className="grid grid-cols-4 gap-3 py-6 border-y border-gray-100 text-center">
+                        <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase">{t.area}</span><span className="font-black text-xs">{property.area} م</span></div>
+                        <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase">{t.bedrooms}</span><span className="font-black text-xs">{property.bedrooms} خواب</span></div>
+                        <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase">{t.type}</span><span className="font-black text-xs">{property.type}</span></div>
+                        <div className="bg-gray-50 p-2.5 rounded-2xl border border-gray-100/50">
+                           <span className="block text-gray-400 text-[8px] font-black mb-1 uppercase flex items-center justify-center gap-1"><Box size={10} /> {t.storage}</span>
+                           <span className={`font-black text-[10px] ${property.hasStorage ? 'text-green-600' : 'text-gray-400'}`}>
                               {property.hasStorage ? t.has_storage : t.no_storage}
                            </span>
                         </div>
@@ -210,12 +210,11 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
                     </div>
 
                     <div className="space-y-6">
-                        {property.address && (
-                            <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100">
-                                <h3 className="text-sm font-black text-gray-900 mb-2 flex items-center gap-2"><MapPinned size={18} className="text-red-600" /> آدرس دقیق</h3>
-                                <p className="text-xs font-bold text-gray-600 leading-7">{property.address}</p>
-                            </div>
-                        )}
+                        {/* نمایش آدرس دقیق با تاکید بیشتر */}
+                        <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-200/60 shadow-inner">
+                            <h3 className="text-xs font-black text-gray-400 mb-3 flex items-center gap-2 uppercase tracking-widest"><MapPin size={16} className="text-red-600" /> آدرس دقیق موقعیت:</h3>
+                            <p className="text-sm font-black text-gray-800 leading-8 bg-white p-4 rounded-2xl border border-gray-100">{property.address || 'آدرسی برای این آگهی ثبت نشده است.'}</p>
+                        </div>
                         
                         <div className="space-y-4 mb-4">
                             <h3 className="text-lg font-black text-gray-900">{t.description}</h3>
