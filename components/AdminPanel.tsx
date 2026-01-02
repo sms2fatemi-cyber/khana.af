@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Property, Job, Service } from '../types';
-import { Trash2, Home, FileText, LayoutDashboard, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Users, Phone, ShieldCheck, MapPin, Loader2, Send, Clock, ChevronRight, ChevronLeft, Search, User, UserCheck, Calendar } from 'lucide-react';
+import { Trash2, Home, FileText, LayoutDashboard, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Users, Phone, ShieldCheck, MapPin, Loader2, Send, Clock, ChevronRight, ChevronLeft, Search, User, UserCheck, Calendar, Box } from 'lucide-react';
 import { supabase, TABLES } from '../services/supabaseClient';
 
 interface AdminPanelProps {
@@ -150,7 +150,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       {items.map(item => (
         <div key={item.id} className="bg-white p-4 rounded-2xl border flex items-center justify-between shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center gap-3">
-            <img src={item.images?.[0]} className="w-14 h-14 rounded-xl object-cover bg-gray-100" alt="" />
+            <img src={item.images?.[0]} className="w-14 h-14 rounded-xl object-contain bg-gray-100" alt="" />
             <div>
               <h4 className="font-black text-xs text-gray-800 line-clamp-1">{item.title}</h4>
               <span className={`text-[8px] px-2 py-0.5 rounded-full font-black ${item.status === 'APPROVED' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
@@ -212,7 +212,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {activeTab === 'USERS' && (
             <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
-               {/* فیلد جستجو و فیلتر دو بخشی */}
                <div className="bg-white p-6 rounded-3xl border shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
                   <div className="relative flex-1 w-full">
                     <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -236,7 +235,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                   </div>
                </div>
 
-               {/* لیست کاربران با کارت‌های زیبا */}
                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  {filteredUsers.length === 0 ? (
                    <div className="col-span-full py-24 text-center opacity-30 flex flex-col items-center">
@@ -251,7 +249,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                    >
                      <div className="flex items-center gap-5">
                         <div className="w-16 h-16 bg-gray-50 rounded-[1.8rem] flex items-center justify-center text-blue-600 font-black text-2xl group-hover:bg-blue-600 group-hover:text-white transition-all shadow-inner overflow-hidden border border-gray-100">
-                           {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" /> : (u.full_name?.[0] || 'U')}
+                           {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-contain" alt="" /> : (u.full_name?.[0] || 'U')}
                         </div>
                         <div>
                            <h4 className="font-black text-gray-800 text-lg group-hover:text-blue-600 transition-colors">{u.full_name || 'کاربر سیستم'}</h4>
@@ -282,24 +280,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         </main>
       </div>
 
-      {/* مودال مشاهده جزئیات کاربر و چت (پروفایل کاربر) */}
       {selectedUser && (
         <div className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-0 md:p-6 overflow-hidden" onClick={() => setSelectedUser(null)}>
            <div className="bg-white w-full h-full md:h-[90vh] md:max-w-6xl md:rounded-[3rem] overflow-hidden flex flex-col md:flex-row shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
-              <div className="flex-1 overflow-y-auto p-6 md:p-12 border-l no-scrollbar bg-gray-50 pb-32 md:pb-8">
+              {/* بخش اسکرول‌شونده یکپارچه در موبایل */}
+              <div className="flex-1 overflow-y-auto p-6 md:p-12 border-l no-scrollbar bg-gray-50">
                  <div className="flex justify-between items-center mb-10">
                     <div className="flex items-center gap-4">
                        <div className="p-4 bg-blue-100 text-blue-600 rounded-2xl shadow-sm"><User size={28} /></div>
-                       <h2 className="text-2xl font-black text-gray-900">جزئیات و فعالیت‌های کاربر</h2>
+                       <h2 className="text-2xl font-black text-gray-900">پروفایل و گفتگو</h2>
                     </div>
                     <button onClick={() => setSelectedUser(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors shadow-sm"><XCircle size={32} className="text-gray-400"/></button>
                  </div>
 
-                 {/* اطلاعات اصلی کاربر */}
                  <div className="bg-white p-10 rounded-[3rem] border border-gray-100 shadow-sm flex flex-col items-center mb-8 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-full h-24 bg-blue-50/50 -z-10" />
                     <div className="w-28 h-28 bg-gray-100 rounded-[2.8rem] flex items-center justify-center overflow-hidden border-4 border-white shadow-xl mb-6">
-                       {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} className="w-full h-full object-cover" alt="" /> : <User size={56} className="text-gray-300" />}
+                       {selectedUser.avatar_url ? <img src={selectedUser.avatar_url} className="w-full h-full object-contain" alt="" /> : <User size={56} className="text-gray-300" />}
                     </div>
                     <h3 className="text-2xl font-black text-gray-800">{selectedUser.full_name || 'کاربر بدون نام'}</h3>
                     <div className="flex items-center gap-3 text-blue-600 font-black mt-3 bg-blue-50 px-6 py-2 rounded-2xl shadow-sm border border-blue-100" dir="ltr">
@@ -310,32 +307,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     </div>
                  </div>
 
-                 {/* آمار کاربر */}
-                 <div className="grid grid-cols-3 gap-6 mb-10">
+                 <div className="grid grid-cols-3 gap-3 md:gap-6 mb-10">
                     {(() => {
                       const stats = getUserStats(selectedUser.phone);
                       return (
                         <>
-                          <div className="bg-white p-6 rounded-3xl border border-gray-100 text-center shadow-sm">
-                            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">آگهی ملک</span>
-                            <p className="text-2xl font-black text-red-600">{stats.estates}</p>
+                          <div className="bg-white p-4 md:p-6 rounded-3xl border border-gray-100 text-center shadow-sm">
+                            <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase block mb-1">املاک</span>
+                            <p className="text-xl md:text-2xl font-black text-red-600">{stats.estates}</p>
                           </div>
-                          <div className="bg-white p-6 rounded-3xl border border-gray-100 text-center shadow-sm">
-                            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">آگهی شغل</span>
-                            <p className="text-2xl font-black text-blue-600">{stats.jobs}</p>
+                          <div className="bg-white p-4 md:p-6 rounded-3xl border border-gray-100 text-center shadow-sm">
+                            <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase block mb-1">مشاغل</span>
+                            <p className="text-xl md:text-2xl font-black text-blue-600">{stats.jobs}</p>
                           </div>
-                          <div className="bg-white p-6 rounded-3xl border border-gray-100 text-center shadow-sm">
-                            <span className="text-[10px] font-black text-gray-400 uppercase block mb-1">آگهی خدمات</span>
-                            <p className="text-2xl font-black text-amber-600">{stats.services}</p>
+                          <div className="bg-white p-4 md:p-6 rounded-3xl border border-gray-100 text-center shadow-sm">
+                            <span className="text-[9px] md:text-[10px] font-black text-gray-400 uppercase block mb-1">خدمات</span>
+                            <p className="text-xl md:text-2xl font-black text-amber-600">{stats.services}</p>
                           </div>
                         </>
                       );
                     })()}
                  </div>
 
-                 {/* لیست آگهی‌های این کاربر */}
-                 <div className="space-y-6">
-                    <h4 className="font-black text-gray-800 mr-2 flex items-center gap-3"><UserCheck size={24} className="text-blue-600"/> لیست آگهی‌های ثبت شده:</h4>
+                 <div className="space-y-6 mb-12">
+                    <h4 className="font-black text-gray-800 mr-2 flex items-center gap-3"><UserCheck size={24} className="text-blue-600"/> آگهی‌های ثبت شده:</h4>
                     {(() => {
                       const userAds = [
                         ...properties.filter(p => p.ownerId === selectedUser.phone).map(x => ({...x, type: 'ESTATE'})),
@@ -344,7 +339,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       ];
                       
                       return userAds.length === 0 ? (
-                        <div className="bg-white p-14 rounded-[2.5rem] border border-dashed border-gray-200 text-center text-gray-400 font-bold">این کاربر هنوز هیچ آگهی در سیستم ثبت نکرده است.</div>
+                        <div className="bg-white p-14 rounded-[2.5rem] border border-dashed border-gray-200 text-center text-gray-400 font-bold">هیچ آگهی ثبت نشده است.</div>
                       ) : (
                         <div className="grid grid-cols-1 gap-3">
                            {userAds.map((ad: any, i) => (
@@ -354,7 +349,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                                   <span className="font-black text-sm text-gray-700">{ad.title}</span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                   <span className="text-[9px] font-black text-gray-400 bg-gray-50 px-3 py-1 rounded-full">{ad.type === 'ESTATE' ? 'املاک' : ad.type === 'JOBS' ? 'مشاغل' : 'خدمات'}</span>
                                    <button onClick={() => { setSelectedItem({...ad, type: ad.type}); setSelectedUser(null); }} className="p-2 text-gray-400 hover:text-blue-600 transition-colors"><Eye size={20} /></button>
                                 </div>
                              </div>
@@ -363,10 +357,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                       );
                     })()}
                  </div>
+
+                 {/* در موبایل، بخش چت مستقیم زیر اطلاعات کاربر می‌آید */}
+                 <div className="md:hidden mt-8">
+                    <ChatSubSection 
+                      targetPhone={selectedUser.phone} 
+                      chatHistory={chatHistory} 
+                      adminMsg={adminMsg} 
+                      setAdminMsg={setAdminMsg} 
+                      onSendMessage={() => handleSendAdminMessage(selectedUser.phone)}
+                      isProcessing={isProcessing}
+                    />
+                 </div>
               </div>
 
-              {/* پنل چت در سمت راست مودال */}
-              <div className="w-full md:w-[420px] flex flex-col bg-white border-r">
+              {/* در دسکتاپ، چت در سمت راست است */}
+              <div className="hidden md:flex w-full md:w-[420px] flex-col bg-white border-r">
                  <ChatSubSection 
                     targetPhone={selectedUser.phone} 
                     chatHistory={chatHistory} 
@@ -380,7 +386,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
       )}
 
-      {/* مودال تایید/رد آگهی (کد قبلی شما) */}
       {selectedItem && (
         <div className="fixed inset-0 z-[10000] bg-black/80 flex items-center justify-center p-0 md:p-4 overflow-hidden" onClick={() => setSelectedItem(null)}>
            <div className="bg-white w-full h-full md:h-[90vh] md:max-w-5xl md:rounded-[3rem] overflow-hidden flex flex-col md:flex-row shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
@@ -391,7 +396,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                  </div>
 
                  <div className="relative aspect-video rounded-[2rem] overflow-hidden mb-6 shadow-xl bg-gray-200 group touch-pan-y" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-                    <img src={selectedItem.images?.[activeImgIdx]} className="w-full h-full object-cover" alt="" />
+                    <img src={selectedItem.images?.[activeImgIdx]} className="w-full h-full object-contain" alt="" />
                     {selectedItem.images?.length > 1 && (
                       <>
                         <button onClick={prevImage} className="absolute left-3 top-1/2 -translate-y-1/2 bg-black/40 text-white p-2 rounded-full backdrop-blur-md active:scale-90 transition-transform"><ChevronLeft size={24}/></button>
@@ -409,15 +414,27 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                        <span className="text-[9px] font-black text-gray-400 uppercase block">تماس</span>
                        <p className="font-black text-xs text-blue-600" dir="ltr">{selectedItem.phone_number}</p>
                     </div>
+                    {selectedItem.type === 'ESTATE' && (
+                      <div className="bg-white p-4 rounded-2xl border text-center shadow-sm">
+                         <span className="text-[9px] font-black text-gray-400 uppercase block flex items-center justify-center gap-1"><Box size={10} className="text-green-600" /> انباری</span>
+                         <p className={`font-black text-xs ${selectedItem.hasStorage ? 'text-green-600' : 'text-gray-400'}`}>
+                            {selectedItem.hasStorage ? 'دارد' : 'ندارد'}
+                         </p>
+                      </div>
+                    )}
+                    <div className="bg-white p-4 rounded-2xl border text-center shadow-sm">
+                       <span className="text-[9px] font-black text-gray-400 uppercase block">متراژ</span>
+                       <p className="font-black text-xs">{selectedItem.area || '---'} م</p>
+                    </div>
                  </div>
 
-                 <div className="bg-white p-5 rounded-3xl border mb-6 shadow-sm">
-                    <h4 className="text-[10px] font-black text-gray-400 mb-2 flex items-center gap-2"><MapPin size={16} className="text-red-600" /> آدرس دقیق:</h4>
-                    <p className="text-sm font-black text-gray-800 leading-7">{selectedItem.address || 'ثبت نشده'}</p>
+                 <div className="bg-white p-6 rounded-3xl border mb-6 shadow-sm">
+                    <h4 className="text-[11px] font-black text-gray-400 mb-3 flex items-center gap-2"><MapPin size={18} className="text-red-600" /> آدرس دقیق برای مشاهده:</h4>
+                    <p className="text-sm font-black text-gray-800 leading-8 bg-gray-50 p-4 rounded-2xl border border-gray-100">{selectedItem.address || 'ثبت نشده'}</p>
                  </div>
 
                  <div className="bg-white p-6 rounded-3xl border mb-8 shadow-sm">
-                    <h4 className="text-[10px] font-black text-gray-400 mb-3">توضیحات آگهی:</h4>
+                    <h4 className="text-[11px] font-black text-gray-400 mb-3">توضیحات آگهی:</h4>
                     <p className="text-sm font-bold text-gray-700 leading-8 text-justify">{selectedItem.description}</p>
                  </div>
                  
@@ -450,11 +467,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 };
 
 const ChatSubSection = ({ targetPhone, chatHistory, adminMsg, setAdminMsg, onSendMessage, isProcessing }: any) => (
-  <div className="flex flex-col h-full min-h-[500px] md:min-h-[400px] bg-gray-50/30 text-right">
+  <div className="flex flex-col h-full min-h-[500px] md:min-h-0 bg-gray-50/30 text-right">
       <div className="p-6 border-b bg-white flex items-center gap-3 shadow-sm">
         <div className="w-12 h-12 bg-gray-900 text-white rounded-[1.2rem] flex items-center justify-center font-black text-xl shadow-lg border-2 border-white">A</div>
         <div>
-            <h3 className="font-black text-sm text-gray-800">گفتگو با کاربر سیستم</h3>
+            <h3 className="font-black text-sm text-gray-800">گفتگو با کاربر</h3>
             <p className="text-[10px] text-gray-400 font-bold tracking-widest" dir="ltr">{targetPhone}</p>
         </div>
       </div>
@@ -462,7 +479,7 @@ const ChatSubSection = ({ targetPhone, chatHistory, adminMsg, setAdminMsg, onSen
         {chatHistory.length === 0 ? (
           <div className="text-center py-20 opacity-10 flex flex-col items-center gap-2">
               <MessageSquare size={64} />
-              <span className="text-xs font-black">هیچ پیامی برای این کاربر ارسال نشده است</span>
+              <span className="text-xs font-black">هیچ پیامی ارسال نشده است</span>
           </div>
         ) : chatHistory.map((msg: any, i: number) => (
           <div key={i} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm animate-in slide-in-from-right-2">
