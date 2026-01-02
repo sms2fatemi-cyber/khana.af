@@ -109,22 +109,15 @@ function App() {
     const table = mode === 'ESTATE' ? TABLES.PROPERTIES : mode === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
     
     try {
-      // استفاده از count: 'exact' برای چک کردن واقعی حذف شدن در دیتابیس
       const { error, count } = await supabase
         .from(table)
         .delete({ count: 'exact' })
         .eq('id', id);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      // اگر count صفر باشد یعنی دستور اجرا شده ولی چیزی حذف نشده (به دلیل نبود Policy)
       if (count === 0 || count === null) {
-        const errorHelp = lang === 'dari' 
-          ? "⚠️ خطا: آگهی حذف نشد.\n\nدلیل احتمالی: در پنل سوپابیس بخش Policies برای این جدول اجازه حذف (DELETE) تعریف نشده است." 
-          : "⚠️ تېروتنه: اعلان حذف نشو. مهرباني وکړئ په سوپابیس کې Policies چک کړئ.";
-        alert(errorHelp);
+        alert(lang === 'dari' ? "⚠️ خطا: حذف انجام نشد. Policies دیتابیس را چک کنید." : "⚠️ تېروتنه: حذف نشو.");
       } else {
         alert(lang === 'dari' ? "آگهی با موفقیت حذف شد." : "اعلان په بریالیتوب سره حذف شو.");
         refreshData();
@@ -247,15 +240,13 @@ function App() {
     setDisplayLimit(20);
   };
 
+  // Fix: Removed unnecessary setter props from AdminPanel call to match AdminPanelProps interface
   if (isAdminMode) {
     return (
       <AdminPanel 
         properties={properties} 
-        setProperties={setProperties} 
         jobs={jobs} 
-        setJobs={setJobs}
         services={services} 
-        setServices={setServices}
         onExit={() => { setIsAdminMode(false); refreshData(); }} 
       />
     );
