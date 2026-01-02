@@ -1,7 +1,7 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Property, Job, Service } from '../types';
-import { Trash2, Home, Shield, FileText, LayoutDashboard, Key, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Plus, Users, Phone, BarChart3, ShieldCheck, MapPin, Loader2 } from 'lucide-react';
+import { Trash2, Home, Shield, FileText, LayoutDashboard, Key, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Plus, Users, Phone, BarChart3, ShieldCheck, MapPin, Loader2, Send } from 'lucide-react';
 import { supabase, TABLES } from '../services/supabaseClient';
 
 interface AdminPanelProps {
@@ -34,38 +34,57 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const currentAdmin = JSON.parse(localStorage.getItem('current_admin_user') || '{}');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
+      // دریافت لیست ادمین‌ها
       const { data: admins } = await supabase.from('system_admins').select('*');
       setSystemAdmins(admins || []);
 
-      const { data: profiles, count } = await supabase.from('profiles').select('*', { count: 'exact' }).order('created_at', { ascending: false });
+      // دریافت لیست و تعداد واقعی کاربران ثبت‌نام شده
+      const { data: profiles, count, error: userError } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false });
+      
+      if (userError) console.error("Error fetching users:", userError);
+      
       setAllUsers(profiles || []);
-      setTotalUsersCount(count || 0);
+      setTotalUsersCount(count || profiles?.length || 0);
     } catch (e) {
       console.error(e);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, fetchData]);
 
-  const handleUpdateStatus = async (id: string, table: string, status: 'APPROVED' | 'REJECTED') => {
+  const handleUpdateStatus = async (id: string, type: string, status: 'APPROVED' | 'REJECTED') => {
     setIsProcessing(true);
+    const table = type === 'ESTATE' ? TABLES.PROPERTIES : type === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
+    
     try {
-      const { error } = await supabase.from(table).update({ status }).eq('id', id);
+      // آپدیت وضعیت آگهی در دیتابیس
+      const { error } = await supabase.from(table).update({ status: status }).eq('id', id);
       if (error) throw error;
 
+      // ارسال پیام سیستمی به کاربر در صورت وجود متن پیام
+      if (adminMsg.trim() && selectedItem?.owner_id) {
+        await handleSendAdminMessage(selectedItem.owner_id, `درباره آگهی "${selectedItem.title}": ${adminMsg}`);
+      }
+
+      // بروزرسانی آنی لیست‌های محلی
       const updateList = (list: any[]) => list.map(item => item.id === id ? { ...item, status } : item);
       if (table === TABLES.PROPERTIES) setProperties(prev => updateList(prev));
       if (table === TABLES.JOBS) setJobs(prev => updateList(prev));
       if (table === TABLES.SERVICES) setServices(prev => updateList(prev));
       
-      alert(status === 'APPROVED' ? "آگهی با موفقیت تایید شد." : "آگهی رد شد.");
+      alert(status === 'APPROVED' ? "آگهی با موفقیت تایید شد." : "آگهی رد شد و پیام برای کاربر ارسال گردید.");
       setSelectedItem(null);
+      setAdminMsg('');
+      fetchData();
     } catch (err: any) {
-      alert("خطا در به روز رسانی: " + err.message);
+      alert("خطا در تایید آگهی: " + err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -90,21 +109,25 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
     }
   };
 
-  const handleSendAdminMessage = async (targetPhone: string) => {
-    if (!adminMsg.trim()) return;
+  const handleSendAdminMessage = async (targetPhone: string, messageText?: string) => {
+    const text = messageText || adminMsg;
+    if (!text.trim()) return;
     setIsProcessing(true);
     try {
       const { error } = await supabase.from(TABLES.MESSAGES).insert([{
         target_phone: targetPhone,
-        text: adminMsg,
+        text: text,
         is_read: false,
         date: new Date().toISOString()
       }]);
       if (error) throw error;
-      alert("پیام سیستم با موفقیت به کاربر ارسال شد.");
-      setAdminMsg('');
+      if (!messageText) {
+        alert("پیام با موفقیت به پنل اعلان‌های کاربر ارسال شد.");
+        setAdminMsg('');
+      }
     } catch(e) {
-      alert("خطا در ارسال پیام.");
+      console.error("Error sending message:", e);
+      if (!messageText) alert("خطا در ارسال پیام.");
     } finally {
       setIsProcessing(false);
     }
@@ -164,7 +187,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       {items.map(item => (
         <div key={item.id} className="bg-white p-4 rounded-3xl border border-gray-100 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
           <div className="flex items-center gap-4">
-            <img src={item.images?.[0]} className="w-16 h-16 rounded-2xl object-cover bg-gray-100" />
+            <img src={item.images?.[0]} className="w-16 h-16 rounded-2xl object-cover bg-gray-100" alt="" />
             <div>
               <h4 className="font-black text-sm text-gray-800">{item.title}</h4>
               <div className="flex items-center gap-2 mt-1">
@@ -176,8 +199,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => { setSelectedItem({ ...item, type }); setActiveImgIdx(0); }} className="p-2 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100"><Eye size={18}/></button>
-            <button onClick={() => handleDeleteItem(item.id, type)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100"><Trash2 size={18}/></button>
+            <button onClick={() => { setSelectedItem({ ...item, type }); setActiveImgIdx(0); setAdminMsg(''); }} className="p-2 bg-gray-50 text-gray-600 rounded-xl hover:bg-gray-100 transition-colors"><Eye size={18}/></button>
+            <button onClick={() => handleDeleteItem(item.id, type)} className="p-2 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors"><Trash2 size={18}/></button>
           </div>
         </div>
       ))}
@@ -191,13 +214,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           <ShieldCheck size={24} className="text-red-500" />
           <h1 className="text-lg font-black tracking-tight">پنل مدیریت خانه افغانستان</h1>
         </div>
-        <button onClick={onExit} className="bg-red-600 px-6 py-2 rounded-2xl text-xs font-black shadow-lg active:scale-95 transition-all">خروج از پنل</button>
+        <button onClick={onExit} className="bg-red-600 px-6 py-2 rounded-2xl text-xs font-black shadow-lg active:scale-95 transition-all">خروج از پنل ادمین</button>
       </header>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         <aside className="w-full md:w-64 bg-white border-l p-4 flex md:flex-col gap-1 overflow-x-auto shrink-0 shadow-sm z-10 no-scrollbar">
            <button onClick={() => setActiveTab('DASHBOARD')} className={`flex items-center gap-3 px-5 py-4 rounded-2xl font-black shrink-0 transition-all ${activeTab === 'DASHBOARD' ? 'bg-red-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><LayoutDashboard size={20}/> داشبورد</button>
-           <button onClick={() => setActiveTab('USERS')} className={`flex items-center gap-3 px-5 py-4 rounded-2xl font-black shrink-0 transition-all ${activeTab === 'USERS' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><Users size={20}/> کاربران ({totalUsersCount})</button>
+           <button onClick={() => setActiveTab('USERS')} className={`flex items-center gap-3 px-5 py-4 rounded-2xl font-black shrink-0 transition-all ${activeTab === 'USERS' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><Users size={20}/> آمار کاربران ({totalUsersCount})</button>
            <div className="h-px bg-gray-100 my-2" />
            <button onClick={() => setActiveTab('ESTATE')} className={`flex items-center gap-3 px-5 py-4 rounded-2xl font-black shrink-0 transition-all ${activeTab === 'ESTATE' ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><Home size={20}/> املاک</button>
            <button onClick={() => setActiveTab('JOBS')} className={`flex items-center gap-3 px-5 py-4 rounded-2xl font-black shrink-0 transition-all ${activeTab === 'JOBS' ? 'bg-gray-800 text-white shadow-lg' : 'text-gray-400 hover:bg-gray-50'}`}><Briefcase size={20}/> مشاغل</button>
@@ -212,12 +235,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in">
                 <div className="flex items-center gap-3 mb-2">
                    <BarChart3 size={28} className="text-red-600" />
-                   <h2 className="text-2xl font-black text-gray-800">آمار و عملکرد</h2>
+                   <h2 className="text-2xl font-black text-gray-800">آمار و عملکرد لحظه‌ای</h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm text-center">
                       <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-4"><Users size={32} /></div>
-                      <span className="text-gray-400 text-[10px] font-black uppercase">کل کاربران</span>
+                      <span className="text-gray-400 text-[10px] font-black uppercase">کل کاربران پروفایل‌دار</span>
                       <span className="text-4xl font-black text-gray-800 block mt-1">{totalUsersCount}</span>
                     </div>
                     <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm text-center">
@@ -262,26 +285,28 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
           {activeTab === 'USERS' && (
             <div className="max-w-5xl mx-auto space-y-6">
-               <h2 className="text-xl font-black flex items-center gap-2"><Users size={24} className="text-blue-600"/> لیست کاربران سیستم</h2>
+               <h2 className="text-xl font-black flex items-center gap-2"><Users size={24} className="text-blue-600"/> لیست کامل کاربران</h2>
                <div className="bg-white rounded-[2rem] border overflow-hidden shadow-sm">
                   <table className="w-full text-right">
                     <thead className="bg-gray-50 border-b">
                        <tr>
-                         <th className="px-6 py-4 text-xs font-black text-gray-400">نام کاربر</th>
-                         <th className="px-6 py-4 text-xs font-black text-gray-400">شماره تماس</th>
-                         <th className="px-6 py-4 text-xs font-black text-gray-400">تاریخ عضویت</th>
-                         <th className="px-6 py-4 text-xs font-black text-gray-400">عملیات</th>
+                         <th className="px-6 py-4 text-xs font-black text-gray-400 text-right">نام کاربر</th>
+                         <th className="px-6 py-4 text-xs font-black text-gray-400 text-right">شماره تماس</th>
+                         <th className="px-6 py-4 text-xs font-black text-gray-400 text-right">تاریخ عضویت</th>
+                         <th className="px-6 py-4 text-xs font-black text-gray-400 text-right">عملیات</th>
                        </tr>
                     </thead>
                     <tbody className="divide-y">
-                       {allUsers.map((user, i) => (
-                         <tr key={i} className="hover:bg-gray-50">
+                       {allUsers.length === 0 ? (
+                         <tr><td colSpan={4} className="py-10 text-center text-gray-400 font-black">هیچ کاربری هنوز در سیستم ثبت‌نام نکرده است</td></tr>
+                       ) : allUsers.map((user, i) => (
+                         <tr key={i} className="hover:bg-gray-50 transition-colors">
                            <td className="px-6 py-4 font-black text-sm">{user.full_name}</td>
                            <td className="px-6 py-4 font-bold text-sm text-blue-600" dir="ltr">{user.phone}</td>
                            <td className="px-6 py-4 text-xs text-gray-400 font-bold">{new Date(user.created_at).toLocaleDateString('fa-AF')}</td>
                            <td className="px-6 py-4">
-                              <button onClick={() => { setAdminMsg(''); setSelectedItem({ ...user, type: 'USER_INFO' }); }} className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1">
-                                <MessageSquare size={14} /> ارسال پیام
+                              <button onClick={() => { setAdminMsg(''); setSelectedItem({ ...user, type: 'USER_INFO' }); }} className="bg-blue-50 text-blue-600 px-4 py-2 rounded-xl text-[11px] font-black flex items-center gap-2 hover:bg-blue-100 transition-colors">
+                                <Send size={14} /> ارسال پیام
                               </button>
                            </td>
                          </tr>
@@ -297,30 +322,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
                   <h3 className="text-lg font-black mb-6 flex items-center gap-2"><Plus size={20} className="text-purple-600"/> افزودن ادمین جدید</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <input type="text" value={newAdmin.fullName} onChange={e => setNewAdmin({...newAdmin, fullName: e.target.value})} placeholder="نام کامل" className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-purple-300" />
-                    <input type="text" value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} placeholder="نام کاربری (انگلیسی)" className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none dir-ltr" />
-                    <input type="password" value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} placeholder="رمز عبور" className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none" />
-                    <select value={newAdmin.role} onChange={e => setNewAdmin({...newAdmin, role: e.target.value})} className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none">
+                    <input type="text" value={newAdmin.fullName} onChange={e => setNewAdmin({...newAdmin, fullName: e.target.value})} placeholder="نام کامل" className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-purple-300 transition-all" />
+                    <input type="text" value={newAdmin.username} onChange={e => setNewAdmin({...newAdmin, username: e.target.value})} placeholder="نام کاربری (انگلیسی)" className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none dir-ltr focus:border-purple-300 transition-all" />
+                    <input type="password" value={newAdmin.password} onChange={e => setNewAdmin({...newAdmin, password: e.target.value})} placeholder="رمز عبور" className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-purple-300 transition-all" />
+                    <select value={newAdmin.role} onChange={e => setNewAdmin({...newAdmin, role: e.target.value})} className="bg-gray-50 border border-gray-100 p-4 rounded-2xl font-bold outline-none focus:border-purple-300 transition-all">
                        <option value="NORMAL">مدیر معمولی</option>
                        <option value="SUPER">مدیر ارشد (Super Admin)</option>
                     </select>
                   </div>
-                  <button onClick={handleAddAdmin} disabled={isProcessing} className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black mt-6 shadow-lg shadow-purple-900/20 active:scale-95 transition-all">افزودن مدیر سیستم</button>
+                  <button onClick={handleAddAdmin} disabled={isProcessing} className="w-full bg-purple-600 text-white py-4 rounded-2xl font-black mt-6 shadow-lg shadow-purple-900/20 active:scale-95 transition-all">افزودن مدیر به سیستم</button>
                </div>
 
                <div className="space-y-4">
                   <h3 className="font-black text-gray-800">تیم مدیریت فعلی</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {systemAdmins.map((admin, i) => (
-                      <div key={i} className="bg-white p-5 rounded-3xl border flex items-center justify-between">
+                      <div key={i} className="bg-white p-5 rounded-3xl border flex items-center justify-between shadow-sm">
                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center font-black">{admin.full_name[0]}</div>
+                            <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center font-black">{admin.full_name?.[0] || 'A'}</div>
                             <div>
                                <h4 className="font-black text-sm">{admin.full_name}</h4>
                                <span className="text-[10px] text-gray-400 font-bold">نقش: {admin.role === 'SUPER' ? 'مدیر ارشد' : 'مدیر'}</span>
                             </div>
                          </div>
-                         <button onClick={() => handleDeleteAdmin(admin.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-xl"><Trash2 size={18}/></button>
+                         <button onClick={() => handleDeleteAdmin(admin.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-colors"><Trash2 size={18}/></button>
                       </div>
                     ))}
                   </div>
@@ -329,13 +354,13 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
           )}
 
           {activeTab === 'PROFILE' && (
-            <div className="max-xl mx-auto">
+            <div className="max-w-xl mx-auto">
                <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm">
-                  <h3 className="text-lg font-black mb-6 flex items-center gap-2"><Key size={20} className="text-gray-600"/> تغییر رمز عبور پنل</h3>
+                  <h3 className="text-lg font-black mb-6 flex items-center gap-2"><Key size={20} className="text-gray-600"/> تنظیمات امنیتی پنل</h3>
                   <div className="space-y-4">
-                    <input type="password" value={changePwd.old} onChange={e => setChangePwd({...changePwd, old: e.target.value})} placeholder="رمز عبور فعلی" className="w-full bg-gray-50 border p-4 rounded-2xl font-bold" />
-                    <input type="password" value={changePwd.new} onChange={e => setChangePwd({...changePwd, new: e.target.value})} placeholder="رمز عبور جدید" className="w-full bg-gray-50 border p-4 rounded-2xl font-bold" />
-                    <input type="password" value={changePwd.confirm} onChange={e => setChangePwd({...changePwd, confirm: e.target.value})} placeholder="تکرار رمز عبور جدید" className="w-full bg-gray-50 border p-4 rounded-2xl font-bold" />
+                    <input type="password" value={changePwd.old} onChange={e => setChangePwd({...changePwd, old: e.target.value})} placeholder="رمز عبور فعلی ادمین" className="w-full bg-gray-50 border p-4 rounded-2xl font-bold outline-none focus:border-gray-400 transition-all" />
+                    <input type="password" value={changePwd.new} onChange={e => setChangePwd({...changePwd, new: e.target.value})} placeholder="رمز عبور جدید" className="w-full bg-gray-50 border p-4 rounded-2xl font-bold outline-none focus:border-gray-400 transition-all" />
+                    <input type="password" value={changePwd.confirm} onChange={e => setChangePwd({...changePwd, confirm: e.target.value})} placeholder="تکرار رمز عبور جدید" className="w-full bg-gray-50 border p-4 rounded-2xl font-bold outline-none focus:border-gray-400 transition-all" />
                   </div>
                   <button onClick={handleChangePassword} disabled={isProcessing} className="w-full bg-gray-800 text-white py-4 rounded-2xl font-black mt-6 active:scale-95 transition-all">به‌روزرسانی رمز عبور</button>
                </div>
@@ -345,61 +370,77 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
       </div>
 
       {selectedItem && (
-        <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedItem(null)}>
-           <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-[3rem] overflow-hidden flex flex-col shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[10000] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={() => setSelectedItem(null)}>
+           <div className="bg-white w-full max-w-2xl my-auto rounded-[3rem] overflow-hidden flex flex-col shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b flex justify-between items-center bg-gray-50">
-                <h3 className="font-black text-lg text-gray-800">جزئیات {selectedItem.type === 'USER_INFO' ? 'کاربر' : 'آگهی'}</h3>
-                <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full"><XCircle size={24} className="text-gray-400"/></button>
+                <h3 className="font-black text-lg text-gray-800">جزئیات اطلاعات {selectedItem.type === 'USER_INFO' ? 'کاربر' : 'آگهی'}</h3>
+                <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-gray-200 rounded-full transition-colors"><XCircle size={28} className="text-gray-400"/></button>
               </div>
               
-              <div className="flex-1 overflow-y-auto p-8 no-scrollbar">
+              <div className="flex-1 overflow-y-auto p-8 no-scrollbar max-h-[80vh]">
                 {selectedItem.type === 'USER_INFO' ? (
                   <div className="space-y-6">
                     <div className="flex flex-col items-center gap-4 py-6 border-b">
-                       <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl font-black">{selectedItem.full_name[0]}</div>
+                       <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl font-black">{selectedItem.full_name?.[0] || 'U'}</div>
                        <div className="text-center">
                           <h2 className="text-2xl font-black">{selectedItem.full_name}</h2>
                           <p dir="ltr" className="text-blue-600 font-black mt-1">{selectedItem.phone}</p>
                        </div>
                     </div>
                     <div className="space-y-3">
-                       <label className="text-xs font-black text-gray-400 mr-2">ارسال پیام سیستمی به این کاربر</label>
-                       <textarea value={adminMsg} onChange={e => setAdminMsg(e.target.value)} rows={4} placeholder="مثلاً: آگهی شما به دلیل نقص تصاویر رد شد. لطفاً دوباره تلاش کنید." className="w-full bg-gray-50 border border-gray-100 rounded-3xl p-5 font-bold outline-none focus:border-blue-300 resize-none"></textarea>
+                       <label className="text-xs font-black text-gray-400 mr-2">ارسال پیام مستقیم به پنل این کاربر</label>
+                       <textarea value={adminMsg} onChange={e => setAdminMsg(e.target.value)} rows={4} placeholder="متن پیام سیستمی خود را اینجا بنویسید (مثلاً تذکر یا راهنمایی)..." className="w-full bg-gray-50 border border-gray-100 rounded-3xl p-5 font-bold outline-none focus:border-blue-300 resize-none transition-all shadow-inner"></textarea>
                        <button onClick={() => handleSendAdminMessage(selectedItem.phone)} disabled={isProcessing || !adminMsg.trim()} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black shadow-lg shadow-blue-900/20 active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-                         {isProcessing ? <Loader2 className="animate-spin text-white"/> : <><MessageSquare size={18}/> ارسال پیام</>}
+                         {isProcessing ? <Loader2 className="animate-spin text-white"/> : <><Send size={18}/> ارسال پیام به کاربر</>}
                        </button>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="relative aspect-video rounded-[2.5rem] overflow-hidden bg-gray-100">
-                       <img src={selectedItem.images?.[activeImgIdx]} className="w-full h-full object-cover" />
+                    <div className="relative aspect-video rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-inner">
+                       <img src={selectedItem.images?.[activeImgIdx]} className="w-full h-full object-cover" alt="" />
                        {selectedItem.images?.length > 1 && (
                          <div className="absolute inset-x-0 bottom-4 flex justify-center gap-2">
                            {selectedItem.images.map((_: any, i: number) => (
-                             <button key={i} onClick={() => setActiveImgIdx(i)} className={`w-2 h-2 rounded-full ${i === activeImgIdx ? 'bg-white w-6' : 'bg-white/40'}`}></button>
+                             <button key={i} onClick={() => setActiveImgIdx(i)} className={`w-2 h-2 rounded-full transition-all ${i === activeImgIdx ? 'bg-white w-6' : 'bg-white/40 hover:bg-white/60'}`}></button>
                            ))}
                          </div>
                        )}
                     </div>
                     <div className="space-y-4">
-                       <h2 className="text-2xl font-black">{selectedItem.title}</h2>
-                       <div className="flex gap-4">
-                          <span className="bg-gray-100 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2"><MapPin size={14}/> {selectedItem.city}</span>
-                          <span className="bg-gray-100 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2"><Phone size={14}/> {selectedItem.phone_number}</span>
+                       <h2 className="text-2xl font-black text-gray-900">{selectedItem.title}</h2>
+                       <div className="flex flex-wrap gap-3">
+                          <span className="bg-gray-100 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 text-gray-700"><MapPin size={14} className="text-red-500"/> {selectedItem.city}</span>
+                          <span className="bg-gray-100 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 text-gray-700"><Phone size={14} className="text-blue-500"/> {selectedItem.phone_number}</span>
+                          <span className="bg-gray-100 px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 text-gray-700">وضعیت: {selectedItem.status}</span>
                        </div>
-                       <p className="text-sm font-bold text-gray-600 leading-8 text-justify">{selectedItem.description}</p>
+                       <p className="text-sm font-bold text-gray-600 leading-8 text-justify bg-gray-50 p-6 rounded-3xl border border-gray-100 shadow-inner">{selectedItem.description}</p>
                     </div>
 
-                    <div className="pt-6 border-t flex gap-4">
-                       <button onClick={() => handleUpdateStatus(selectedItem.id, selectedItem.type === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.type === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES, 'APPROVED')} disabled={isProcessing} className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-green-900/20">
-                          <CheckCircle size={20}/> تایید آگهی
+                    <div className="bg-amber-50 p-6 rounded-[2.5rem] border border-amber-100 space-y-4 shadow-sm">
+                       <div className="flex items-center gap-2 text-amber-700 font-black text-sm mb-1">
+                          <MessageSquare size={18} />
+                          ارسال پیام همراه با تایید/رد (دلیل تایید یا رد را بنویسید)
+                       </div>
+                       <div className="flex gap-2">
+                          <textarea 
+                             value={adminMsg} 
+                             onChange={e => setAdminMsg(e.target.value)} 
+                             placeholder="مثلاً دلیل رد آگهی یا نکات لازم را اینجا بنویسید..." 
+                             className="flex-1 bg-white border border-amber-200 rounded-2xl p-4 text-xs font-bold outline-none focus:border-amber-400 resize-none shadow-sm h-24"
+                          ></textarea>
+                       </div>
+                    </div>
+
+                    <div className="pt-6 border-t flex flex-col md:flex-row gap-4">
+                       <button onClick={() => handleUpdateStatus(selectedItem.id, selectedItem.type, 'APPROVED')} disabled={isProcessing} className="flex-1 bg-green-600 text-white py-5 rounded-3xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-green-900/20 hover:bg-green-700 transition-colors">
+                          <CheckCircle size={22}/> تایید و انتشار آگهی
                        </button>
-                       <button onClick={() => handleUpdateStatus(selectedItem.id, selectedItem.type === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.type === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES, 'REJECTED')} disabled={isProcessing} className="flex-1 bg-amber-500 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-amber-900/20">
-                          <XCircle size={20}/> رد آگهی
+                       <button onClick={() => handleUpdateStatus(selectedItem.id, selectedItem.type, 'REJECTED')} disabled={isProcessing} className="flex-1 bg-amber-500 text-white py-5 rounded-3xl font-black flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-amber-900/20 hover:bg-amber-600 transition-colors">
+                          <XCircle size={22}/> رد و عدم انتشار
                        </button>
                     </div>
-                    <button onClick={() => handleDeleteItem(selectedItem.id, selectedItem.type)} disabled={isProcessing} className="w-full text-red-600 py-3 font-black text-xs hover:bg-red-50 rounded-xl transition-all mt-2">حذف دائمی از پایگاه داده</button>
+                    <button onClick={() => handleDeleteItem(selectedItem.id, selectedItem.type)} disabled={isProcessing} className="w-full text-red-600 py-3 font-black text-xs hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100">حذف آگهی به کلی از دیتابیس</button>
                   </div>
                 )}
               </div>
