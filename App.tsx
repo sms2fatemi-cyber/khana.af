@@ -66,7 +66,6 @@ function App() {
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
   const [displayLimit, setDisplayLimit] = useState(20);
   
-  // Pull to refresh state
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullProgress, setPullProgress] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -116,6 +115,19 @@ function App() {
       setPullProgress(0);
     }
   }, []);
+
+  const handleDeleteAd = async (id: string, mode: AppMode) => {
+    if (!window.confirm(lang === 'dari' ? "آیا از حذف این آگهی مطمئن هستید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟")) return;
+    
+    const table = mode === 'ESTATE' ? TABLES.PROPERTIES : mode === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (!error) {
+      alert(lang === 'dari' ? "آگهی با موفقیت حذف شد." : "اعلان په بریالیتوب سره حذف شو.");
+      refreshData();
+    } else {
+      alert("Error deleting ad.");
+    }
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (scrollRef.current && scrollRef.current.scrollTop === 0) {
@@ -170,7 +182,6 @@ function App() {
     
     if (!isSupabaseReady()) return;
 
-    // REALTIME: گوش دادن به تمام تغییرات به صورت دقیق برای آپدیت آنی
     const channel = supabase.channel('app_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROPERTIES }, () => refreshData())
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, () => refreshData())
@@ -305,10 +316,37 @@ function App() {
                       <div className="absolute top-2 right-2 z-10 bg-red-600 text-white text-[8px] px-2 py-0.5 rounded-full font-black shadow-sm">{lang === 'dari' ? 'رد شده' : 'رد شوی'}</div>
                     )}
                     {appMode === 'ESTATE' ? 
-                      <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} /> :
+                      <PropertyCard 
+                        property={item as Property} 
+                        onClick={() => handleSelectItem(item)} 
+                        isVisited={visitedIds.has(item.id)} 
+                        isSaved={savedIds.has(item.id)} 
+                        onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} 
+                        lang={lang} 
+                        onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteAd(item.id, 'ESTATE') : undefined}
+                        onEdit={filterCategory === 'MY_ADS' ? () => { setEditingItem(item); setShowAddModal(true); } : undefined}
+                      /> :
                      appMode === 'JOBS' ? 
-                      <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} /> :
-                      <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} />
+                      <JobCard 
+                        job={item as Job} 
+                        onClick={() => handleSelectItem(item)} 
+                        isVisited={visitedIds.has(item.id)} 
+                        isSaved={savedIds.has(item.id)} 
+                        onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} 
+                        lang={lang} 
+                        onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteAd(item.id, 'JOBS') : undefined}
+                        onEdit={filterCategory === 'MY_ADS' ? () => { setEditingItem(item); setShowAddModal(true); } : undefined}
+                      /> :
+                      <ServiceCard 
+                        service={item as Service} 
+                        onClick={() => handleSelectItem(item)} 
+                        isVisited={visitedIds.has(item.id)} 
+                        isSaved={savedIds.has(item.id)} 
+                        onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} 
+                        lang={lang} 
+                        onDelete={filterCategory === 'MY_ADS' ? () => handleDeleteAd(item.id, 'SERVICES') : undefined}
+                        onEdit={filterCategory === 'MY_ADS' ? () => { setEditingItem(item); setShowAddModal(true); } : undefined}
+                      />
                     }
                   </div>
                 ))}

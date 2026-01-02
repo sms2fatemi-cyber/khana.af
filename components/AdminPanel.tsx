@@ -1,7 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Property, Job, Service } from '../types';
-import { Trash2, Home, Shield, FileText, LayoutDashboard, Key, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Home, Shield, FileText, LayoutDashboard, Key, Briefcase, Wrench, CheckCircle, XCircle, MessageSquare, Eye, Plus, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { supabase, TABLES } from '../services/supabaseClient';
 
 interface AdminPanelProps {
@@ -27,22 +27,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const [adminMsg, setAdminMsg] = useState('');
   
   const [systemAdmins, setSystemAdmins] = useState<any[]>([]);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [newAdmin, setNewAdmin] = useState({ username: '', password: '', fullName: '', role: 'NORMAL' });
   const [changePwd, setChangePwd] = useState({ old: '', new: '', confirm: '' });
 
   const currentAdmin = JSON.parse(localStorage.getItem('current_admin_user') || '{}');
 
-  const fetchAdmins = async () => {
-    const { data } = await supabase.from('system_admins').select('*');
-    setSystemAdmins(data || []);
+  const fetchStatsAndAdmins = async () => {
+    try {
+      const { data: admins } = await supabase.from('system_admins').select('*');
+      setSystemAdmins(admins || []);
+
+      const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true });
+      setTotalUsers(count || 0);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   useEffect(() => {
-    if (activeTab === 'ADMINS') fetchAdmins();
+    fetchStatsAndAdmins();
   }, [activeTab]);
 
   useEffect(() => {
-    // Reset image index when selecting a new item
     if (selectedItem) setActiveImgIdx(0);
   }, [selectedItem]);
 
@@ -64,15 +71,33 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleAddAdmin = async () => {
     if (!newAdmin.username || !newAdmin.password) return alert("نام کاربری و رمز الزامی است");
     setIsProcessing(true);
-    const { error } = await supabase.from('system_admins').insert([newAdmin]);
+    // استفاده از نام فیلد صحیح دیتابیس (full_name)
+    const { error } = await supabase.from('system_admins').insert([{ 
+      username: newAdmin.username, 
+      password: newAdmin.password, 
+      full_name: newAdmin.fullName, 
+      role: newAdmin.role 
+    }]);
+    
     if (!error) {
-      alert("ادمین اضافه شد");
+      alert("ادمین با موفقیت اضافه شد");
       setNewAdmin({ username: '', password: '', fullName: '', role: 'NORMAL' });
-      fetchAdmins();
+      fetchStatsAndAdmins();
     } else {
-      alert("خطا: احتمالا نام کاربری تکراری است");
+      console.error(error);
+      alert("خطا در ثبت: احتمالا نام کاربری تکراری است یا دسترسی ندارید.");
     }
     setIsProcessing(false);
+  };
+
+  const handleDeleteAdmin = async (id: string) => {
+    if (id === currentAdmin.id) return alert("شما نمی‌توانید خودتان را حذف کنید!");
+    if (!window.confirm("آیا از حذف این ادمین مطمئن هستید؟")) return;
+    
+    const { error } = await supabase.from('system_admins').delete().eq('id', id);
+    if (!error) {
+      fetchStatsAndAdmins();
+    }
   };
 
   const handleChangePassword = async () => {
@@ -132,7 +157,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         </div>
         <div className="flex items-center gap-4">
            <div className="hidden md:flex flex-col items-end">
-              <span className="text-[10px] font-black text-white">{currentAdmin.fullName}</span>
+              <span className="text-[10px] font-black text-white">{currentAdmin.full_name || currentAdmin.username}</span>
               <span className="text-[8px] text-gray-500 uppercase">{currentAdmin.role} ADMIN</span>
            </div>
            <button onClick={onExit} className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-xl text-[10px] font-black transition-colors">خروج از پنل</button>
@@ -152,7 +177,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
         <main className="flex-1 overflow-y-auto p-4 md:p-8 no-scrollbar bg-gray-50/50">
           {activeTab === 'DASHBOARD' && (
             <div className="max-w-5xl mx-auto space-y-8 animate-in fade-in">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm text-center">
+                      <div className="w-16 h-16 bg-purple-50 text-purple-600 rounded-3xl flex items-center justify-center mx-auto mb-4"><Users size={32} /></div>
+                      <span className="text-gray-400 text-[10px] font-black uppercase">کل کاربران</span>
+                      <span className="text-4xl font-black text-gray-800">{totalUsers}</span>
+                    </div>
                     <div className="bg-white p-8 rounded-[2.5rem] border shadow-sm text-center">
                       <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center mx-auto mb-4"><FileText size={32} /></div>
                       <span className="text-gray-400 text-[10px] font-black uppercase">آگهی‌های املاک</span>
@@ -191,10 +221,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                      <tbody className="divide-y text-sm font-bold">
                         {systemAdmins.map((adm, i) => (
                           <tr key={i}>
-                            <td className="p-4">{adm.fullName}</td>
+                            <td className="p-4">{adm.full_name || adm.fullName}</td>
                             <td className="p-4 dir-ltr">{adm.username}</td>
                             <td className="p-4">{adm.role}</td>
-                            <td className="p-4 text-red-600"><Trash2 size={16} /></td>
+                            <td className="p-4">
+                               <button onClick={() => handleDeleteAdmin(adm.id)} className="text-red-600 p-2 hover:bg-red-50 rounded-lg">
+                                  <Trash2 size={16} />
+                               </button>
+                            </td>
                           </tr>
                         ))}
                      </tbody>
@@ -245,12 +279,11 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
               
               <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 no-scrollbar">
-                 {/* بخش تصاویر اصلاح شده */}
                  <div className="space-y-4">
                     <div className="relative aspect-video rounded-3xl overflow-hidden bg-zinc-900 shadow-xl border-4 border-white">
                         <img 
                           src={selectedItem.images[activeImgIdx]} 
-                          className="w-full h-full object-contain" // نمایش کامل عکس بدون برش
+                          className="w-full h-full object-contain" 
                           alt="Ad" 
                         />
                         {selectedItem.images.length > 1 && (
@@ -268,7 +301,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                         )}
                     </div>
                     
-                    {/* گالری تصاویر کوچک */}
                     <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                        {selectedItem.images.map((img:string, idx:number) => (
                           <div 
@@ -314,7 +346,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <div className="p-6 border-t bg-gray-50/80 flex flex-wrap md:flex-nowrap gap-3 shrink-0">
                  <button 
-                    // @ts-ignore - Explicitly cast arguments from 'any' state to string to prevent type mismatch errors
                     onClick={() => handleUpdateStatus(String(selectedItem.id), String(selectedItem.typeTab === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.typeTab === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES), 'APPROVED')} 
                     disabled={isProcessing}
                     className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-green-200 active:scale-95 transition-all"
@@ -322,7 +353,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                     <CheckCircle size={22}/> تایید و انتشار
                  </button>
                  <button 
-                    // @ts-ignore - Explicitly cast arguments from 'any' state to string to prevent type mismatch errors
                     onClick={() => handleUpdateStatus(String(selectedItem.id), String(selectedItem.typeTab === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.typeTab === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES), 'REJECTED')} 
                     disabled={isProcessing}
                     className="flex-1 bg-amber-600 text-white py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-amber-200 active:scale-95 transition-all"
