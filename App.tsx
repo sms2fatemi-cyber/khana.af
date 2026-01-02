@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, Languages, Search, RefreshCcw, Sparkles } from 'lucide-react';
 import MapView from './components/MapView';
@@ -86,6 +85,7 @@ function App() {
         hasStorage: item.has_storage ?? false,
         providerName: item.provider_name,
         address: item.address || '',
+        city: item.city || (lang === 'dari' ? 'نامشخص' : 'نامعلوم'), 
         area: item.area || 0,
         bedrooms: item.bedrooms || 0
       });
@@ -100,7 +100,7 @@ function App() {
       setIsRefreshing(false);
       setPullProgress(0);
     }
-  }, []);
+  }, [lang]);
 
   const handleDeleteAd = async (id: string, mode: AppMode) => {
     const confirmMsg = lang === 'dari' ? "آیا از حذف این آگهی مطمئن هستید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟";
@@ -117,7 +117,7 @@ function App() {
       if (error) throw error;
 
       if (count === 0 || count === null) {
-        alert(lang === 'dari' ? "⚠️ خطا: حذف انجام نشد. Policies دیتابیس را چک کنید." : "⚠️ تېروتنه: حذف نشو.");
+        alert(lang === 'dari' ? "⚠️ خطا: حذف انجام نشد." : "⚠️ تېروتنه: حذف نشو.");
       } else {
         alert(lang === 'dari' ? "آگهی با موفقیت حذف شد." : "اعلان په بریالیتوب سره حذف شو.");
         refreshData();
@@ -240,7 +240,6 @@ function App() {
     setDisplayLimit(20);
   };
 
-  // Fix: Removed unnecessary setter props from AdminPanel call to match AdminPanelProps interface
   if (isAdminMode) {
     return (
       <AdminPanel 
@@ -376,8 +375,8 @@ function App() {
                 <h3 className="font-black text-gray-800 text-lg">{t.no_results}</h3>
                 <p className="text-[11px] font-bold text-gray-400 leading-7">
                   {lang === 'dari' 
-                    ? 'هنوز آگهی تایید شده‌ای در این بخش وجود ندارد. اگر به تازگی آگهی ثبت کرده‌اید، پس از تایید مدیریت در اینجا نمایش داده می‌شود.' 
-                    : 'په دې برخه کې لا تر اوسه تایید شوی اعلان نشته. که تاسو نوی اعلان ثبت کړی وي، د مدیریت له تایید وروسته به دلته ښکاره شي.'}
+                    ? 'هنوز آگهی تایید شده‌ای در این بخش وجود ندارد.' 
+                    : 'په دې برخه کې لا تر اوسه تایید شوی اعلان نشته.'}
                 </p>
                 {filterCategory === 'ALL' && (
                   <button 

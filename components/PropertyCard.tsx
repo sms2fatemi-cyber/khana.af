@@ -1,6 +1,5 @@
-
 import { Property, Language } from '../types';
-import { Bookmark, Home, Trash2, Clock, Edit } from 'lucide-react';
+import { Bookmark, Home, Trash2, Clock, Edit, MapPin } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 
 interface PropertyCardProps {
@@ -25,6 +24,8 @@ export default function PropertyCard({
   lang 
 }: PropertyCardProps) {
   const hasImages = property.images && property.images.length > 0;
+  // Fallback to "Afghanistan" or "Unknown" if city is missing
+  const cityName = property.city || (lang === 'dari' ? 'نامشخص' : 'نامعلوم');
 
   return (
     <div 
@@ -50,7 +51,14 @@ export default function PropertyCard({
              </div>
           </div>
           <h3 className="font-black text-gray-800 text-[15px] leading-7 mt-2 line-clamp-2">{property.title}</h3>
-          <p className="text-gray-400 text-[11px] font-bold mt-1">{property.city} | {property.dealType}</p>
+          
+          {/* Province Display - Robust check */}
+          <div className="flex items-center gap-1 text-[#a62626] text-[10px] font-black mt-1.5">
+            <MapPin size={12} />
+            <span>{cityName}</span>
+            <span className="mx-1 text-gray-300">|</span>
+            <span className="text-gray-400 font-bold">{property.dealType}</span>
+          </div>
         </div>
         <div className="mt-4 flex items-baseline gap-1">
           <span className="text-[#a62626] font-black text-xl tracking-tight">{property.price.toLocaleString()}</span>
