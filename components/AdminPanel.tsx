@@ -103,12 +103,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
   };
 
   const handleDeleteItem = async (id: string, type: string) => {
-    if (!window.confirm("آیا از حذف دائمی این آگهی مطمئن هستید؟")) return;
+    if (!window.confirm("آیا از حذف دائمی این آگهی مطمئن هستید؟ این عمل قابل بازگشت نیست.")) return;
     setIsProcessing(true);
     const table = type === 'ESTATE' ? TABLES.PROPERTIES : type === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
     
     try {
-      // اضافه کردن count: 'exact' برای چک کردن حذف واقعی
+      // استفاده از count: 'exact' برای گرفتن بازخورد دقیق از دیتابیس
       const { error, count } = await supabase
         .from(table)
         .delete({ count: 'exact' })
@@ -116,14 +116,14 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
 
       if (error) throw error;
 
-      if (count === 0) {
-        alert("خطا: ردیفی در دیتابیس حذف نشد. لطفاً تنظیمات RLS دیتابیس را برای اجازه DELETE چک کنید.");
+      if (count === 0 || count === null) {
+        alert("⚠️ خطا: حذف انجام نشد.\n\nدلیل: شما باید در پنل سوپابیس (بخش Policies) اجازه DELETE را برای این جداول فعال کنید.");
       } else {
         const filterFn = (prev: any[]) => prev.filter(item => item.id !== id);
         if (type === 'ESTATE') setProperties(filterFn);
         if (type === 'JOBS') setJobs(filterFn);
         if (type === 'SERVICES') setServices(filterFn);
-        alert("آگهی با موفقیت از دیتابیس حذف شد.");
+        alert(`با موفقیت ${count} ردیف حذف شد.`);
         setSelectedItem(null);
       }
     } catch (e: any) { 
@@ -188,9 +188,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
             <img src={item.images?.[0]} className="w-16 h-16 rounded-2xl object-cover bg-gray-100" alt="" />
             <div>
               <h4 className="font-black text-sm text-gray-800">{item.title}</h4>
-              <span className={`text-[9px] px-2 py-0.5 rounded-full font-black ${item.status === 'APPROVED' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
-                {item.status === 'PENDING' ? 'در انتظار تایید' : item.status === 'APPROVED' ? 'تایید شده' : 'رد شده'}
-              </span>
+              <div className="flex items-center gap-2 mt-1">
+                 <span className={`text-[9px] px-2 py-0.5 rounded-full font-black ${item.status === 'APPROVED' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}`}>
+                    {item.status === 'PENDING' ? 'در انتظار تایید' : item.status === 'APPROVED' ? 'تایید شده' : 'رد شده'}
+                 </span>
+                 <span className="text-[9px] text-gray-400 font-bold flex items-center gap-1"><MapPin size={10} /> {item.city}</span>
+              </div>
             </div>
           </div>
           <div className="flex gap-2">
@@ -275,7 +278,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({
                        ) : allUsers.map((user, i) => (
                          <tr key={i} className="hover:bg-gray-50">
                            <td className="px-6 py-4 font-black text-sm">{user.full_name}</td>
-                           <td className="px-6 py-4 font-bold text-sm text-blue-600" dir="ltr">{user.phone}</td>
+                           <td className="px-6 py-4 font-bold text-sm text-blue-600" dir="ltr">
+                              <span className="flex items-center gap-2"><Phone size={14} className="text-gray-300" /> {user.phone}</span>
+                           </td>
                            <td className="px-6 py-4 text-xs text-gray-400 font-bold">{new Date(user.created_at).toLocaleDateString('fa-AF')}</td>
                          </tr>
                        ))}

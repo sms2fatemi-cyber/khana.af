@@ -103,29 +103,34 @@ function App() {
   }, []);
 
   const handleDeleteAd = async (id: string, mode: AppMode) => {
-    if (!window.confirm(lang === 'dari' ? "آیا از حذف این آگهی مطمئن هستید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟")) return;
+    const confirmMsg = lang === 'dari' ? "آیا از حذف این آگهی مطمئن هستید؟" : "ایا تاسو ډاډه یاست چې دا اعلان حذف کړئ؟";
+    if (!window.confirm(confirmMsg)) return;
     
     const table = mode === 'ESTATE' ? TABLES.PROPERTIES : mode === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
     
     try {
-      // استفاده از count: 'exact' برای چک کردن اینکه واقعاً ردیفی حذف شده یا نه
+      // استفاده از count: 'exact' برای چک کردن واقعی حذف شدن در دیتابیس
       const { error, count } = await supabase
         .from(table)
         .delete({ count: 'exact' })
         .eq('id', id);
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
-      if (count === 0) {
-        alert(lang === 'dari' 
-          ? "خطا: آگهی حذف نشد. احتمالاً دسترسی لازم را ندارید یا آگهی قبلاً حذف شده است." 
-          : "تېروتنه: اعلان حذف نشو.");
+      // اگر count صفر باشد یعنی دستور اجرا شده ولی چیزی حذف نشده (به دلیل نبود Policy)
+      if (count === 0 || count === null) {
+        const errorHelp = lang === 'dari' 
+          ? "⚠️ خطا: آگهی حذف نشد.\n\nدلیل احتمالی: در پنل سوپابیس بخش Policies برای این جدول اجازه حذف (DELETE) تعریف نشده است." 
+          : "⚠️ تېروتنه: اعلان حذف نشو. مهرباني وکړئ په سوپابیس کې Policies چک کړئ.";
+        alert(errorHelp);
       } else {
         alert(lang === 'dari' ? "آگهی با موفقیت حذف شد." : "اعلان په بریالیتوب سره حذف شو.");
         refreshData();
       }
     } catch (e: any) {
-      alert("Error: " + e.message);
+      alert("Database Error: " + e.message);
     }
   };
 
