@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { List, Heart, LogOut, User, Loader2, ChevronRight, Camera, ArrowLeft, MessageSquare, UserCircle, Bell, CheckCheck, Edit2, Check, X } from 'lucide-react';
 import { translations, getRelativeTime } from '../services/translations';
@@ -15,16 +14,15 @@ interface AuthModalProps {
   onCheckNotifications: () => void;
 }
 
-// تابع تبدیل اعداد برای اندروید که در هر لحظه فراخوانی می‌شود
+// تابع تبدیل اعداد به انگلیسی
 const toEnglishDigits = (str: string): string => {
   if (!str) return '';
-  const converted = str.toString()
+  return str.toString()
     .replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
     .replace(/[٠-٩]/g, (d: string) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
-  return converted;
 };
 
-// پاکسازی نهایی شماره برای ثبت در دیتابیس
+// پاکسازی شماره برای دیتابیس
 const cleanPhoneNumber = (str: string): string => {
   let digits = toEnglishDigits(str).replace(/\D/g, '');
   if (digits.startsWith('93')) {
@@ -46,6 +44,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
   const [activeChat, setActiveChat] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // مانیتور کردن شماره تلفن برای تبدیل آنی (حل مشکل اندروید)
+  useEffect(() => {
+    const converted = toEnglishDigits(phoneNumber);
+    if (converted !== phoneNumber) {
+      setPhoneNumber(converted);
+    }
+  }, [phoneNumber]);
+
   useEffect(() => {
     const savedPhone = localStorage.getItem('user_phone');
     if (savedPhone) {
@@ -57,7 +63,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     const cleanPhone = cleanPhoneNumber(phone);
     setIsLoading(true);
     try {
-      // حذف متغیر error که استفاده نمی‌شد برای رفع خطای TypeScript
       const { data } = await supabase
         .from('profiles')
         .select('*')
@@ -83,21 +88,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     const cleanPhone = cleanPhoneNumber(phoneNumber);
     const finalName = fullName.trim();
 
-    // اعتبارسنجی حداقلی برای نام (فقط نباید خالی باشد)
-    if (finalName.length < 2) {
-      alert("لطفاً نام یا نام مستعار خود را وارد کنید.");
+    // اعتبارسنجی بسیار ساده برای رفع مشکل اندروید
+    if (finalName.length < 1) {
+      alert("لطفاً نام خود را وارد کنید.");
       return;
     }
 
-    // اعتبارسنجی شماره (فرمت افغانستان)
     if (!cleanPhone.startsWith('07') || cleanPhone.length !== 10) {
-      alert("شماره موبایل معتبر نیست. لطفاً با 07 شروع کنید (۱۰ رقم).");
+      alert("شماره موبایل باید ۱۰ رقم و با 07 شروع شود.");
       return;
     }
 
     setIsLoading(true);
     try {
-      // استفاده از upsert با تکیه بر شماره تلفن به عنوان کلید یکتا
       const { error } = await supabase
         .from('profiles')
         .upsert({ 
@@ -114,7 +117,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       setView('profile');
       onCheckNotifications();
     } catch (e: any) {
-      alert("خطا در ورود: " + (e.message || "مشکلی پیش آمد."));
+      alert("خطا: " + (e.message || "ورود ناموفق بود."));
     } finally {
       setIsLoading(false);
     }
@@ -210,8 +213,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
             <input 
               type="text" 
               value={fullName} 
-              onChange={e => setFullName(e.target.value)} 
-              placeholder="مثلاً: احمد محمدی" 
+              onInput={(e: any) => setFullName(e.target.value)}
+              placeholder="نام شما" 
               className="w-full bg-gray-50 border rounded-2xl py-3.5 px-5 font-bold outline-none focus:border-red-200 transition-all text-right" 
             />
           </div>
@@ -221,7 +224,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
               type="tel" 
               inputMode="numeric"
               value={phoneNumber} 
-              onChange={e => setPhoneNumber(toEnglishDigits(e.target.value))}
+              onInput={(e: any) => setPhoneNumber(e.target.value)}
               placeholder="07XXXXXXXX" 
               className="w-full bg-gray-50 border rounded-2xl py-3.5 px-5 font-black text-left outline-none focus:border-red-200 transition-all" 
               dir="ltr" 
@@ -303,7 +306,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
            <div className="text-center w-full">
               {isEditingName ? (
                 <div className="flex gap-2 animate-in fade-in zoom-in-95">
-                  <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className="flex-1 border rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-red-400" />
+                  <input type="text" value={fullName} onInput={(e: any) => setFullName(e.target.value)} className="flex-1 border rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-red-400" />
                   <button onClick={handleUpdateName} className="p-2 bg-green-500 text-white rounded-xl shadow-md"><Check size={18}/></button>
                   <button onClick={() => setIsEditingName(false)} className="p-2 bg-gray-200 text-gray-500 rounded-xl shadow-md"><X size={18}/></button>
                 </div>
