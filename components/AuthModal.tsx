@@ -52,25 +52,28 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       alert(lang === 'dari' ? "شماره باید با 07 شروع شده و 10 رقم باشد" : "شماره باید په 07 پیل او 10 عدد وي");
       return;
     }
-    if (fullName.trim().length < 3) {
-      alert(lang === 'dari' ? "لطفاً نام و تخلص کامل خود را وارد کنید" : "مهرباني وکړئ خپل بشپړ نوم ولیکئ");
+    if (fullName.trim().length < 2) {
+      alert(lang === 'dari' ? "لطفاً نام و تخلص خود را وارد کنید" : "مهرباني وکړئ خپل نوم ولیکئ");
       return;
     }
 
     setIsLoading(true);
     try {
+      // استفاده از onConflict برای جلوگیری از خطای تکراری بودن کلید
       const { error } = await supabase.from('profiles').upsert({
         phone: phoneNumber,
-        full_name: fullName,
+        full_name: fullName.trim(),
         updated_at: new Date()
-      });
+      }, { onConflict: 'phone' });
 
       if (error) throw error;
 
       localStorage.setItem('user_phone', phoneNumber);
-      setProfile(prev => ({ ...prev, fullName }));
+      setProfile({ fullName: fullName.trim(), avatarUrl: profile.avatarUrl });
       setView('profile');
+      onCheckNotifications();
     } catch (e: any) {
+      console.error("Login error:", e);
       alert("خطا در ورود: " + e.message);
     } finally {
       setIsLoading(false);
@@ -83,7 +86,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     setFullName('');
     setProfile({ fullName: '', avatarUrl: '' });
     setView('login');
-    onClose(); 
+    // لزوماً نیاز به بستن مدال نیست تا کاربر بفهمد خارج شده است
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -132,7 +135,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       setAdminMessages(data || []);
       
       if (data && data.some(m => !m.is_read)) {
-        // علامت‌گذاری به عنوان خوانده شده و اطلاع‌رسانی برای حذف نقطه قرمز
         await supabase.from(TABLES.MESSAGES).update({ is_read: true }).eq('target_phone', phoneNumber);
         onCheckNotifications(); 
       }
