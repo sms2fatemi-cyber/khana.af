@@ -1,4 +1,3 @@
-
 export type Language = 'dari' | 'pashto';
 
 export interface Location {
@@ -41,8 +40,10 @@ export interface UserChat {
   created_at: string;
 }
 
+// Added itemType to support discriminator in lists
 export interface Property {
   id: string;
+  itemType?: AppMode;
   ownerId: string;
   title: string;
   price: number;
@@ -67,15 +68,10 @@ export interface Property {
   showPhoneNumber: boolean;
 }
 
-export enum JobType {
-  FULL_TIME = 'تمام وقت',
-  PART_TIME = 'پاره وقت',
-  REMOTE = 'دورکاری',
-  CONTRACT = 'قراردادی'
-}
-
+// Removed JobType as it's no longer used in the simplified flow
 export interface Job {
   id: string;
+  itemType?: AppMode;
   ownerId: string;
   title: string;
   company: string;
@@ -85,7 +81,6 @@ export interface Job {
   address: string;
   city: string;
   images: string[];
-  jobType: JobType;
   description: string;
   requirements: string[];
   date: string;
@@ -102,8 +97,10 @@ export enum ServiceCategory {
   TRANSPORT = 'حمل و نقل'
 }
 
+// Added itemType to support discriminator in lists
 export interface Service {
   id: string;
+  itemType?: AppMode;
   ownerId: string;
   title: string;
   providerName: string;

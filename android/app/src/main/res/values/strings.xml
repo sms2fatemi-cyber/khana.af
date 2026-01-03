@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">خانه افغانستان</string>
+    <string name="title_activity_main">خانه افغانستان</string>
+    <string name="package_name">af.khana.app</string>
+    <string name="custom_url_scheme">af.khana.app</string>
+</resources>

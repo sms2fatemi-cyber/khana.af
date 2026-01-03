@@ -1,4 +1,3 @@
-
 import { Property, Language } from '../types';
 import { Bookmark, Home, Trash2, Clock, Edit, MapPin, Box, Car } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
@@ -26,6 +25,7 @@ export default function PropertyCard({
 }: PropertyCardProps) {
   const hasImages = property.images && property.images.length > 0;
   const cityName = property.city || (lang === 'dari' ? 'نامشخص' : 'نامعلوم');
+  const priceDisplay = (property.price || 0).toLocaleString();
 
   return (
     <div 
@@ -61,15 +61,13 @@ export default function PropertyCard({
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Fix: Removed title prop as Lucide icons in React do not support it directly in their TS types */}
               {property.hasParking && <Car size={14} className="text-blue-500" />}
-              {/* Fix: Removed title prop as Lucide icons in React do not support it directly in their TS types */}
               {property.hasStorage && <Box size={14} className="text-amber-600" />}
             </div>
           </div>
         </div>
         <div className="mt-4 flex items-baseline gap-1">
-          <span className="text-[#a62626] font-black text-xl tracking-tight">{property.price.toLocaleString()}</span>
+          <span className="text-[#a62626] font-black text-xl tracking-tight">{priceDisplay}</span>
           <small className="text-gray-400 text-[10px] font-black uppercase">AFN</small>
         </div>
       </div>

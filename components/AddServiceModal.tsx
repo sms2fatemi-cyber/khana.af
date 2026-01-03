@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Eye, EyeOff } from 'lucide-react';
+import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Phone } from 'lucide-react';
 import { Service, ServiceCategory } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
 
 interface AddServiceModalProps {
@@ -15,8 +15,10 @@ interface AddServiceModalProps {
 const MapResizer = () => {
   const map = useMap();
   useEffect(() => {
-    const timer = setTimeout(() => { map.invalidateSize(); }, 400);
-    return () => clearTimeout(timer);
+    const resize = () => { map.invalidateSize(); };
+    resize();
+    const timers = [100, 500, 1000].map(t => setTimeout(resize, t));
+    return () => timers.forEach(clearTimeout);
   }, [map]);
   return null;
 };
@@ -36,21 +38,45 @@ const MapMoveHandler = ({ onChange, onMoveStart, onMoveEnd }: any) => {
 const UserLocationHandler = () => {
   const map = useMap();
   const [isLocating, setIsLocating] = useState(false);
-  const handleLocate = useCallback(async () => {
-    if (!navigator.geolocation) return;
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (btnRef.current) {
+      L.DomEvent.disableClickPropagation(btnRef.current);
+    }
+  }, []);
+
+  const handleLocate = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!navigator.geolocation) {
+      alert("GPS در دسترس نیست.");
+      return;
+    }
+    
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
-        map.flyTo([lat, lng], 16, { animate: true });
+        map.flyTo([lat, lng], 17, { animate: true });
         setIsLocating(false);
       },
-      () => { setIsLocating(false); alert("یافتن مکان ناموفق بود."); },
+      () => { 
+        setIsLocating(false); 
+        alert("یافتن مکان ناموفق بود."); 
+      },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   }, [map]);
+
   return (
-    <button type="button" onClick={handleLocate} className="absolute bottom-24 right-6 z-[1000] w-14 h-14 bg-white rounded-2xl shadow-xl flex items-center justify-center text-orange-600 active:scale-90 transition-transform">
+    <button 
+      ref={btnRef}
+      type="button" 
+      onClick={handleLocate} 
+      className="absolute bottom-32 right-6 z-[3000] w-14 h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-orange-600 border border-gray-100 pointer-events-auto active:scale-90 transition-transform"
+    >
       {isLocating ? <Loader2 size={24} className="animate-spin" /> : <Crosshair size={28} />}
     </button>
   );
@@ -145,6 +171,7 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
   );
 
   const MapContainerAny = MapContainer as any;
+  const TileLayerAny = TileLayer as any;
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center" onClick={onClose}>
@@ -157,7 +184,7 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
             </div>
             <div className="flex-1 relative bg-gray-50">
               <MapContainerAny center={[formData.location.lat, formData.location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <UserLocationHandler />
                 <MapMoveHandler onMoveStart={() => setIsMapMoving(true)} onMoveEnd={() => setIsMapMoving(false)} onChange={(loc: any) => setFormData(prev => ({ ...prev, location: loc }))} />
@@ -166,7 +193,7 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
                 </div>
               </MapContainerAny>
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
-                <button onClick={() => setView('form')} disabled={isMapMoving} className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black">تایید آدرس</button>
+                <button onClick={() => setView('form')} disabled={isMapMoving} className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black shadow-xl">تایید موقعیت</button>
               </div>
             </div>
           </div>
@@ -196,6 +223,11 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
               <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="عنوان خدمات" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               <input type="text" value={formData.providerName} onChange={e => setFormData({...formData, providerName: e.target.value})} placeholder="نام متخصص یا شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
+              <div className="relative">
+                <Phone size={18} className="absolute right-4 top-4 text-gray-400" />
+                <input type="tel" value={formData.phoneNumber} readOnly className="w-full bg-gray-100 border rounded-2xl px-11 py-4 font-black text-left outline-none text-gray-400 cursor-not-allowed" dir="ltr" />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                  <select value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {t.provinces.slice(1).map((p: string) => (<option key={p} value={p}>{p}</option>))}
@@ -206,23 +238,6 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
               <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                  {Object.values(ServiceCategory).map(cat => (<option key={cat} value={cat}>{cat}</option>))}
               </select>
-
-              {/* Locked Phone Number */}
-              <div className="flex gap-2">
-                <input 
-                  type="tel" 
-                  value={formData.phoneNumber} 
-                  readOnly 
-                  className="flex-1 bg-gray-100 text-gray-400 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left cursor-not-allowed" 
-                />
-                <button 
-                  type="button" 
-                  onClick={() => setFormData({...formData, showPhoneNumber: !formData.showPhoneNumber})}
-                  className={`px-4 rounded-2xl border flex items-center justify-center transition-all ${formData.showPhoneNumber ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-gray-50 text-gray-400 border-gray-100'}`}
-                >
-                  {formData.showPhoneNumber ? <Eye size={20} /> : <EyeOff size={20} />}
-                </button>
-              </div>
 
               <div className="relative">
                 <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />
@@ -239,7 +254,7 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
         </div>
 
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
-          <button form="service-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-orange-600 text-white py-4 rounded-2xl font-black text-lg disabled:opacity-50">
+          <button form="service-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-orange-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg">
             {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : 'ثبت آگهی'}
           </button>
           <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">انصراف</button>

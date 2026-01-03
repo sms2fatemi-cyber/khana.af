@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Property, Job, Service } from '../types';
 import { 
   Trash2, Home, LayoutDashboard, Briefcase, Wrench, 
@@ -18,6 +17,7 @@ interface AdminPanelProps {
   onExit: () => void;
 }
 
+// Use React.FC to define the functional component with props
 const AdminPanel: React.FC<AdminPanelProps> = ({ 
   properties, 
   jobs, 

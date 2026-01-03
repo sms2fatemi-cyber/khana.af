@@ -1,0 +1,14 @@
+
+{
+  "appId": "af.khana.app",
+  "appName": "خانه افغانستان",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "backgroundColor": "#ffffff"
+  }
+}
