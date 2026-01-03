@@ -5,12 +5,6 @@ import { Property, PropertyType, DealType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
 
-/* 
-  توجه: برای اجرای صحیح این بخش، کد SQL زیر را در Supabase اجرا کنید:
-  ALTER TABLE properties ADD COLUMN IF NOT EXISTS has_parking BOOLEAN DEFAULT FALSE;
-  ALTER TABLE properties ADD COLUMN IF NOT EXISTS has_storage BOOLEAN DEFAULT FALSE;
-*/
-
 interface AddPropertyModalProps {
   onClose: () => void;
   editData?: Property;
@@ -138,8 +132,8 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.price || !formData.address || !formData.phoneNumber) {
-      alert("لطفاً فیلدهای ستاره‌دار و شماره تماس را پر کنید.");
+    if (!formData.title || (!formData.price && formData.dealType !== DealType.MORTGAGE) || (formData.dealType === DealType.MORTGAGE && !formData.mortgageAmount) || !formData.address) {
+      alert("لطفاً فیلدهای ستاره‌دار را پر کنید.");
       return;
     }
 
@@ -183,7 +177,7 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
       if (error) throw error;
       setIsSuccess(true);
     } catch (err: any) {
-      console.error("Database Submit Error:", err);
+      console.error("Submit Error:", err);
       alert("خطا در ثبت: " + (err.message || "لطفاً دوباره تلاش کنید."));
     } finally {
       setIsSubmitting(false);
@@ -275,17 +269,15 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
                 </select>
               </div>
 
-              {/* Phone and Visibility Toggle */}
+              {/* Locked Phone Number */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-gray-400 mr-2 flex items-center gap-1 uppercase tracking-widest">شماره تماس و نمایش عمومی</label>
+                <label className="text-[10px] font-black text-gray-400 mr-2 flex items-center gap-1 uppercase tracking-widest">شماره تماس (غیرقابل تغییر)</label>
                 <div className="flex gap-2">
                   <input 
                     type="tel" 
                     value={formData.phoneNumber} 
-                    onChange={e => setFormData({...formData, phoneNumber: toEnglishDigits(e.target.value)})} 
-                    placeholder="شماره تماس" 
-                    className="flex-1 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left" 
-                    required 
+                    readOnly 
+                    className="flex-1 bg-gray-100 text-gray-400 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left cursor-not-allowed" 
                   />
                   <button 
                     type="button" 
@@ -339,6 +331,13 @@ export default function AddPropertyModal({ onClose, editData, t, lang }: AddProp
                 <div className="space-y-4">
                    <input type="text" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} placeholder={t.monthly_rent} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
                    <input type="text" value={formData.deposit} onChange={e => setFormData({...formData, deposit: e.target.value})} placeholder="مبلغ ضمانت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" />
+                </div>
+              )}
+
+              {formData.dealType === DealType.MORTGAGE && (
+                <div className="grid grid-cols-3 gap-4">
+                   <input type="text" value={formData.mortgageAmount} onChange={e => setFormData({...formData, mortgageAmount: e.target.value})} placeholder={t.mortgage_amount} className="col-span-2 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+                   <div className="bg-gray-100 rounded-2xl flex items-center justify-center font-black text-xs text-gray-500">AFN</div>
                 </div>
               )}
 

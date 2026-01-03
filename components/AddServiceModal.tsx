@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Eye, EyeOff } from 'lucide-react';
 import { Service, ServiceCategory } from '../types';
@@ -10,11 +11,6 @@ interface AddServiceModalProps {
   t: any;
   lang: string;
 }
-
-const toEnglishDigits = (str: string) => {
-  if (!str) return '';
-  return str.toString().replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
-};
 
 const MapResizer = () => {
   const map = useMap();
@@ -211,15 +207,13 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
                  {Object.values(ServiceCategory).map(cat => (<option key={cat} value={cat}>{cat}</option>))}
               </select>
 
-              {/* Phone and Toggle */}
+              {/* Locked Phone Number */}
               <div className="flex gap-2">
                 <input 
                   type="tel" 
                   value={formData.phoneNumber} 
-                  onChange={e => setFormData({...formData, phoneNumber: toEnglishDigits(e.target.value)})} 
-                  placeholder="شماره تماس" 
-                  className="flex-1 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left" 
-                  required 
+                  readOnly 
+                  className="flex-1 bg-gray-100 text-gray-400 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left cursor-not-allowed" 
                 />
                 <button 
                   type="button" 

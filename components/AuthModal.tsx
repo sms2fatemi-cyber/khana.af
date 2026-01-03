@@ -113,7 +113,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         const key = `${otherPhone}_${msg.ad_id}`;
         
         if (!conversationsMap[key]) {
-          const { data: pData } = await supabase.from('profiles').select('full_name').eq('phone', otherPhone).single();
+          const { data: pData } = await supabase.from('profiles').select('full_name').eq('phone', otherPhone).maybeSingle();
           conversationsMap[key] = { ...msg, otherName: pData?.full_name || otherPhone };
         }
       }
@@ -131,9 +131,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       
       setAdminMessages(data || []);
       
-      if (data && data.length > 0) {
+      if (data && data.some(m => !m.is_read)) {
+        // علامت‌گذاری به عنوان خوانده شده و اطلاع‌رسانی برای حذف نقطه قرمز
         await supabase.from(TABLES.MESSAGES).update({ is_read: true }).eq('target_phone', phoneNumber);
-        onCheckNotifications();
+        onCheckNotifications(); 
       }
     } catch (e) {} finally { setIsLoading(false); }
   };
@@ -155,14 +156,14 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         <div className="space-y-4">
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 mr-2">نام و تخلص (اجباری)</label>
-            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="مثلاً: احمد ولی" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none focus:border-[#a62626] transition-all" />
+            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="احمد ولی" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-sm font-bold outline-none focus:border-[#a62626]" />
           </div>
           <div className="space-y-1">
-            <label className="text-[10px] font-black text-gray-400 mr-2">شماره تماس (07...)</label>
-            <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} maxLength={10} placeholder="07XXXXXXXX" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-lg font-black text-left dir-ltr outline-none focus:border-[#a62626] transition-all" />
+            <label className="text-[10px] font-black text-gray-400 mr-2">شماره تماس</label>
+            <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} maxLength={10} placeholder="07XXXXXXXX" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl py-3.5 px-5 text-lg font-black text-left dir-ltr outline-none focus:border-[#a62626]" />
           </div>
           <button onClick={handleLogin} disabled={isLoading} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 disabled:opacity-50 transition-all flex items-center justify-center">
-            {isLoading ? <Loader2 className="animate-spin" /> : 'ورود به برنامه'}
+            {isLoading ? <Loader2 className="animate-spin" /> : 'ورود / ثبت‌نام'}
           </button>
         </div>
       </div>
@@ -173,7 +174,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white w-full max-md:max-w-md h-full max-h-[85vh] rounded-[3rem] p-8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-6 shrink-0">
-          <button onClick={() => setView('profile')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft size={24} className={lang === 'dari' ? '' : 'rotate-180'} /></button>
+          <button onClick={() => {setView('profile'); onCheckNotifications();}} className="p-2 hover:bg-gray-100 rounded-full transition-all active:scale-90"><ArrowLeft size={24} className={lang === 'dari' ? '' : 'rotate-180'} /></button>
           <h2 className="text-xl font-black">{t.notifications}</h2>
         </div>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1 no-scrollbar">
@@ -196,7 +197,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
             ))
           )}
         </div>
-        <button onClick={() => setView('profile')} className="w-full bg-gray-100 text-gray-600 py-4 rounded-2xl font-black mt-4 active:scale-95 transition-all">بازگشت</button>
+        <button onClick={() => {setView('profile'); onCheckNotifications();}} className="w-full bg-gray-100 text-gray-600 py-4 rounded-2xl font-black mt-4">بازگشت</button>
       </div>
     </div>
   );
@@ -205,7 +206,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white w-full max-md:max-w-md h-full max-h-[85vh] rounded-[3rem] p-8 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-3 mb-6 shrink-0">
-          <button onClick={() => setView('profile')} className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft size={24} className={lang === 'dari' ? '' : 'rotate-180'} /></button>
+          <button onClick={() => {setView('profile'); onCheckNotifications();}} className="p-2 hover:bg-gray-100 rounded-full transition-all active:scale-90"><ArrowLeft size={24} className={lang === 'dari' ? '' : 'rotate-180'} /></button>
           <h2 className="text-xl font-black">گفتگوهای من</h2>
         </div>
         <div className="flex-1 overflow-y-auto space-y-3 pr-1 no-scrollbar">
@@ -257,7 +258,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
               <button onClick={() => setView('admin_notifications')} className="w-full flex items-center justify-between p-4 bg-blue-50 rounded-2xl text-blue-700 font-black relative transition-all active:scale-95 group">
                 <div className="flex items-center gap-3"><Bell size={20} className="group-hover:rotate-12 transition-transform" /> {t.notifications}</div>
                 <div className="flex items-center gap-2">
-                   <div className="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-lg text-[10px]">سیستم</div>
+                   {adminMessages.some(m => !m.is_read) && <div className="w-2.5 h-2.5 bg-blue-600 rounded-full border border-white"></div>}
                    <ChevronRight size={18} />
                 </div>
               </button>

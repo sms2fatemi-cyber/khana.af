@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Eye, EyeOff } from 'lucide-react';
 import { Job, JobType } from '../types';
@@ -211,15 +212,13 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t, lang })
                  </select>
               </div>
 
-              {/* Phone and Toggle */}
+              {/* Locked Phone Number */}
               <div className="flex gap-2">
                 <input 
                   type="tel" 
                   value={formData.phoneNumber} 
-                  onChange={e => setFormData({...formData, phoneNumber: toEnglishDigits(e.target.value)})} 
-                  placeholder="شماره تماس" 
-                  className="flex-1 bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left" 
-                  required 
+                  readOnly 
+                  className="flex-1 bg-gray-100 text-gray-400 border rounded-2xl px-5 py-4 font-bold outline-none dir-ltr text-left cursor-not-allowed" 
                 />
                 <button 
                   type="button" 
