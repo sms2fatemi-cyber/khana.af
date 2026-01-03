@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-/* Added X to the lucide-react import list */
 import { List, Heart, LogOut, User, Loader2, ChevronRight, Camera, ArrowLeft, MessageSquare, UserCircle, Bell, CheckCheck, Edit2, Check, X } from 'lucide-react';
 import { translations, getRelativeTime } from '../services/translations';
 import { supabase, TABLES, uploadImage } from '../services/supabaseClient';
@@ -16,12 +15,22 @@ interface AuthModalProps {
   onCheckNotifications: () => void;
 }
 
-// تابع کمکی برای تبدیل قطعی تمام اعداد به انگلیسی
-const toEnglishDigits = (str: any): string => {
-  if (str === null || str === undefined) return '';
-  const s = str.toString();
-  return s.replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
-          .replace(/[٠-٩]/g, (d: string) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+// تابع تبدیل اعداد برای اندروید که در هر لحظه فراخوانی می‌شود
+const toEnglishDigits = (str: string): string => {
+  if (!str) return '';
+  const converted = str.toString()
+    .replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+    .replace(/[٠-٩]/g, (d: string) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+  return converted;
+};
+
+// پاکسازی نهایی شماره برای ثبت در دیتابیس
+const cleanPhoneNumber = (str: string): string => {
+  let digits = toEnglishDigits(str).replace(/\D/g, '');
+  if (digits.startsWith('93')) {
+    digits = '0' + digits.substring(2);
+  }
+  return digits;
 };
 
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang, hasUnreadChats, onCheckNotifications }) => {
@@ -39,57 +48,75 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
 
   useEffect(() => {
     const savedPhone = localStorage.getItem('user_phone');
-    if (savedPhone) { loadProfile(savedPhone); }
+    if (savedPhone) {
+      loadProfile(savedPhone);
+    }
   }, []);
 
   const loadProfile = async (phone: string) => {
-    const cleanPhone = toEnglishDigits(phone);
-    setPhoneNumber(cleanPhone);
+    const cleanPhone = cleanPhoneNumber(phone);
     setIsLoading(true);
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('phone', cleanPhone).single();
+      // حذف متغیر error که استفاده نمی‌شد برای رفع خطای TypeScript
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('phone', cleanPhone)
+        .maybeSingle();
+
       if (data) {
         setProfile({ fullName: data.full_name || '', avatarUrl: data.avatar_url || '' });
         setFullName(data.full_name || '');
+        setPhoneNumber(cleanPhone);
         setView('profile');
-      } else { setView('login'); }
-    } catch (e) { setView('login'); } finally { setIsLoading(false); }
+      } else {
+        setView('login');
+      }
+    } catch (e) {
+      setView('login');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogin = async () => {
-    // ۱. تبدیل شماره به انگلیسی و پاکسازی
-    const cleanPhone = toEnglishDigits(phoneNumber.trim());
-    
-    // ۲. اعتبارسنجی ساده: شماره باید با ۰۷ شروع شود و ۱۰ رقم باشد، نام هم نباید خالی باشد
-    const phoneRegex = /^07\d{8}$/;
-    if (!phoneRegex.test(cleanPhone)) {
-      alert("لطفاً شماره موبایل معتبر (مثل 078XXXXXXX) وارد کنید."); 
+    const cleanPhone = cleanPhoneNumber(phoneNumber);
+    const finalName = fullName.trim();
+
+    // اعتبارسنجی حداقلی برای نام (فقط نباید خالی باشد)
+    if (finalName.length < 2) {
+      alert("لطفاً نام یا نام مستعار خود را وارد کنید.");
       return;
     }
-    if (!fullName.trim()) {
-      alert("لطفاً نام و تخلص خود را وارد کنید."); 
+
+    // اعتبارسنجی شماره (فرمت افغانستان)
+    if (!cleanPhone.startsWith('07') || cleanPhone.length !== 10) {
+      alert("شماره موبایل معتبر نیست. لطفاً با 07 شروع کنید (۱۰ رقم).");
       return;
     }
 
     setIsLoading(true);
     try {
-      // ۳. استفاده از upsert: اگر شماره بود، نام را آپدیت کن. اگر نبود، بساز.
-      const { error } = await supabase.from('profiles').upsert({ 
-        phone: cleanPhone, 
-        full_name: fullName.trim(), 
-        updated_at: new Date() 
-      }, { onConflict: 'phone' });
+      // استفاده از upsert با تکیه بر شماره تلفن به عنوان کلید یکتا
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ 
+          phone: cleanPhone, 
+          full_name: finalName,
+          updated_at: new Date()
+        }, { onConflict: 'phone' });
 
       if (error) throw error;
 
       localStorage.setItem('user_phone', cleanPhone);
-      setProfile({ fullName: fullName.trim(), avatarUrl: '' });
+      setProfile({ fullName: finalName, avatarUrl: '' });
+      setPhoneNumber(cleanPhone);
       setView('profile');
       onCheckNotifications();
-    } catch (e: any) { 
-      alert("خطا در ورود: " + e.message); 
-    } finally { 
-      setIsLoading(false); 
+    } catch (e: any) {
+      alert("خطا در ورود: " + (e.message || "مشکلی پیش آمد."));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -100,7 +127,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('phone', phoneNumber);
       setProfile(prev => ({ ...prev, fullName: fullName.trim() }));
       setIsEditingName(false);
-    } catch (e) { alert("خطا در بروزرسانی نام"); } finally { setIsLoading(false); }
+    } catch (e) {
+      alert("خطا در بروزرسانی نام");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogout = () => {
@@ -119,7 +150,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
           await supabase.from('profiles').update({ avatar_url: url }).eq('phone', phoneNumber);
           setProfile(prev => ({ ...prev, avatarUrl: url }));
         }
-      } catch (err) { alert("خطا در آپلود عکس"); } finally { setIsLoading(false); }
+      } catch (err) {
+        alert("خطا در آپلود عکس");
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -137,7 +172,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         }
       }
       setUserConversations(Object.values(map));
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const fetchAdminMessages = async () => {
@@ -149,7 +186,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         await supabase.from(TABLES.MESSAGES).update({ is_read: true }).eq('target_phone', phoneNumber);
         onCheckNotifications();
       }
-    } finally { setIsLoading(false); }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -163,19 +202,33 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         <div className="flex flex-col items-center mb-6">
           <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center text-[#a62626] mb-3"> <UserCircle size={40} /> </div>
           <h2 className="text-xl font-black">{t.login_title}</h2>
-          <p className="text-[10px] text-gray-400 mt-1 font-bold">وارد حساب کاربری خود شوید</p>
+          <p className="text-[10px] text-gray-400 mt-1 font-bold">برای ثبت آگهی یا چت وارد شوید</p>
         </div>
         <div className="space-y-4">
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 mr-2 uppercase tracking-widest">نام و تخلص</label>
-            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="مثلاً: احمد رضایی" className="w-full bg-gray-50 border rounded-2xl py-3.5 px-5 font-bold outline-none focus:border-red-200 transition-all" />
+            <input 
+              type="text" 
+              value={fullName} 
+              onChange={e => setFullName(e.target.value)} 
+              placeholder="مثلاً: احمد محمدی" 
+              className="w-full bg-gray-50 border rounded-2xl py-3.5 px-5 font-bold outline-none focus:border-red-200 transition-all text-right" 
+            />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 mr-2 uppercase tracking-widest">شماره موبایل</label>
-            <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(toEnglishDigits(e.target.value))} placeholder="07XXXXXXXX" className="w-full bg-gray-50 border rounded-2xl py-3.5 px-5 font-black text-left outline-none focus:border-red-200 transition-all" dir="ltr" />
+            <input 
+              type="tel" 
+              inputMode="numeric"
+              value={phoneNumber} 
+              onChange={e => setPhoneNumber(toEnglishDigits(e.target.value))}
+              placeholder="07XXXXXXXX" 
+              className="w-full bg-gray-50 border rounded-2xl py-3.5 px-5 font-black text-left outline-none focus:border-red-200 transition-all" 
+              dir="ltr" 
+            />
           </div>
-          <button onClick={handleLogin} disabled={isLoading} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-lg shadow-red-100 active:scale-95 transition-all mt-2">
-            {isLoading ? <Loader2 className="animate-spin m-auto" /> : 'تایید و ورود'}
+          <button onClick={handleLogin} disabled={isLoading} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-lg active:scale-95 transition-all mt-2 flex items-center justify-center">
+            {isLoading ? <Loader2 className="animate-spin" /> : 'ورود / ثبت‌نام'}
           </button>
         </div>
       </div>
