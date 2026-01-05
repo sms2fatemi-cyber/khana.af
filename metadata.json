@@ -1,9 +1,12 @@
-
 {
-  "name": "3 Afghan App",
-  "description": "A comprehensive real estate, jobs, and services application for Afghanistan.",
+  "name": "خانه",
+  "description": "اپلیکیشن جامع املاک، مشاغل و خدمات افغانستان",
   "requestFramePermissions": [
     "geolocation",
     "camera"
-  ]
+  ],
+  "android": {
+    "appId": "af.khana.app",
+    "appName": "خانه"
+  }
 }

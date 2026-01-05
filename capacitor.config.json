@@ -1,7 +1,7 @@
 
 {
   "appId": "af.khana.app",
-  "appName": "خانه افغانستان",
+  "appName": "خانه",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

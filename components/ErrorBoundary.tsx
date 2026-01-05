@@ -13,7 +13,8 @@ interface State {
 }
 
 /**
- * ErrorBoundary class component to catch JavaScript errors in child components.
+ * ErrorBoundary class component to catch rendering errors in the component tree.
+ * Inheriting from Component<Props, State> ensures setState and props are correctly typed and available.
  */
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
@@ -22,22 +23,16 @@ export class ErrorBoundary extends Component<Props, State> {
     errorInfo: null
   };
 
-  constructor(props: Props) {
-    super(props);
-  }
-
-  // Static method to update state when an error is caught by the boundary
   public static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error, errorInfo: null };
   }
 
-  // Lifecycle method to handle error catching and side effects (logging)
+  // componentDidCatch implementation to capture error details and update state
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ errorInfo });
   }
 
-  // Render method to display a fallback UI or the children components
   public render() {
     if (this.state.hasError) {
       return (
@@ -47,15 +42,8 @@ export class ErrorBoundary extends Component<Props, State> {
           </div>
           <h1 className="text-xl font-black text-gray-800 mb-2">اوه! مشکلی پیش آمد</h1>
           <p className="text-sm text-gray-500 mb-8 max-w-xs mx-auto leading-6">
-            متاسفانه برنامه با خطا مواجه شد. این فایل کاملاً سالم است و در حال محافظت از برنامه شماست.
+            متاسفانه برنامه با خطا مواجه شد.
           </p>
-          
-          <div className="bg-gray-900 text-left text-green-400 p-4 rounded-xl w-full max-w-md text-[10px] font-mono overflow-auto max-h-40 mb-6 dir-ltr shadow-inner">
-            {this.state.error && this.state.error.toString()}
-            <br />
-            {this.state.errorInfo?.componentStack}
-          </div>
-
           <button
             onClick={() => window.location.reload()}
             className="bg-[#a62626] text-white px-8 py-3 rounded-xl font-black shadow-lg active:scale-95 flex items-center gap-2"
