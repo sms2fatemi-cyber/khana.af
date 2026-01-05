@@ -136,18 +136,44 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
   const fetchUserChats = async () => {
     setIsLoading(true);
     try {
-      const { data } = await supabase.from(TABLES.USER_CHATS).select('*').or(`sender_phone.eq.${displayPhone},receiver_phone.eq.${displayPhone}`).order('created_at', { ascending: false });
+      const { data } = await supabase.from(TABLES.USER_CHATS)
+        .select('*')
+        .or(`sender_phone.eq.${displayPhone},receiver_phone.eq.${displayPhone}`)
+        .order('created_at', { ascending: false });
+      
       const map: Record<string, any> = {};
+      
       for (const msg of (data || [])) {
         const other = msg.sender_phone === displayPhone ? msg.receiver_phone : msg.sender_phone;
         const key = `${other}_${msg.ad_id}`;
+        
         if (!map[key]) {
-          const { data: p } = await supabase.from('profiles').select('full_name').eq('phone', other).maybeSingle();
-          map[key] = { ...msg, otherName: p?.full_name || other, otherPhone: other };
+          map[key] = { 
+            ...msg, 
+            otherPhone: other,
+            hasUnread: false 
+          };
+        }
+        
+        // اگر این پیام خوانده نشده و گیرنده کاربر فعلی است
+        if (!msg.is_read && msg.receiver_phone === displayPhone) {
+          map[key].hasUnread = true;
         }
       }
-      setUserConversations(Object.values(map));
-    } finally { setIsLoading(false); }
+      
+      // دریافت نام‌ها برای هر گفتگو
+      const conversations = Object.values(map);
+      for (let conv of conversations) {
+        const { data: p } = await supabase.from('profiles').select('full_name').eq('phone', conv.otherPhone).maybeSingle();
+        conv.otherName = p?.full_name || conv.otherPhone;
+      }
+      
+      setUserConversations(conversations);
+    } catch (e) {
+      console.error("Fetch chats error:", e);
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const fetchAdminMessages = async () => {
@@ -167,7 +193,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     if (view === 'admin_notifications') fetchAdminMessages();
   }, [view]);
 
-  // Modal Wrapper with Close Button
   const ModalContainer = ({ children, title, onBack }: { children: React.ReactNode, title?: string, onBack?: () => void }) => (
     <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white w-full max-sm:max-w-sm md:max-w-md h-[85vh] rounded-[2.5rem] shadow-2xl flex flex-col relative animate-slide-up" onClick={e => e.stopPropagation()}>
@@ -253,7 +278,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
                 <p className="text-[10px] text-gray-400 font-bold truncate max-w-[180px]">{c.ad_title}</p>
               </div>
               <div className="flex items-center gap-2">
-                 {!c.is_read && c.receiver_phone === displayPhone && <div className="w-2.5 h-2.5 bg-red-600 rounded-full border border-white shadow-sm"></div>}
+                 {c.hasUnread && <div className="w-3 h-3 bg-red-600 rounded-full border-2 border-white shadow-sm animate-pulse"></div>}
                  <ChevronRight size={18} className="text-gray-300" />
               </div>
             </div>
@@ -262,8 +287,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       </div>
       {activeChat && <ChatWindow receiverPhone={activeChat.phone} receiverName={activeChat.name} adId={activeChat.id} adTitle={activeChat.title} onClose={() => {
           setActiveChat(null);
-          fetchUserChats();
-          onCheckNotifications(); // آپدیت فوری وضعیت نقطه قرمز پس از بستن چت
+          fetchUserChats(); // بروزرسانی لیست چت‌ها برای حذف نقطه قرمز
+          onCheckNotifications(); // بروزرسانی نقطه قرمز اصلی اپلیکیشن
       }} />}
     </ModalContainer>
   );

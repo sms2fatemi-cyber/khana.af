@@ -1,12 +1,19 @@
+
 {
   "name": "خانه",
-  "description": "اپلیکیشن جامع املاک، مشاغل و خدمات افغانستان",
+  "description": "اپلیکیشن املاک، کاریابی و خدمات",
   "requestFramePermissions": [
     "geolocation",
     "camera"
   ],
   "android": {
     "appId": "af.khana.app",
-    "appName": "خانه"
+    "appName": "خانه",
+    "permissions": [
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.INTERNET",
+      "android.permission.ACCESS_NETWORK_STATE"
+    ]
   }
 }

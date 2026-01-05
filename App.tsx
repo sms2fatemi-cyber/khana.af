@@ -20,6 +20,27 @@ import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 
 type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
 
+// لوگوی اختصاصی Khana.shop - بازسازی شده با SVG برای سرعت و کیفیت بالا
+const AppLogo = () => (
+  <div className="flex items-center gap-2">
+    <div className="flex flex-col items-end">
+      <h1 className="font-black text-gray-900 text-lg leading-none">Khana</h1>
+      <span className="text-[9px] font-black text-[#a62626] -mt-0.5">.shop</span>
+    </div>
+    <div className="w-10 h-10 relative">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-sm">
+        {/* طرح ساک خرید (Shopping Bag) */}
+        <path d="M25 35C25 21.1929 36.1929 10 50 10C63.8071 10 75 21.1929 75 35V40H25V35Z" fill="#FF8A00" fillOpacity="0.2"/>
+        <path d="M20 40H80V80C80 85.5228 75.5228 90 70 90H30C24.4772 90 20 85.5228 20 80V40Z" fill="#a62626"/>
+        <path d="M35 40V35C35 26.7157 41.7157 20 50 20C58.2843 20 65 26.7157 65 35V40" stroke="#FF8A00" strokeWidth="6" strokeLinecap="round"/>
+        {/* نماد خانه در مرکز ساک */}
+        <path d="M50 50L35 62V78H44V68H56V78H65V62L50 50Z" fill="white"/>
+        <rect x="47" y="58" width="6" height="6" fill="#a62626" rx="1"/>
+      </svg>
+    </div>
+  </div>
+);
+
 function App() {
   const [lang, setLang] = useState<Language>(() => (localStorage.getItem('app_lang') as Language) || 'dari');
   const t = translations[lang];
@@ -91,19 +112,20 @@ function App() {
     if (!userPhone || !isSupabaseReady()) return;
     
     try {
-      const [chatsRes, adminRes] = await Promise.all([
-        supabase.from(TABLES.USER_CHATS)
-          .select('id', { count: 'exact', head: true })
-          .eq('receiver_phone', userPhone)
-          .eq('is_read', false),
-        supabase.from(TABLES.MESSAGES)
-          .select('id', { count: 'exact', head: true })
-          .eq('target_phone', userPhone)
-          .eq('is_read', false)
-      ]);
+      const { data: chats } = await supabase.from(TABLES.USER_CHATS)
+        .select('id')
+        .eq('receiver_phone', userPhone)
+        .eq('is_read', false)
+        .limit(1);
+
+      const { data: admins } = await supabase.from(TABLES.MESSAGES)
+        .select('id')
+        .eq('target_phone', userPhone)
+        .eq('is_read', false)
+        .limit(1);
       
-      setHasNewUserChats((chatsRes.count || 0) > 0);
-      setHasNewAdminMessages((adminRes.count || 0) > 0);
+      setHasNewUserChats((chats?.length || 0) > 0);
+      setHasNewAdminMessages((admins?.length || 0) > 0);
     } catch (e) {
       console.error("Error checking notifications:", e);
     }
@@ -220,7 +242,7 @@ function App() {
   useEffect(() => { 
     checkUnreadNotifications();
     if (!isSupabaseReady()) return;
-    const channel = supabase.channel('app_realtime_v5')
+    const channel = supabase.channel('app_realtime_v7')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SERVICES }, () => fetchAds(false))
@@ -259,9 +281,10 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-white font-[Vazirmatn] overflow-hidden" dir="rtl">
+      {/* هدر اصلاح شده: لوگو در سمت راست، دکمه‌ها در سمت چپ */}
       <header className="h-[65px] bg-white border-b flex items-center justify-between px-4 z-[3000] shrink-0 shadow-sm">
         <div className="flex items-center gap-2">
-          <button onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')} className="bg-gray-900 text-white px-3 py-2 rounded-xl font-black text-[10px] md:hidden flex items-center gap-1 active:scale-95 transition-transform">
+          <button onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')} className="bg-gray-900 text-white px-3 py-2 rounded-xl font-black text-[10px] flex items-center gap-1 active:scale-95 transition-transform">
             {viewMode === 'list' ? ( <><MapIcon size={14} /> <span>{String(t.map)}</span></> ) : ( <><List size={14} /> <span>{String(t.list)}</span></> )}
           </button>
           <button onClick={toggleLanguage} className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black text-gray-600 hover:bg-gray-100">
@@ -269,10 +292,8 @@ function App() {
             <span>{lang === 'dari' ? 'پشتو' : 'دری'}</span>
           </button>
         </div>
-        <div className="flex flex-col items-end">
-          <h1 className="font-black text-[#a62626] text-base md:text-lg leading-none">خانه</h1>
-          <span className="text-[8px] md:text-[9px] text-gray-400 font-bold uppercase tracking-tighter">AFGHANISTAN ESTATE</span>
-        </div>
+        
+        <AppLogo />
       </header>
 
       <main className="flex-1 flex overflow-hidden relative">
@@ -361,9 +382,9 @@ function App() {
           <button onClick={() => handleModeChange('JOBS')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'JOBS' && filterCategory === 'ALL' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Briefcase size={20} /><span className="text-[9px] font-black">{String(t.jobs)}</span></button>
           <button onClick={() => { if(!localStorage.getItem('user_phone')) setShowAuthModal(true); else setShowAddModal(true); }} className="w-14 h-14 bg-[#a62626] text-white rounded-2xl flex items-center justify-center shadow-xl shadow-red-900/30 -top-6 relative active:scale-90 transition-all border-4 border-white"><Plus size={32} /></button>
           <button onClick={() => handleModeChange('SERVICES')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'SERVICES' && filterCategory === 'ALL' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Wrench size={20} /><span className="text-[9px] font-black">{String(t.services)}</span></button>
-          <button onClick={() => setShowAuthModal(true)} className={`flex flex-col items-center flex-1 gap-1 transition-all relative ${showAuthModal || filterCategory !== 'ALL' ? 'text-[#a62626]' : 'text-gray-300'}`}>
+          <button onClick={() => { checkUnreadNotifications(); setShowAuthModal(true); }} className={`flex flex-col items-center flex-1 gap-1 transition-all relative ${showAuthModal || filterCategory !== 'ALL' ? 'text-[#a62626]' : 'text-gray-300'}`}>
             <User size={20} /> <span className="text-[9px] font-black">{String(t.account)}</span>
-            {(hasNewUserChats || hasNewAdminMessages) && <div className="absolute top-0 right-1/2 translate-x-3 w-2 h-2 bg-red-600 rounded-full border border-white"></div>}
+            {(hasNewUserChats || hasNewAdminMessages) && <div className="absolute top-0 right-1/2 translate-x-3 w-2 h-2 bg-red-600 rounded-full border border-white animate-pulse"></div>}
           </button>
         </div>
       </main>
@@ -371,10 +392,10 @@ function App() {
       {selectedItem && isDetailOpen && (
         <div className="z-[5000] fixed inset-0">
           {selectedItem.itemType === 'ESTATE' ? 
-            <PropertyDetails property={selectedItem as Property} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} /> :
+            <PropertyDetails property={selectedItem as Property} onClose={() => { setIsDetailOpen(false); checkUnreadNotifications(); }} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} /> :
            selectedItem.itemType === 'JOBS' ? 
-            <JobDetails job={selectedItem as Job} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} /> :
-           <ServiceDetails service={selectedItem as Service} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} />
+            <JobDetails job={selectedItem as Job} onClose={() => { setIsDetailOpen(false); checkUnreadNotifications(); }} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} /> :
+           <ServiceDetails service={selectedItem as Service} onClose={() => { setIsDetailOpen(false); checkUnreadNotifications(); }} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} />
           }
         </div>
       )}
@@ -387,7 +408,7 @@ function App() {
         </div>
       )}
 
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} hasUnreadChats={hasNewUserChats} hasUnreadAdmin={hasNewAdminMessages} onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} onCheckNotifications={checkUnreadNotifications} />}
+      {showAuthModal && <AuthModal onClose={() => { checkUnreadNotifications(); setShowAuthModal(false); }} lang={lang} hasUnreadChats={hasNewUserChats} hasUnreadAdmin={hasNewAdminMessages} onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} onCheckNotifications={checkUnreadNotifications} />}
       {showAdminLogin && <AdminLogin onLogin={() => { setShowAdminLogin(false); setIsAdminMode(true); }} onCancel={() => setShowAdminLogin(false)} />}
     </div>
   );
