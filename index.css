@@ -1,3 +1,4 @@
+
 @import "tailwindcss/base";
 @import "tailwindcss/components";
 @import "tailwindcss/utilities";
@@ -9,12 +10,22 @@
 
 body {
   font-family: 'Vazirmatn', sans-serif;
-  background-color: #F8F9FA;
+  background-color: #ffffff;
   margin: 0;
   padding: 0;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
   user-select: none;
+  -webkit-user-select: none;
+  height: 100vh;
+  width: 100vw;
+  position: fixed;
+  overflow: hidden;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
 }
 
 /* اسکرول‌بار مخفی */
@@ -26,28 +37,28 @@ body {
   scrollbar-width: none;
 }
 
-/* استایل‌های نقشه */
+/* رفع قطعی مشکل خاکستری نقشه */
 .leaflet-container {
-  width: 100%;
-  height: 100%;
-  z-index: 1;
+  width: 100% !important;
+  height: 100% !important;
+  background: #f2efe9 !important;
+  outline: none;
 }
 
-/* استایل پاپ‌آپ نقشه مشابه تصویر */
+.leaflet-control-container {
+  display: none !important;
+}
+
 .leaflet-popup-content-wrapper {
-  border-radius: 20px !important;
+  border-radius: 18px !important;
   padding: 0 !important;
   overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
 }
 
 .leaflet-popup-content {
   margin: 0 !important;
-  width: 180px !important;
-}
-
-.leaflet-popup-tip {
-  display: none;
+  width: 200px !important;
 }
 
 /* انیمیشن برای دکمه شناور */
@@ -59,4 +70,10 @@ body {
 
 .floating-btn {
   animation: float 3s ease-in-out infinite;
+}
+
+@media screen and (max-height: 500px) {
+  .fixed-bottom-bar {
+    display: none;
+  }
 }

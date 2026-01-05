@@ -353,6 +353,7 @@ function App() {
             visitedIds={visitedIds} 
             flyToLocation={mapFlyLocation}
             onSearchInArea={(bounds) => fetchAds(false, bounds)}
+            viewMode={viewMode}
           />
         </div>
         <div className="fixed bottom-0 left-0 right-0 h-[70px] bg-white/95 backdrop-blur-md border-t flex items-center justify-around z-[4000] px-2 shadow-sm pb-env">
