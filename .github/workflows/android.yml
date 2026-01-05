@@ -1,8 +1,7 @@
 name: Build Android APK
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch: # ساخت APK فقط با اجازه و کلیک دستی شما انجام می‌شود
 
 jobs:
   build:
@@ -27,7 +26,7 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Install Java
-        uses: actions/setup-java@v4
+        uses: android-actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'

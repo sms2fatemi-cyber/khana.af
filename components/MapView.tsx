@@ -21,13 +21,27 @@ interface MapViewProps {
   onSearchInArea?: (bounds: MapBounds) => void;
 }
 
+// این کامپوننت حیاتی است. نقشه را مجبور می‌کند بعد از رندر، ابعاد واقعی کانتینر را چک کند.
 const MapResizer = () => {
   const map = useMap();
   useEffect(() => {
     if (!map) return;
-    map.invalidateSize();
-    const timer = setTimeout(() => map.invalidateSize(), 500);
-    return () => clearTimeout(timer);
+    
+    const triggerInvalidate = () => {
+      map.invalidateSize();
+    };
+
+    // چندین بار تلاش برای اطمینان از اینکه کانتینر در DOM جا افتاده است
+    triggerInvalidate();
+    const timers = [100, 300, 600, 1200, 2500].map(t => setTimeout(triggerInvalidate, t));
+    
+    // گوش دادن به تغییر ابعاد پنجره
+    window.addEventListener('resize', triggerInvalidate);
+    
+    return () => {
+      timers.forEach(clearTimeout);
+      window.removeEventListener('resize', triggerInvalidate);
+    };
   }, [map]);
   return null;
 };
@@ -55,13 +69,12 @@ const UserLocationHandler = () => {
   const [isLocating, setIsLocating] = useState(false);
 
   const handleLocate = useCallback(() => {
-    // Check for secure context (HTTPS) for Geolocation
     const isSecure = window.location.protocol === 'https:' || 
                      window.location.hostname === 'localhost' || 
                      window.location.hostname === '127.0.0.1';
 
     if (!isSecure) {
-      alert("⚠️ توجه: مرورگرها به دلایل امنیتی فقط در آدرس‌های امن (HTTPS) اجازه استفاده از GPS را می‌دهند. لطفاً برنامه را با پروتکل https باز کنید.");
+      alert("⚠️ توجه: مرورگرها به دلایل امنیتی فقط در آدرس‌های امن (HTTPS) اجازه استفاده از GPS را می‌دهند.");
       return;
     }
 
@@ -84,21 +97,10 @@ const UserLocationHandler = () => {
     };
 
     const error = (err: GeolocationPositionError) => {
-      console.warn("Location error:", err);
       setIsLocating(false);
-      
-      if (err.code === 1) { // PERMISSION_DENIED
-        alert("اجازه دسترسی به مکان داده نشد. لطفاً در تنظیمات مرورگر اجازه مکان‌یابی را فعال کنید.");
-      } else if (err.code === 2) { // POSITION_UNAVAILABLE
-        alert("موقعیت شما یافت نشد. لطفاً مطمئن شوید GPS دستگاه روشن است.");
-      } else if (err.code === 3) { // TIMEOUT
-        // Retry with lower accuracy if timeout
-        navigator.geolocation.getCurrentPosition(success, () => {
-           alert("یافتن مکان شما بیش از حد طول کشید. لطفاً مجدداً تلاش کنید.");
-        }, { ...options, enableHighAccuracy: false, timeout: 5000 });
-      } else {
-        alert("خطایی در یافتن موقعیت شما رخ داد.");
-      }
+      if (err.code === 1) alert("اجازه دسترسی به مکان داده نشد.");
+      else if (err.code === 2) alert("موقعیت شما یافت نشد. GPS را چک کنید.");
+      else alert("خطایی در یافتن موقعیت رخ داد.");
     };
 
     navigator.geolocation.getCurrentPosition(success, error, options);
@@ -183,21 +185,20 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
     );
   };
 
-  const MapContainerAny = MapContainer as any;
-  const TileLayerAny = TileLayer as any;
-  const MarkerAny = Marker as any;
-  const PopupAny = Popup as any;
-
+  // استفاده از TileLayer با سرورهای سریع‌تر و پایدارتر
   return (
     <div className="w-full h-full relative bg-[#f2efe9]">
-      <MapContainerAny 
+      <MapContainer 
         center={defaultCenter} 
         zoom={13} 
         style={{ height: '100%', width: '100%' }} 
         zoomControl={false}
         attributionControl={false}
       >
-        <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        <TileLayer 
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          subdomains='abcd'
+        />
         <MapResizer />
         <MapInner />
         
@@ -209,12 +210,15 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
           const isVisited = visitedIds.has(item.id);
 
           return (
-            <MarkerAny 
+            <Marker 
               key={item.id} 
               position={[lat, lng]} 
               icon={createIcon(isVisited, selectedItem?.id === item.id)}
+              eventHandlers={{
+                click: () => onSelectItem(item)
+              }}
             >
-              <PopupAny closeButton={false}>
+              <Popup closeButton={false}>
                 <div className="p-0 overflow-hidden cursor-pointer text-right" onClick={() => onSelectItem(item)}>
                   <img src={item.images?.[0]} className="w-full h-24 object-cover" alt="" />
                   <div className="p-3">
@@ -224,14 +228,14 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
                     </p>
                   </div>
                 </div>
-              </PopupAny>
-            </MarkerAny>
+              </Popup>
+            </Marker>
           );
         })}
         
         {flyToLocation && <SafeMapFlyTo lat={flyToLocation.lat} lng={flyToLocation.lng} />}
         <UserLocationHandler />
-      </MapContainerAny>
+      </MapContainer>
     </div>
   );
 };
