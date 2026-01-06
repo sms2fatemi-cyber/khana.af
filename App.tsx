@@ -20,7 +20,6 @@ import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 
 type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
 
-// لوگوی اختصاصی Khana.shop - بازسازی شده با SVG برای سرعت و کیفیت بالا
 const AppLogo = () => (
   <div className="flex items-center gap-2">
     <div className="flex flex-col items-end">
@@ -29,11 +28,9 @@ const AppLogo = () => (
     </div>
     <div className="w-10 h-10 relative">
       <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-sm">
-        {/* طرح ساک خرید (Shopping Bag) */}
         <path d="M25 35C25 21.1929 36.1929 10 50 10C63.8071 10 75 21.1929 75 35V40H25V35Z" fill="#FF8A00" fillOpacity="0.2"/>
         <path d="M20 40H80V80C80 85.5228 75.5228 90 70 90H30C24.4772 90 20 85.5228 20 80V40Z" fill="#a62626"/>
         <path d="M35 40V35C35 26.7157 41.7157 20 50 20C58.2843 20 65 26.7157 65 35V40" stroke="#FF8A00" strokeWidth="6" strokeLinecap="round"/>
-        {/* نماد خانه در مرکز ساک */}
         <path d="M50 50L35 62V78H44V68H56V78H65V62L50 50Z" fill="white"/>
         <rect x="47" y="58" width="6" height="6" fill="#a62626" rx="1"/>
       </svg>
@@ -242,7 +239,7 @@ function App() {
   useEffect(() => { 
     checkUnreadNotifications();
     if (!isSupabaseReady()) return;
-    const channel = supabase.channel('app_realtime_v7')
+    const channel = supabase.channel('app_realtime_v8')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SERVICES }, () => fetchAds(false))
@@ -281,7 +278,6 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-white font-[Vazirmatn] overflow-hidden" dir="rtl">
-      {/* هدر اصلاح شده: لوگو در سمت راست، دکمه‌ها در سمت چپ */}
       <header className="h-[65px] bg-white border-b flex items-center justify-between px-4 z-[3000] shrink-0 shadow-sm">
         <div className="flex items-center gap-2">
           <button onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')} className="bg-gray-900 text-white px-3 py-2 rounded-xl font-black text-[10px] flex items-center gap-1 active:scale-95 transition-transform">
