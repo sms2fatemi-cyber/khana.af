@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, Languages, Search, RefreshCcw, Sparkles, ChevronDown } from 'lucide-react';
+import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, Languages, Search, RefreshCcw, Sparkles, ChevronDown, Clock } from 'lucide-react';
 import MapView from './components/MapView';
 import PropertyCard from './components/PropertyCard';
 import PropertyDetails from './components/PropertyDetails';
@@ -81,6 +81,27 @@ function App() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [isAdminMode, setIsAdminMode] = useState(false);
 
+  // مدیریت دکمه بازگشت سخت‌افزاری اندروید
+  useEffect(() => {
+    const handleBackButton = () => {
+      if (isDetailOpen) {
+        setIsDetailOpen(false);
+        setSelectedItem(null);
+        window.history.pushState(null, '', window.location.pathname);
+      } else if (showAddModal) {
+        setShowAddModal(false);
+        window.history.pushState(null, '', window.location.pathname);
+      } else if (showAuthModal) {
+        setShowAuthModal(false);
+        window.history.pushState(null, '', window.location.pathname);
+      }
+    };
+
+    window.history.pushState(null, '', window.location.pathname);
+    window.addEventListener('popstate', handleBackButton);
+    return () => window.removeEventListener('popstate', handleBackButton);
+  }, [isDetailOpen, showAddModal, showAuthModal]);
+
   const mapItem = (item: any, type: AppMode) => ({
     ...item,
     itemType: type,
@@ -103,6 +124,20 @@ function App() {
     bedrooms: item.bedrooms || 0,
     images: Array.isArray(item.images) ? item.images : []
   });
+
+  // لودینگ سریع از کش (بسیار مهم برای تجربه کاربری اندروید)
+  useEffect(() => {
+    const cached = localStorage.getItem(`cache_${appMode}`);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed.length > 0) {
+          setItems(parsed);
+          setIsLoading(false);
+        }
+      } catch (e) {}
+    }
+  }, [appMode]);
 
   const checkUnreadNotifications = useCallback(async () => {
     const userPhone = localStorage.getItem('user_phone');
@@ -132,7 +167,7 @@ function App() {
     if (!isSupabaseReady()) return;
     
     if (isLoadMore) setIsLoadingMore(true);
-    else setIsLoading(true);
+    else if (items.length === 0) setIsLoading(true); // فقط اگر کش خالی بود لودینگ نشان بده
 
     const from = isLoadMore ? items.length : 0;
     const to = from + (bounds ? 100 : PAGE_SIZE) - 1;
@@ -163,7 +198,14 @@ function App() {
         setHasMore(false);
       } else {
         const table = appMode === 'ESTATE' ? TABLES.PROPERTIES : appMode === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
-        let query = supabase.from(table).select('*', { count: 'exact' }).eq('status', 'APPROVED');
+        
+        let query = supabase.from(table).select('*', { count: 'exact' });
+        
+        if (userPhone) {
+          query = query.or(`status.eq.APPROVED,and(status.eq.PENDING,owner_id.eq.${userPhone})`);
+        } else {
+          query = query.eq('status', 'APPROVED');
+        }
         
         if (bounds) {
           query = query
@@ -182,12 +224,19 @@ function App() {
         if (error) throw error;
 
         const newItems = (data || []).map(i => mapItem(i, appMode));
+        let updatedItems;
         if (isLoadMore) {
-          setItems(prev => [...prev, ...newItems]);
+          updatedItems = [...items, ...newItems];
+          setItems(updatedItems);
           setHasMore(count ? (items.length + newItems.length) < count : false);
         } else {
-          setItems(newItems);
+          updatedItems = newItems;
+          setItems(updatedItems);
           setHasMore(count ? newItems.length < count : false);
+          
+          if (!bounds && !searchTerm && activeDealFilter === 'ALL' && selectedProvince === translations.dari.provinces[0]) {
+            localStorage.setItem(`cache_${appMode}`, JSON.stringify(newItems));
+          }
         }
       }
     } catch (e) {
@@ -239,7 +288,7 @@ function App() {
   useEffect(() => { 
     checkUnreadNotifications();
     if (!isSupabaseReady()) return;
-    const channel = supabase.channel('app_realtime_v8')
+    const channel = supabase.channel('app_realtime_v10')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SERVICES }, () => fetchAds(false))
@@ -331,12 +380,20 @@ function App() {
                  </div>
               </div>
             )}
-            {isLoading ? ( <div className="flex flex-col items-center justify-center py-24 gap-4"> <Loader2 className="animate-spin text-[#a62626]" size={40} /> </div> ) : (
+            {isLoading && items.length === 0 ? ( <div className="flex flex-col items-center justify-center py-24 gap-4"> <Loader2 className="animate-spin text-[#a62626]" size={40} /> </div> ) : (
               <>
                 {items.map(item => {
                   const type = item.itemType;
+                  const isOwner = item.ownerId === localStorage.getItem('user_phone');
+                  const isPending = item.status === 'PENDING';
+                  
                   return (
                     <div key={item.id} className="relative">
+                      {isOwner && isPending && (
+                        <div className="absolute top-6 right-6 z-10 bg-red-600 text-white text-[8px] font-black px-2 py-1 rounded-lg shadow-lg flex items-center gap-1 animate-pulse">
+                          <Clock size={10} /> در انتظار تایید ادمین
+                        </div>
+                      )}
                       {type === 'ESTATE' ? 
                         <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} /> :
                        type === 'JOBS' ? 
@@ -400,7 +457,7 @@ function App() {
         <div className="z-[6000] fixed inset-0">
           {appMode === 'ESTATE' && <AddPropertyModal editData={null as any} onClose={() => { setShowAddModal(false); fetchAds(false); }} t={t} />}
           {appMode === 'JOBS' && <AddJobModal editData={null as any} onClose={() => { setShowAddModal(false); fetchAds(false); }} t={t} />}
-          {appMode === 'SERVICES' && <AddServiceModal editData={null as any} onClose={() => { setShowAddModal(false); fetchAds(false); }} t={t} lang={lang} />}
+          {appMode === 'SERVICES' && <AddServiceModal editData={null as any} onClose={() => { setShowAddModal(false); fetchAds(false); }} t={t} />}
         </div>
       )}
 

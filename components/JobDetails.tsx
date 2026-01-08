@@ -1,6 +1,7 @@
+
 import React, { useState, useCallback, useRef } from 'react';
 import { Job } from '../types';
-import { ChevronRight, Bookmark, MapPinned, Phone, X, MessageCircle, ChevronLeft, Clock, MapPin } from 'lucide-react';
+import { ChevronRight, Bookmark, MapPinned, Phone, X, MessageCircle, ChevronLeft, Clock, MapPin, Building2, Info } from 'lucide-react';
 import ChatWindow from './ChatWindow';
 import { getRelativeTime } from '../services/translations';
 
@@ -41,6 +42,8 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const isPending = job.status === 'PENDING';
+  const isOwner = job.ownerId === localStorage.getItem('user_phone');
 
   if (!job) return null;
 
@@ -104,29 +107,50 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
         </div>
 
         <div className="flex-1 md:h-full md:overflow-y-auto no-scrollbar bg-white p-6 md:p-10 space-y-6 pb-32 text-right">
+            {isOwner && isPending && (
+              <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex items-center gap-3 animate-pulse">
+                <Info className="text-red-600" size={20} />
+                <p className="text-[10px] font-black text-red-600">این آگهی در انتظار تایید ادمین است و فعلاً فقط برای شما نمایش داده می‌شود.</p>
+              </div>
+            )}
+            
             <h1 className="text-2xl font-black text-gray-900 leading-tight mb-2 pt-2">{String(job.title)}</h1>
             <div className="flex items-center gap-2 mb-6 text-gray-400 font-bold text-xs justify-end"><Clock size={12} /> {getRelativeTime(job.date, 'dari')} در {String(job.city)}</div>
+            
             <div className="grid grid-cols-3 gap-3 py-6 border-y text-center">
-                <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.company)}</span><span className="font-black text-xs text-blue-700 truncate">{String(job.company) || '---'}</span></div>
-                <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.city)}</span><span className="font-black text-xs text-blue-700">{String(job.city)}</span></div>
+                <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.company)}</span><span className="font-black text-xs text-blue-700 truncate"><Building2 size={12} className="inline ml-1" />{String(job.company) || '---'}</span></div>
+                <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.city)}</span><span className="font-black text-xs text-blue-700"><MapPin size={12} className="inline ml-1" />{String(job.city)}</span></div>
                 <div className="bg-blue-50 p-3 rounded-2xl border border-blue-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.salary)}</span><span className="font-black text-xs text-blue-700">{job.salary ? Number(job.salary).toLocaleString() : 'توافقی'}</span></div>
             </div>
+
             <div className="bg-blue-50/50 p-6 rounded-[2.5rem] flex justify-between items-center border border-blue-100 shadow-inner">
                 <div className="text-right">
                     <span className="text-gray-400 text-[10px] font-black block mb-1 uppercase tracking-widest">معاش پیشنهادی ماهانه</span>
                     <span className="text-2xl font-black text-blue-700">{job.salary ? Number(job.salary).toLocaleString() : 'توافقی'} <small className="text-sm">AFN</small></span>
                 </div>
-                <button onClick={onShowOnMap} className="w-14 h-14 bg-white text-blue-600 rounded-2xl shadow-sm border border-blue-100 flex items-center justify-center active:scale-90 transition-transform"><MapPinned size={28} /></button>
+                <button onClick={onShowOnMap} className="w-14 h-14 bg-white text-blue-600 rounded-2xl shadow-md border border-blue-100 flex items-center justify-center active:scale-90 transition-transform"><MapPinned size={28} /></button>
             </div>
+
             <div className="space-y-6">
                 <div className="bg-white p-6 rounded-[2rem] border-2 border-dashed border-gray-100 shadow-sm">
                     <h3 className="text-[11px] font-black text-gray-400 mb-2 flex items-center gap-2 justify-end"><MapPin size={18} className="text-blue-600" /> {String(t.address)}:</h3>
                     <p className="text-base font-black text-gray-800 leading-7">{String(job.address) || 'آدرسی ثبت نشده است'}</p>
                 </div>
+                
+                <div className="bg-white p-6 rounded-[2rem] border border-gray-100">
+                    <h3 className="text-lg font-black text-gray-900 border-r-4 border-blue-600 pr-3 mb-4">اطلاعات تکمیلی</h3>
+                    <div className="grid grid-cols-1 gap-4 text-sm font-bold text-gray-700">
+                      <div className="flex justify-between border-b pb-2">نام شرکت: <span className="text-gray-900">{String(job.company)}</span></div>
+                      <div className="flex justify-between border-b pb-2">ولایت: <span className="text-gray-900">{String(job.city)}</span></div>
+                      <div className="flex justify-between border-b pb-2">تاریخ ثبت: <span className="text-gray-900">{new Date(job.date).toLocaleDateString('fa-AF')}</span></div>
+                    </div>
+                </div>
+
                 <div className="space-y-4">
                     <h3 className="text-lg font-black text-gray-900 border-r-4 border-blue-600 pr-3">توضیحات و نیازمندی‌ها</h3>
                     <p className="text-gray-600 leading-8 text-sm text-justify font-bold whitespace-pre-wrap">{String(job.description)}</p>
                 </div>
+
                 <div className="md:hidden pt-10 border-t">
                    <ContactSection handleChatOpen={handleChatOpen} showContact={showContact} setShowContact={setShowContact} phoneNumber={job.phoneNumber} t={t} />
                 </div>

@@ -1,4 +1,5 @@
-import { Property, Language } from '../types';
+
+import { Property, Language, DealType } from '../types';
 import { Bookmark, Home, Trash2, Clock, Edit, MapPin, Box, Car } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 
@@ -25,7 +26,13 @@ export default function PropertyCard({
 }: PropertyCardProps) {
   const hasImages = property.images && property.images.length > 0;
   const cityName = property.city || (lang === 'dari' ? 'نامشخص' : 'نامعلوم');
-  const priceDisplay = (property.price || 0).toLocaleString();
+  
+  // منطق جدید برای نمایش صحیح مبلغ بر اساس نوع معامله
+  const displayAmount = property.dealType === DealType.MORTGAGE 
+    ? (property.mortgageAmount || 0) 
+    : (property.price || 0);
+    
+  const priceDisplay = displayAmount.toLocaleString();
 
   return (
     <div 

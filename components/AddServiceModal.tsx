@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Phone } from 'lucide-react';
 import { Service, ServiceCategory } from '../types';
@@ -9,7 +10,6 @@ interface AddServiceModalProps {
   onClose: () => void;
   editData?: Service;
   t: any;
-  lang: string;
 }
 
 const MapResizer = () => {
@@ -82,25 +82,22 @@ const UserLocationHandler = () => {
   );
 };
 
-export default function AddServiceModal({ onClose, editData, t, lang }: AddServiceModalProps) {
+export default function AddServiceModal({ onClose, editData, t }: AddServiceModalProps) {
   const [view, setView] = useState<'form' | 'map'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isMapMoving, setIsMapMoving] = useState(false);
   const userPhone = localStorage.getItem('user_phone') || '';
 
-  const [formData, setFormData] = useState({
-    title: editData?.title || '', 
-    providerName: editData?.providerName || '', 
-    category: editData?.category || ServiceCategory.TECHNICAL,
-    experience: editData?.experience || '', 
-    phoneNumber: editData?.phoneNumber || userPhone, 
-    showPhoneNumber: editData?.showPhoneNumber ?? true,
-    city: editData?.city || t.provinces[1], 
-    address: editData?.address || '', 
-    description: editData?.description || '',
-    location: editData?.location || { lat: 34.5553, lng: 69.2075 }
-  });
+  const titleRef = useRef<HTMLInputElement>(null);
+  const providerRef = useRef<HTMLInputElement>(null);
+  const experienceRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+
+  const [category, setCategory] = useState(editData?.category || ServiceCategory.TECHNICAL);
+  const [city, setCity] = useState(editData?.city || t.provinces[1]);
+  const [location, setLocation] = useState(editData?.location || { lat: 34.5553, lng: 69.2075 });
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
@@ -111,9 +108,7 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
       const files = Array.from(e.target.files) as File[];
       setSelectedFiles(prev => [...prev, ...files]);
       files.forEach(file => {
-        if (!file.name.toLowerCase().endsWith('.heic')) {
-          setPreviews(prev => [...prev, URL.createObjectURL(file)]);
-        }
+        setPreviews(prev => [...prev, URL.createObjectURL(file)]);
       });
     }
   };
@@ -130,17 +125,18 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
     try {
       const uploadedUrls = await uploadMultipleImages(selectedFiles);
       const allImages = [...previews.filter(p => p.startsWith('http')), ...uploadedUrls];
+      
       const payload = {
-        title: formData.title, 
-        provider_name: formData.providerName,
-        category: formData.category, 
-        experience: formData.experience,
-        phone_number: formData.phoneNumber, 
-        show_phone: formData.showPhoneNumber,
-        city: formData.city, 
-        address: formData.address, 
-        description: formData.description,
-        location: formData.location, 
+        title: titleRef.current?.value || '', 
+        provider_name: providerRef.current?.value || '',
+        category: category, 
+        experience: experienceRef.current?.value || '',
+        phone_number: userPhone, 
+        show_phone: true,
+        city: city, 
+        address: addressRef.current?.value || '', 
+        description: descriptionRef.current?.value || '',
+        location: location, 
         images: allImages, 
         status: editData ? editData.status : 'PENDING',
         owner_id: userPhone
@@ -151,7 +147,6 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
       else result = await supabase.from(TABLES.SERVICES).insert([payload]);
       
       if (result.error) throw result.error;
-      
       setIsSuccess(true);
     } catch (err: any) { 
       alert("خطا در ثبت: " + (err.message || "لطفاً دوباره تلاش کنید.")); 
@@ -164,8 +159,9 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
     <div className="fixed inset-0 z-[10001] bg-black/80 flex items-center justify-center p-4">
       <div className="bg-white w-full max-sm:max-w-xs rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
         <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
-        <h2 className="text-2xl font-black mb-2">{lang === 'dari' ? 'ثبت شد' : 'ثبت شو'}</h2>
-        <button onClick={onClose} className="w-full bg-orange-600 text-white py-4 rounded-xl font-black active:scale-95">{lang === 'dari' ? 'بسیار عالی' : 'ډېر ښه'}</button>
+        <h2 className="text-2xl font-black mb-2">با موفقیت ثبت شد</h2>
+        <p className="text-xs font-bold text-gray-400 mb-8 leading-6">آگهی شما پس از تایید ادمین برای همه نمایش داده می‌شود. فعلاً می‌توانید آن را در لیست آگهی‌های خود ببینید.</p>
+        <button onClick={onClose} className="w-full bg-orange-600 text-white py-4 rounded-xl font-black active:scale-95">بسیار عالی</button>
       </div>
     </div>
   );
@@ -183,11 +179,11 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
               <h2 className="font-black mr-2 text-lg">تعیین موقعیت روی نقشه</h2>
             </div>
             <div className="flex-1 relative bg-gray-50">
-              <MapContainerAny center={[formData.location.lat, formData.location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+              <MapContainerAny center={[location.lat, location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
                 <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <UserLocationHandler />
-                <MapMoveHandler onMoveStart={() => setIsMapMoving(true)} onMoveEnd={() => setIsMapMoving(false)} onChange={(loc: any) => setFormData(prev => ({ ...prev, location: loc }))} />
+                <MapMoveHandler onMoveStart={() => setIsMapMoving(true)} onMoveEnd={() => setIsMapMoving(false)} onChange={(loc: any) => setLocation(loc)} />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none flex flex-col items-center">
                    <MapPin size={48} className={isMapMoving ? 'text-gray-400' : 'text-orange-600'} />
                 </div>
@@ -220,35 +216,35 @@ export default function AddServiceModal({ onClose, editData, t, lang }: AddServi
             </div>
 
             <div className="space-y-4">
-              <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="عنوان خدمات" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
-              <input type="text" value={formData.providerName} onChange={e => setFormData({...formData, providerName: e.target.value})} placeholder="نام متخصص یا شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder="عنوان خدمات" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={providerRef} defaultValue={editData?.providerName} placeholder="نام متخصص یا شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="relative">
                 <Phone size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="tel" value={formData.phoneNumber} readOnly className="w-full bg-gray-100 border rounded-2xl px-11 py-4 font-black text-left outline-none text-gray-400 cursor-not-allowed" dir="ltr" />
+                <input type="tel" value={userPhone} readOnly className="w-full bg-gray-100 border rounded-2xl px-11 py-4 font-black text-left outline-none text-gray-400 cursor-not-allowed" dir="ltr" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                 <select value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
+                 <select value={city} onChange={e => setCity(e.target.value)} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {t.provinces.slice(1).map((p: string) => (<option key={p} value={p}>{p}</option>))}
                  </select>
-                 <input type="text" value={formData.experience} onChange={e => setFormData({...formData, experience: e.target.value})} placeholder="سابقه کاری" className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+                 <input type="text" ref={experienceRef} defaultValue={editData?.experience} placeholder="سابقه کاری" className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               </div>
 
-              <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as any})} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
+              <select value={category} onChange={e => setCategory(e.target.value as any)} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                  {Object.values(ServiceCategory).map(cat => (<option key={cat} value={cat}>{cat}</option>))}
               </select>
 
               <div className="relative">
                 <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="text" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="آدرس دقیق محل خدمت" className="w-full bg-gray-50 border rounded-2xl px-11 py-4 font-bold outline-none" required />
+                <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق محل خدمت" className="w-full bg-gray-50 border rounded-2xl px-11 py-4 font-bold outline-none" required />
               </div>
 
-              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${formData.location.lat !== 34.5553 ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}>
-                {formData.location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه (اختیاری)</span></>}
+              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${location.lat !== 34.5553 ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}>
+                {location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه (اختیاری)</span></>}
               </button>
               
-              <textarea rows={4} value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="توضیحات کامل خدمات..." className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
+              <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder="توضیحات کامل خدمات..." className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
             </div>
           </form>
         </div>

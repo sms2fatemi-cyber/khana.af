@@ -1,6 +1,7 @@
+
 import React, { useState, useCallback, useRef } from 'react';
 import { Service } from '../types';
-import { ChevronRight, Bookmark, MapPinned, Phone, X, MessageCircle, ChevronLeft, Clock, MapPin } from 'lucide-react';
+import { ChevronRight, Bookmark, MapPinned, Phone, X, MessageCircle, ChevronLeft, Clock, MapPin, Wrench, ShieldCheck, Info } from 'lucide-react';
 import ChatWindow from './ChatWindow';
 import { getRelativeTime } from '../services/translations';
 
@@ -41,6 +42,8 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
+  const isPending = service.status === 'PENDING';
+  const isOwner = service.ownerId === localStorage.getItem('user_phone');
   
   if (!service) return null;
 
@@ -97,7 +100,7 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
                       </>
                     )}
                 </>
-                ) : <div className="text-gray-500 font-black uppercase tracking-widest opacity-20">بدون عکس</div>}
+                ) : <div className="text-gray-500 font-black uppercase tracking-widest opacity-20">بدون تصویر</div>}
                 <button onClick={onClose} className="hidden md:flex absolute top-6 left-6 bg-white/10 text-white p-2 rounded-full backdrop-blur-md z-50"><X size={24} /></button>
             </div>
 
@@ -107,13 +110,20 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
         </div>
 
         <div className="flex-1 md:h-full md:overflow-y-auto no-scrollbar bg-white p-6 md:p-8 space-y-6 pb-32 text-right">
+            {isOwner && isPending && (
+              <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex items-center gap-3 animate-pulse">
+                <Info className="text-red-600" size={20} />
+                <p className="text-[10px] font-black text-red-600">این آگهی در انتظار تایید ادمین است و فعلاً فقط برای شما نمایش داده می‌شود.</p>
+              </div>
+            )}
+
             <h1 className="text-2xl font-black text-gray-900 leading-tight mb-2 pt-2">{String(service.title)}</h1>
             <div className="flex items-center gap-2 mb-6 text-gray-400 font-bold text-xs justify-end"><Clock size={12} /> {getRelativeTime(service.date, 'dari')} در {String(service.city)}</div>
 
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 py-6 border-y text-center">
-                <div className="bg-orange-50 p-2.5 rounded-2xl border border-orange-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.provider || 'نام متخصص')}</span><span className="font-black text-xs text-orange-700 truncate">{String(service.providerName) || '---'}</span></div>
-                <div className="bg-orange-50 p-2.5 rounded-2xl border border-orange-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.experience || 'سابقه کار')}</span><span className="font-black text-xs text-orange-700">{String(service.experience) || '---'}</span></div>
-                <div className="bg-orange-50 p-2.5 rounded-2xl border border-orange-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.city)}</span><span className="font-black text-xs text-orange-700">{String(service.city)}</span></div>
+                <div className="bg-orange-50 p-2.5 rounded-2xl border border-orange-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.provider || 'نام متخصص')}</span><span className="font-black text-xs text-orange-700 truncate"><ShieldCheck size={12} className="inline ml-1" />{String(service.providerName) || '---'}</span></div>
+                <div className="bg-orange-50 p-2.5 rounded-2xl border border-orange-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.experience || 'سابقه کار')}</span><span className="font-black text-xs text-orange-700"><Wrench size={12} className="inline ml-1" />{String(service.experience) || '---'}</span></div>
+                <div className="bg-orange-50 p-2.5 rounded-2xl border border-orange-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.city)}</span><span className="font-black text-xs text-orange-700"><MapPin size={12} className="inline ml-1" />{String(service.city)}</span></div>
                 <div className="bg-orange-50 p-2.5 rounded-2xl border border-orange-100 shadow-sm"><span className="block text-gray-400 text-[8px] font-black uppercase mb-1">{String(t.category)}</span><span className="font-black text-[10px] text-orange-700">{String(service.category) || '---'}</span></div>
             </div>
 
@@ -129,6 +139,15 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
                 <div className="bg-white p-6 rounded-[2rem] border-2 border-dashed border-gray-100 shadow-sm">
                     <h3 className="text-[11px] font-black text-gray-400 mb-2 flex items-center gap-2 justify-end"><MapPin size={18} className="text-orange-600" /> {String(t.address)}:</h3>
                     <p className="text-base font-black text-gray-800 leading-7">{String(service.address) || 'آدرسی ثبت نشده است'}</p>
+                </div>
+
+                <div className="bg-white p-6 rounded-[2rem] border border-gray-100">
+                    <h3 className="text-lg font-black text-gray-900 border-r-4 border-orange-600 pr-3 mb-4">جزئیات تخصص</h3>
+                    <div className="grid grid-cols-1 gap-4 text-sm font-bold text-gray-700">
+                      <div className="flex justify-between border-b pb-2">نام متخصص: <span className="text-gray-900">{String(service.providerName)}</span></div>
+                      <div className="flex justify-between border-b pb-2">دسته بندی: <span className="text-orange-600">{String(service.category)}</span></div>
+                      <div className="flex justify-between border-b pb-2">سابقه فعالیت: <span className="text-gray-900">{String(service.experience)}</span></div>
+                    </div>
                 </div>
 
                 <div className="space-y-4">

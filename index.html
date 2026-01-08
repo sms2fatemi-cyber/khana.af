@@ -14,6 +14,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@100..900&display=swap" rel="stylesheet">
     
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- اضافه کردن کتابخانه تبدیل HEIC به صورت مستقیم برای اندروید -->
+    <script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -40,16 +42,18 @@
         touch-action: manipulation;
         user-select: none;
         -webkit-user-select: none;
+        -webkit-touch-callout: none;
         margin: 0;
         width: 100%;
         height: 100dvh;
       }
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      .safe-area-bottom { padding-bottom: calc(env(safe-area-inset-bottom) + 10px); }
-      @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-      .animate-slide-up { animation: slideUp 0.3s ease-out; }
       
+      button, a {
+        -webkit-tap-highlight-color: transparent;
+      }
+
       .leaflet-container {
         width: 100% !important;
         height: 100% !important;
@@ -59,7 +63,7 @@
       .leaflet-popup-content-wrapper { border-radius: 20px !important; padding: 0 !important; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important; }
       .leaflet-popup-content { margin: 0 !important; width: 180px !important; }
       .leaflet-popup-tip { display: none; }
-      * { -webkit-tap-highlight-color: transparent; outline: none !important; }
+      * { outline: none !important; }
     </style>
     <script type="importmap">
 {
