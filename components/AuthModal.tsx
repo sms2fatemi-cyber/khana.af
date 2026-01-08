@@ -34,10 +34,19 @@ const cleanPhoneNumber = (str: string): string => {
 const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved, onAdminClick, lang, hasUnreadChats, hasUnreadAdmin, onCheckNotifications }) => {
   const t = translations[lang];
   const hasSavedPhone = !!localStorage.getItem('user_phone');
-  const [view, setView] = useState<'checking' | 'login' | 'profile' | 'user_chats' | 'admin_notifications'>(hasSavedPhone ? 'checking' : 'login');
+  
+  // لود کردن پروفایل از کاشه در صورت وجود
+  const [profile, setProfile] = useState(() => {
+    const cached = localStorage.getItem('user_profile');
+    return cached ? JSON.parse(cached) : { fullName: '', avatarUrl: '' };
+  });
+
+  const [view, setView] = useState<'checking' | 'login' | 'profile' | 'user_chats' | 'admin_notifications'>(() => {
+    if (!hasSavedPhone) return 'login';
+    return 'profile'; // اگر شماره داشتیم، مستقیم به پروفایل برو (اطلاعات از استیت اولیه بالا میاد)
+  });
   
   const [isLoading, setIsLoading] = useState(false);
-  const [profile, setProfile] = useState({ fullName: '', avatarUrl: '' });
   const [userConversations, setUserConversations] = useState<any[]>([]);
   const [adminMessages, setAdminMessages] = useState<any[]>([]);
   const [activeChat, setActiveChat] = useState<any>(null);
@@ -47,35 +56,42 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
   const editNameInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [displayPhone, setDisplayPhone] = useState('');
+  const [displayPhone, setDisplayPhone] = useState(() => localStorage.getItem('user_phone') || '');
   const [isEditingName, setIsEditingName] = useState(false);
 
   useEffect(() => {
     const savedPhone = localStorage.getItem('user_phone');
     if (savedPhone) {
-      loadProfile(savedPhone);
+      loadProfileFromDB(savedPhone);
     }
   }, []);
 
-  const loadProfile = async (phone: string) => {
+  // بارگذاری و همگام‌سازی با دیتابیس در پس‌زمینه
+  const loadProfileFromDB = async (phone: string) => {
     const cleanPhone = cleanPhoneNumber(phone);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .eq('phone', cleanPhone)
         .maybeSingle();
 
       if (data) {
-        setProfile({ fullName: data.full_name || '', avatarUrl: data.avatar_url || '' });
+        const profileData = { 
+          fullName: data.full_name || '', 
+          avatarUrl: data.avatar_url || '' 
+        };
+        setProfile(profileData);
+        localStorage.setItem('user_profile', JSON.stringify(profileData));
         setDisplayPhone(cleanPhone);
-        setView('profile');
+      } else if (error) {
+        console.error("Profile sync error:", error);
       } else {
-        localStorage.removeItem('user_phone');
-        setView('login');
+        // اگر کاربر در دیتابیس نبود، لاگ‌اوت کن
+        handleLogout();
       }
     } catch (e) {
-      setView('login');
+      console.error("Fetch error:", e);
     }
   };
 
@@ -90,9 +106,13 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
 
     setIsLoading(true);
     try {
+      const profileData = { fullName: finalName, avatarUrl: '' };
       await supabase.from('profiles').upsert({ phone: cleanPhone, full_name: finalName, updated_at: new Date() }, { onConflict: 'phone' });
+      
       localStorage.setItem('user_phone', cleanPhone);
-      setProfile({ fullName: finalName, avatarUrl: '' });
+      localStorage.setItem('user_profile', JSON.stringify(profileData));
+      
+      setProfile(profileData);
       setDisplayPhone(cleanPhone);
       setView('profile');
       onCheckNotifications();
@@ -109,15 +129,19 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
     setIsLoading(true);
     try {
       await supabase.from('profiles').update({ full_name: newName.trim() }).eq('phone', displayPhone);
-      setProfile(prev => ({ ...prev, fullName: newName.trim() }));
+      const updatedProfile = { ...profile, fullName: newName.trim() };
+      setProfile(updatedProfile);
+      localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
       setIsEditingName(false);
     } catch (e) { alert("خطا در بروزرسانی نام"); } finally { setIsLoading(false); }
   };
 
   const handleLogout = () => {
     localStorage.removeItem('user_phone');
+    localStorage.removeItem('user_profile');
     setView('login');
     setDisplayPhone('');
+    setProfile({ fullName: '', avatarUrl: '' });
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,7 +151,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         const url = await uploadImage(e.target.files[0]);
         if (url) {
           await supabase.from('profiles').update({ avatar_url: url }).eq('phone', displayPhone);
-          setProfile(prev => ({ ...prev, avatarUrl: url }));
+          const updatedProfile = { ...profile, avatarUrl: url };
+          setProfile(updatedProfile);
+          localStorage.setItem('user_profile', JSON.stringify(updatedProfile));
         }
       } catch (err) { alert("خطا در آپلود عکس"); } finally { setIsLoading(false); }
     }
@@ -146,28 +172,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       for (const msg of (data || [])) {
         const other = msg.sender_phone === displayPhone ? msg.receiver_phone : msg.sender_phone;
         const key = `${other}_${msg.ad_id}`;
-        
         if (!map[key]) {
-          map[key] = { 
-            ...msg, 
-            otherPhone: other,
-            hasUnread: false 
-          };
+          map[key] = { ...msg, otherPhone: other, hasUnread: false };
         }
-        
-        // اگر این پیام خوانده نشده و گیرنده کاربر فعلی است
         if (!msg.is_read && msg.receiver_phone === displayPhone) {
           map[key].hasUnread = true;
         }
       }
-      
-      // دریافت نام‌ها برای هر گفتگو
       const conversations = Object.values(map);
       for (let conv of conversations) {
         const { data: p } = await supabase.from('profiles').select('full_name').eq('phone', conv.otherPhone).maybeSingle();
         conv.otherName = p?.full_name || conv.otherPhone;
       }
-      
       setUserConversations(conversations);
     } catch (e) {
       console.error("Fetch chats error:", e);
@@ -212,15 +228,6 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
         <div className="flex-1 overflow-y-auto no-scrollbar p-6">
           {children}
         </div>
-      </div>
-    </div>
-  );
-
-  if (view === 'checking') return (
-    <div className="fixed inset-0 z-[11000] bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl flex flex-col items-center">
-        <Loader2 className="animate-spin text-red-600 mb-4" size={40} />
-        <span className="font-black text-sm text-gray-400">درحال بارگذاری پروفایل...</span>
       </div>
     </div>
   );
@@ -287,8 +294,8 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onShowMyAds, onShowSaved
       </div>
       {activeChat && <ChatWindow receiverPhone={activeChat.phone} receiverName={activeChat.name} adId={activeChat.id} adTitle={activeChat.title} onClose={() => {
           setActiveChat(null);
-          fetchUserChats(); // بروزرسانی لیست چت‌ها برای حذف نقطه قرمز
-          onCheckNotifications(); // بروزرسانی نقطه قرمز اصلی اپلیکیشن
+          fetchUserChats();
+          onCheckNotifications();
       }} />}
     </ModalContainer>
   );
