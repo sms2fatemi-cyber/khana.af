@@ -8,7 +8,7 @@ import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClie
 
 interface AddServiceModalProps {
   onClose: () => void;
-  editData?: Service;
+  editData?: Service | null;
   t: any;
 }
 
@@ -87,6 +87,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isMapMoving, setIsMapMoving] = useState(false);
+  const [hasConfirmedLocation, setHasConfirmedLocation] = useState(!!editData?.location);
   const userPhone = localStorage.getItem('user_phone') || '';
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -138,16 +139,20 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
         description: descriptionRef.current?.value || '',
         location: location, 
         images: allImages, 
-        status: editData ? editData.status : 'PENDING',
+        status: 'PENDING', // همیشه بعد از ویرایش یا ثبت به حالت انتظار می‌رود
         owner_id: userPhone
       };
       
-      let result;
-      if (editData) result = await supabase.from(TABLES.SERVICES).update(payload).eq('id', editData.id);
-      else result = await supabase.from(TABLES.SERVICES).insert([payload]);
-      
-      if (result.error) throw result.error;
-      setIsSuccess(true);
+      if (editData) {
+        const { error } = await supabase.from(TABLES.SERVICES).update(payload).eq('id', editData.id);
+        if (error) throw error;
+        alert("تغییرات با موفقیت ذخیره شد و پس از تایید ادمین نمایش داده می‌شود.");
+        onClose();
+      } else {
+        const { error } = await supabase.from(TABLES.SERVICES).insert([payload]);
+        if (error) throw error;
+        setIsSuccess(true);
+      }
     } catch (err: any) { 
       alert("خطا در ثبت: " + (err.message || "لطفاً دوباره تلاش کنید.")); 
     } finally { 
@@ -189,7 +194,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
                 </div>
               </MapContainerAny>
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
-                <button onClick={() => setView('form')} disabled={isMapMoving} className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black shadow-xl">تایید موقعیت</button>
+                <button onClick={() => { setHasConfirmedLocation(true); setView('form'); }} disabled={isMapMoving} className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black shadow-xl">تایید موقعیت</button>
               </div>
             </div>
           </div>
@@ -240,8 +245,8 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
                 <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق محل خدمت" className="w-full bg-gray-50 border rounded-2xl px-11 py-4 font-bold outline-none" required />
               </div>
 
-              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${location.lat !== 34.5553 ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}>
-                {location.lat !== 34.5553 ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه (اختیاری)</span></>}
+              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}>
+                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه (اختیاری)</span></>}
               </button>
               
               <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder="توضیحات کامل خدمات..." className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
@@ -251,7 +256,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
 
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
           <button form="service-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-orange-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg">
-            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : 'ثبت آگهی'}
+            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? 'اعمال تغییرات' : 'ثبت آگهی')}
           </button>
           <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">انصراف</button>
         </div>

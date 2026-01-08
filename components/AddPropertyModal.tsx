@@ -8,7 +8,7 @@ import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClie
 
 interface AddPropertyModalProps {
   onClose: () => void;
-  editData?: Property;
+  editData?: Property | null;
   t: any;
 }
 
@@ -61,17 +61,26 @@ const UserLocationHandler = () => {
       return;
     }
     setIsLocating(true);
+    
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0
+    };
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         map.flyTo([lat, lng], 17, { animate: true });
         setIsLocating(false);
       },
-      () => {
+      (err) => {
         setIsLocating(false);
-        alert("یافتن مکان ناموفق بود.");
+        if (err.code === 1) alert("دسترسی رد شد. تنظیمات مکان گوشی را چک کنید.");
+        else if (err.code === 2) alert("GPS یافت نشد.");
+        else alert("خطا در مکان‌یابی.");
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      options
     );
   }, [map]);
 
@@ -94,7 +103,6 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
   const [hasConfirmedLocation, setHasConfirmedLocation] = useState(!!editData?.location);
   const userPhone = localStorage.getItem('user_phone') || '';
 
-  // استفاده از Refs برای فیلدهایی که در اندروید مشکل بافر دارند
   const titleRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
   const depositRef = useRef<HTMLInputElement>(null);
@@ -104,7 +112,6 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
   const addressRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
-  // وضعیت برای فیلدهایی که نیاز به تغییر ویویی آنی دارند (مثل انتخاب نوع معامله)
   const [dealType, setDealType] = useState(editData?.dealType || DealType.SALE);
   const [propertyType, setPropertyType] = useState(editData?.type || PropertyType.APARTMENT);
   const [city, setCity] = useState(editData?.city || t.provinces[1]);
@@ -126,7 +133,9 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
 
   const removeImage = (idx: number) => {
     const existingCount = editData?.images?.length || 0;
-    if (idx >= existingCount) setSelectedFiles(prev => prev.filter((_, i) => i !== (idx - existingCount)));
+    if (idx >= existingCount) {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== (idx - existingCount)));
+    }
     setPreviews(prev => prev.filter((_, i) => i !== idx));
   };
 
@@ -137,7 +146,6 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
       const urls = await uploadMultipleImages(selectedFiles);
       const allImages = [...previews.filter(p => p.startsWith('http')), ...urls];
       
-      // خواندن مقادیر مستقیم از Ref در لحظه ارسال
       const fTitle = titleRef.current?.value || '';
       const fPrice = priceRef.current?.value || '0';
       const fDeposit = depositRef.current?.value || '0';
@@ -165,11 +173,17 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
         location: location, 
         images: allImages,
         owner_id: userPhone, 
-        status: 'PENDING'
+        status: 'PENDING' // ویرایش هم نیاز به تایید مجدد دارد
       };
 
-      const { error } = await supabase.from(TABLES.PROPERTIES).insert([payload]);
-      if (error) throw error;
+      if (editData) {
+        const { error } = await supabase.from(TABLES.PROPERTIES).update(payload).eq('id', editData.id);
+        if (error) throw error;
+        alert("تغییرات ثبت شد و پس از تایید ادمین نمایش داده می‌شود.");
+      } else {
+        const { error } = await supabase.from(TABLES.PROPERTIES).insert([payload]);
+        if (error) throw error;
+      }
       onClose();
     } catch (err: any) { 
       alert("خطا در ثبت: " + err.message); 
@@ -213,7 +227,7 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
           </div>
         )}
         <div className="p-5 border-b flex justify-between items-center bg-white shrink-0">
-          <h2 className="font-black text-xl text-gray-800">ثبت ملک</h2>
+          <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش ملک' : 'ثبت ملک'}</h2>
           <button onClick={onClose} className="p-2"><X size={32} /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 no-scrollbar pb-32">
@@ -317,7 +331,7 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
         </div>
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
           <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg shadow-lg">
-            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : t.submit}
+            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? 'اعمال تغییرات' : t.submit)}
           </button>
           <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">انصراف</button>
         </div>

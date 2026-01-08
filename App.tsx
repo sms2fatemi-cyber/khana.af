@@ -58,6 +58,7 @@ function App() {
   const [displaySearch, setDisplaySearch] = useState('');
   const [selectedProvince, setSelectedProvince] = useState(t.provinces[0]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [activeDealFilter, setActiveDealFilter] = useState<'ALL' | DealType>('ALL');
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
@@ -81,7 +82,6 @@ function App() {
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [isAdminMode, setIsAdminMode] = useState(false);
 
-  // مدیریت دکمه بازگشت سخت‌افزاری اندروید
   useEffect(() => {
     const handleBackButton = () => {
       if (isDetailOpen) {
@@ -90,6 +90,7 @@ function App() {
         window.history.pushState(null, '', window.location.pathname);
       } else if (showAddModal) {
         setShowAddModal(false);
+        setEditingItem(null);
         window.history.pushState(null, '', window.location.pathname);
       } else if (showAuthModal) {
         setShowAuthModal(false);
@@ -125,20 +126,6 @@ function App() {
     images: Array.isArray(item.images) ? item.images : []
   });
 
-  // لودینگ سریع از کش (بسیار مهم برای تجربه کاربری اندروید)
-  useEffect(() => {
-    const cached = localStorage.getItem(`cache_${appMode}`);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        if (parsed.length > 0) {
-          setItems(parsed);
-          setIsLoading(false);
-        }
-      } catch (e) {}
-    }
-  }, [appMode]);
-
   const checkUnreadNotifications = useCallback(async () => {
     const userPhone = localStorage.getItem('user_phone');
     if (!userPhone || !isSupabaseReady()) return;
@@ -167,18 +154,22 @@ function App() {
     if (!isSupabaseReady()) return;
     
     if (isLoadMore) setIsLoadingMore(true);
-    else if (items.length === 0) setIsLoading(true); // فقط اگر کش خالی بود لودینگ نشان بده
+    else if (items.length === 0) setIsLoading(true);
 
     const from = isLoadMore ? items.length : 0;
     const to = from + (bounds ? 100 : PAGE_SIZE) - 1;
     const userPhone = localStorage.getItem('user_phone');
 
+    // محاسبه تاریخ ۱۰۰ روز پیش
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() - 100);
+
     try {
       if (filterCategory === 'MY_ADS' || filterCategory === 'SAVED') {
         const [propRes, jobRes, servRes] = await Promise.all([
-          supabase.from(TABLES.PROPERTIES).select('*'),
-          supabase.from(TABLES.JOBS).select('*'),
-          supabase.from(TABLES.SERVICES).select('*')
+          supabase.from(TABLES.PROPERTIES).select('*').gt('created_at', expiryDate.toISOString()),
+          supabase.from(TABLES.JOBS).select('*').gt('created_at', expiryDate.toISOString()),
+          supabase.from(TABLES.SERVICES).select('*').gt('created_at', expiryDate.toISOString())
         ]);
 
         let allCombined: any[] = [
@@ -200,6 +191,9 @@ function App() {
         const table = appMode === 'ESTATE' ? TABLES.PROPERTIES : appMode === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
         
         let query = supabase.from(table).select('*', { count: 'exact' });
+        
+        // فیلتر ۱۰۰ روزه برای نمایش عمومی
+        query = query.gt('created_at', expiryDate.toISOString());
         
         if (userPhone) {
           query = query.or(`status.eq.APPROVED,and(status.eq.PENDING,owner_id.eq.${userPhone})`);
@@ -253,6 +247,24 @@ function App() {
     fetchAds(false);
   }, [appMode, selectedProvince, searchTerm, activeDealFilter, filterCategory, savedIds]);
 
+  const handleDeleteItem = async (item: any) => {
+    if (!window.confirm("آیا از حذف این آگهی اطمینان دارید؟")) return;
+    const table = item.itemType === 'ESTATE' ? TABLES.PROPERTIES : item.itemType === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
+    try {
+      const { error } = await supabase.from(table).delete().eq('id', item.id);
+      if (error) throw error;
+      alert("آگهی با موفقیت حذف شد.");
+      fetchAds(false);
+    } catch (e: any) {
+      alert("خطا در حذف آگهی: " + e.message);
+    }
+  };
+
+  const handleEditItem = (item: any) => {
+    setEditingItem(item);
+    setShowAddModal(true);
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
     if (scrollRef.current && scrollRef.current.scrollTop === 0) {
       startTouchY.current = e.touches[0].clientY;
@@ -288,7 +300,7 @@ function App() {
   useEffect(() => { 
     checkUnreadNotifications();
     if (!isSupabaseReady()) return;
-    const channel = supabase.channel('app_realtime_v10')
+    const channel = supabase.channel('app_realtime_v11_sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, () => fetchAds(false))
       .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SERVICES }, () => fetchAds(false))
@@ -395,10 +407,10 @@ function App() {
                         </div>
                       )}
                       {type === 'ESTATE' ? 
-                        <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} /> :
+                        <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} onEdit={isOwner ? () => handleEditItem(item) : undefined} onDelete={isOwner ? () => handleDeleteItem(item) : undefined} /> :
                        type === 'JOBS' ? 
-                        <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} /> :
-                        <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} />
+                        <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} onEdit={isOwner ? () => handleEditItem(item) : undefined} onDelete={isOwner ? () => handleDeleteItem(item) : undefined} /> :
+                        <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} onEdit={isOwner ? () => handleEditItem(item) : undefined} onDelete={isOwner ? () => handleDeleteItem(item) : undefined} />
                       }
                     </div>
                   );
@@ -455,9 +467,9 @@ function App() {
 
       {showAddModal && (
         <div className="z-[6000] fixed inset-0">
-          {appMode === 'ESTATE' && <AddPropertyModal editData={null as any} onClose={() => { setShowAddModal(false); fetchAds(false); }} t={t} />}
-          {appMode === 'JOBS' && <AddJobModal editData={null as any} onClose={() => { setShowAddModal(false); fetchAds(false); }} t={t} />}
-          {appMode === 'SERVICES' && <AddServiceModal editData={null as any} onClose={() => { setShowAddModal(false); fetchAds(false); }} t={t} />}
+          {(appMode === 'ESTATE' || editingItem?.itemType === 'ESTATE') && <AddPropertyModal editData={editingItem} onClose={() => { setShowAddModal(false); setEditingItem(null); fetchAds(false); }} t={t} />}
+          {(appMode === 'JOBS' || editingItem?.itemType === 'JOBS') && <AddJobModal editData={editingItem} onClose={() => { setShowAddModal(false); setEditingItem(null); fetchAds(false); }} t={t} />}
+          {(appMode === 'SERVICES' || editingItem?.itemType === 'SERVICES') && <AddServiceModal editData={editingItem} onClose={() => { setShowAddModal(false); setEditingItem(null); fetchAds(false); }} t={t} />}
         </div>
       )}
 
