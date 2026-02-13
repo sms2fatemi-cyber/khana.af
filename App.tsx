@@ -141,15 +141,12 @@ function App() {
     fetchUnreadCounts();
     if (!userPhone) return;
 
-    // اشتراک سراسری در جدول چت برای هر نوع تغییری (Insert یا Update)
-    // حذف فیلترهای سخت‌گیرانه برای اطمینان از دریافت رویداد
     const channel = supabase.channel('global_unread_sync')
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: TABLES.USER_CHATS
       }, (payload: any) => { 
-        // فقط اگر پیام مربوط به کاربر فعلی است، شمارشگر را آپدیت کن
         if (payload.new.receiver_phone === userPhone || payload.old?.receiver_phone === userPhone) {
           fetchUnreadCounts(); 
         }
@@ -504,9 +501,10 @@ function App() {
       )}
       {showAddCategoryPicker && (
         <div className="fixed inset-0 bg-black/60 z-[10000] flex items-center justify-center p-4" onClick={() => setShowAddCategoryPicker(false)}>
-           <div className="bg-white w-full max-sm:max-w-xs rounded-3xl p-6" onClick={e => e.stopPropagation()}>
-              <h2 className="text-center font-black mb-6">ثبت آگهی</h2>
-              <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto no-scrollbar">
+           <div className="bg-white w-full max-sm:max-w-xs rounded-[2.5rem] p-8" onClick={e => e.stopPropagation()}>
+              <h2 className="text-center font-black mb-2 text-xl">ثبت آگهی جدید</h2>
+              <p className="text-center text-[11px] font-bold text-gray-400 mb-8">دسته‌بندی مورد نظر را برای انتشار آگهی انتخاب کنید</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-[65vh] overflow-y-auto no-scrollbar p-1">
                  {[
                    { id: 'ESTATE', label: t.estate, icon: Home },
                    { id: 'VEHICLES', label: t.vehicles, icon: Car },
@@ -518,7 +516,16 @@ function App() {
                    { id: 'INDUSTRIAL', label: t.industrial, icon: HardHat },
                    { id: 'OTHERS', label: t.others, icon: Package }
                  ].map(cat => (
-                   <button key={cat.id} onClick={() => { setTargetAddMode(cat.id as any); setShowAddForm(true); setShowAddCategoryPicker(false); }} className="flex flex-col items-center gap-2 p-4 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all"><cat.icon size={24} className="text-red-600" /><span className="text-xs font-black">{cat.label}</span></button>
+                   <button 
+                     key={cat.id} 
+                     onClick={() => { setTargetAddMode(cat.id as any); setShowAddForm(true); setShowAddCategoryPicker(false); }} 
+                     className="flex flex-col items-center gap-3 p-5 bg-gray-50 rounded-[2rem] hover:bg-red-50 hover:text-red-600 transition-all border border-gray-100 group active:scale-95"
+                   >
+                      <div className="p-3 bg-white rounded-2xl shadow-sm group-hover:bg-red-600 group-hover:text-white transition-all">
+                        <cat.icon size={24} />
+                      </div>
+                      <span className="text-[11px] font-black">{cat.label}</span>
+                   </button>
                  ))}
               </div>
            </div>
