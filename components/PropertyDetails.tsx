@@ -1,9 +1,10 @@
 
-import React, { useState, useCallback, useRef } from 'react';
-import { Property, DealType } from '../types';
-import { Bookmark, ChevronRight, Phone, MapPinned, X, ChevronLeft, Send, Clock, MapPin, Box, Car, Loader2, Info } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { Property } from '../types';
+import { Bookmark, ChevronRight, ChevronLeft, Phone, Clock, MapPinned, Edit3, Trash2, MessageCircle, UserPlus, User, RefreshCcw, Loader2 } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 import { supabase, TABLES } from '../services/supabaseClient';
+import ChatWindow from './ChatWindow';
 
 interface PropertyDetailsProps {
   property: Property;
@@ -12,210 +13,215 @@ interface PropertyDetailsProps {
   isSaved: boolean;
   onToggleSave: () => void;
   t: any;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onShowOtherAds?: () => void;
 }
 
-const ContactActions: React.FC<{
-  chatMsg: string;
-  setChatMsg: (s: string) => void;
-  handleQuickChatSend: () => void;
-  isSending: boolean;
-  showContact: boolean;
-  setShowContact: (b: boolean) => void;
-  phoneNumber: string;
-  t: any;
-}> = ({ chatMsg, setChatMsg, handleQuickChatSend, isSending, showContact, setShowContact, phoneNumber, t }) => (
-  <div className="space-y-4 bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
-    <h3 className="text-sm font-black text-gray-700 mb-2">ارتباط مستقیم با مالک</h3>
-    <div className="flex gap-2">
-       <input 
-          type="text" 
-          placeholder="پیام به مالک..." 
-          className="flex-1 bg-white rounded-2xl px-5 py-4 font-bold text-sm outline-none border-2 border-transparent focus:border-red-100 transition-all shadow-sm"
-          value={chatMsg}
-          onChange={e => setChatMsg(e.target.value)}
-       />
-       <button 
-          onClick={handleQuickChatSend}
-          disabled={isSending || !chatMsg.trim()}
-          className="w-14 h-14 bg-red-600 text-white rounded-2xl flex items-center justify-center shadow-lg active:scale-90 transition-all disabled:opacity-50 shrink-0"
-       >
-          {isSending ? <Loader2 className="animate-spin" /> : <Send size={24} className="rotate-180" />}
-       </button>
+const ProfileHeader: React.FC<{ name: string; phone: string; onShowOtherAds?: () => void }> = ({ name, phone, onShowOtherAds }) => (
+  <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
+    <div className="flex items-center gap-4">
+      <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center border-2 border-white shadow-md">
+        <User size={32} />
+      </div>
+      <div className="flex-1">
+        <h4 className="font-black text-gray-900 text-lg">{name || phone}</h4>
+        <p className="text-[10px] text-gray-400 font-bold">آگهی‌دهنده تایید شده</p>
+      </div>
     </div>
-    <div className="flex gap-3">
-      {!showContact ? (
-        <button onClick={() => setShowContact(true)} className="flex-1 bg-[#a62626] text-white h-14 rounded-2xl font-black text-sm flex items-center justify-center gap-3 active:scale-95 shadow-md">
-            {String(t.contact_info)}
-        </button>
-      ) : (
-        <a href={`tel:${phoneNumber}`} className="flex-1 bg-green-600 text-white h-14 rounded-2xl font-black text-xl flex items-center justify-center gap-4 animate-in zoom-in tracking-widest shadow-md">
-            <Phone size={24} /> <span dir="ltr">{String(phoneNumber)}</span>
-        </a>
-      )}
+    <button onClick={onShowOtherAds} className="w-full bg-gray-50 border border-gray-100 text-gray-600 py-3.5 rounded-2xl font-black text-xs flex items-center justify-center gap-2 hover:bg-white transition-all shadow-inner">
+      <UserPlus size={18} className="text-red-600" /> مشاهده تمام آگهی‌های {name || 'این کاربر'}
+    </button>
+  </div>
+);
+
+const OwnerPanel: React.FC<{
+  onEdit: () => void;
+  onDelete: () => void;
+  onNardeban: () => void;
+  isNardebaning: boolean;
+}> = ({ onEdit, onDelete, onNardeban, isNardebaning }) => (
+  <div className="bg-zinc-900 p-6 rounded-[2.5rem] text-white space-y-4 shadow-2xl">
+    <div className="flex items-center gap-3 mb-2">
+      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+      <span className="text-[10px] font-black uppercase tracking-widest">پنل مدیریت آگهی شما</span>
+    </div>
+    <div className="grid grid-cols-3 gap-3">
+      <button onClick={onEdit} className="flex flex-col items-center gap-2 p-4 bg-white/10 rounded-2xl hover:bg-white/20 transition-all">
+        <Edit3 size={20} />
+        <span className="text-[10px] font-black">ویرایش</span>
+      </button>
+      <button onClick={onNardeban} disabled={isNardebaning} className="flex flex-col items-center gap-2 p-4 bg-red-600/20 text-red-500 rounded-2xl hover:bg-red-600/30 transition-all border border-red-600/20">
+        {isNardebaning ? <Loader2 size={20} className="animate-spin" /> : <RefreshCcw size={20} />}
+        <span className="text-[10px] font-black">نردبان</span>
+      </button>
+      <button onClick={onDelete} className="flex flex-col items-center gap-2 p-4 bg-red-600 rounded-2xl hover:bg-red-700 transition-all shadow-lg shadow-red-900/20">
+        <Trash2 size={20} />
+        <span className="text-[10px] font-black">حذف آگهی</span>
+      </button>
     </div>
   </div>
 );
 
-const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, onShowOnMap, isSaved, onToggleSave, t }) => {
+const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, onShowOnMap, isSaved, onToggleSave, t, onEdit, onDelete, onShowOtherAds }) => {
   const [showContact, setShowContact] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isNardebaning, setIsNardebaning] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [chatMsg, setChatMsg] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const isOwner = property.ownerId === localStorage.getItem('user_phone');
-  const isPending = property.status === 'PENDING';
-  
+  const [ownerName, setOwnerName] = useState<string>('');
   const touchStartX = useRef<number | null>(null);
+  
+  const userPhone = localStorage.getItem('user_phone');
+  const ownerId = property.owner_id || property.ownerId || (property as any).phone_number;
+  const isOwner = ownerId === userPhone;
   const allImages = property?.images?.filter(img => img) || [];
 
   const nextImage = useCallback(() => {
-    if (allImages.length > 1) setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
+    if (allImages.length > 1) {
+      setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
+    }
   }, [allImages.length]);
 
   const prevImage = useCallback(() => {
-    if (allImages.length > 1) setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1));
+    if (allImages.length > 1) {
+      setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1));
+    }
   }, [allImages.length]);
 
-  const handleQuickChatSend = async () => {
-    const userPhone = localStorage.getItem('user_phone');
-    if (!userPhone) return alert("لطفاً ابتدا وارد حساب خود شوید.");
-    if (userPhone === property.phoneNumber) return alert("شما نمی‌توانید با خودتان چت کنید!");
-    if (!chatMsg.trim() || isSending) return;
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') prevImage();
+      else if (e.key === 'ArrowLeft') nextImage();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [nextImage, prevImage]);
 
-    setIsSending(true);
+  useEffect(() => {
+    const fetchOwner = async () => {
+      const { data } = await supabase.from('profiles').select('full_name').eq('phone', ownerId).maybeSingle();
+      if (data?.full_name) setOwnerName(data.full_name);
+    };
+    if (ownerId) fetchOwner();
+  }, [ownerId]);
+
+  const handleNardeban = async () => {
+    const lastUpdate = new Date(property.created_at || property.date);
+    const now = new Date();
+    const diffDays = (now.getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24);
+    if (diffDays < 3) return alert("شما هر ۳ روز یکبار می‌توانید نردبان کنید.");
+
+    setIsNardebaning(true);
     try {
-      const { error } = await supabase.from(TABLES.USER_CHATS).insert([{
-        sender_phone: userPhone,
-        receiver_phone: property.phoneNumber,
-        ad_id: property.id,
-        ad_title: property.title,
-        text: chatMsg.trim(),
-        is_read: false
-      }]);
+      const { error } = await supabase.from(TABLES.PROPERTIES).update({ created_at: new Date(), is_boosted: true }).eq('id', property.id);
       if (error) throw error;
-      setChatMsg('');
-      alert("پیام شما ارسال شد.");
-    } catch (e: any) {
-      alert("خطا در ارسال: " + e.message);
-    } finally {
-      setIsSending(false);
-    }
+      alert("آگهی نردبان شد!");
+      window.location.reload();
+    } catch (e) { alert("خطا در نردبان"); } finally { setIsNardebaning(false); }
   };
 
-  if (!property) return null;
+  const handleChatOpen = () => {
+    if (!userPhone) return alert("لطفاً ابتدا وارد حساب خود شوید.");
+    if (isOwner) return alert("این آگهی متعلق به خودتان است!");
+    setIsChatOpen(true);
+  };
 
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
       <div className="absolute top-0 left-0 right-0 h-14 z-[5002] flex items-center justify-between px-4 pt-2 pointer-events-none">
-        <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto text-gray-700 active:scale-90"><ChevronRight size={24} /></button>
-        <button onClick={onToggleSave} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto text-gray-700">
-             <Bookmark size={20} className={isSaved ? "fill-[#a62626] text-[#a62626]" : ""} />
+        <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90"><ChevronRight size={24} /></button>
+        <button onClick={onToggleSave} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto">
+          <Bookmark size={20} className={isSaved ? "fill-[#a62626] text-[#a62626]" : "text-gray-700"} />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto md:overflow-hidden md:flex md:flex-row bg-gray-50 h-full no-scrollbar">
-        <div className="w-full md:w-[60%] md:h-full flex flex-col shrink-0 md:border-l bg-white md:overflow-y-auto no-scrollbar">
-            <div className="w-full h-[45vh] md:h-[75vh] bg-zinc-900 relative shrink-0 flex items-center justify-center overflow-hidden" onTouchStart={(e) => touchStartX.current = e.touches[0].clientX} onTouchEnd={(e) => {
-               if (touchStartX.current === null) return;
-               const diff = touchStartX.current - e.changedTouches[0].clientX;
-               if (Math.abs(diff) > 50) diff > 0 ? nextImage() : prevImage();
-               touchStartX.current = null;
-            }}>
+      <div className="flex-1 overflow-y-auto md:flex md:flex-row bg-gray-50 no-scrollbar">
+        <div className="w-full md:w-[60%] flex flex-col shrink-0 bg-white">
+            <div className="w-full h-[50vh] md:h-full bg-zinc-900 relative flex items-center justify-center overflow-hidden group"
+                 onTouchStart={(e) => touchStartX.current = e.touches[0].clientX}
+                 onTouchEnd={(e) => {
+                   if (touchStartX.current === null) return;
+                   const diff = touchStartX.current - e.changedTouches[0].clientX;
+                   if (Math.abs(diff) > 40) diff > 0 ? nextImage() : prevImage();
+                   touchStartX.current = null;
+                 }}>
                 {allImages.length > 0 ? (
-                <>
-                    <img key={activeImageIndex} src={String(allImages[activeImageIndex])} className="w-full h-full object-contain animate-in fade-in duration-500" alt={String(property.title)} />
+                  <>
+                    <img key={activeImageIndex} src={allImages[activeImageIndex]} className="w-full h-full object-contain animate-in fade-in duration-300" alt=""/>
+                    
                     {allImages.length > 1 && (
-                      <div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
-                        <button onClick={prevImage} className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white pointer-events-auto transition-all"><ChevronLeft size={32} /></button>
-                        <button onClick={nextImage} className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white pointer-events-auto transition-all"><ChevronRight size={32} /></button>
-                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest">
-                          {activeImageIndex + 1} از {allImages.length}
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex items-center justify-center z-10">
+                          <ChevronRight size={32} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex items-center justify-center z-10">
+                          <ChevronLeft size={32} />
+                        </button>
+
+                        <div className="absolute inset-x-0 bottom-6 flex gap-1.5 justify-center pointer-events-none">
+                          <div className="flex gap-1.5 bg-black/30 px-3 py-2 rounded-full backdrop-blur-sm">
+                            {allImages.map((_, i) => (
+                              <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeImageIndex ? 'bg-white scale-125' : 'bg-white/40'}`} />
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      </>
                     )}
-                </>
-                ) : <div className="text-gray-500 font-black uppercase tracking-widest">تصویری ندارد</div>}
-                <button onClick={onClose} className="hidden md:flex absolute top-6 left-6 bg-white/10 text-white p-2 rounded-full backdrop-blur-md z-50 hover:bg-red-600 transition-colors"><X size={24} /></button>
-            </div>
-            <div className="hidden md:block p-8 border-t bg-white">
-               <ContactActions chatMsg={chatMsg} setChatMsg={setChatMsg} handleQuickChatSend={handleQuickChatSend} isSending={isSending} showContact={showContact} setShowContact={setShowContact} phoneNumber={property.phoneNumber} t={t} />
+                  </>
+                ) : <div className="text-gray-500 font-black">بدون تصویر</div>}
             </div>
         </div>
-
-        <div className="flex-1 md:h-full md:overflow-y-auto no-scrollbar bg-white p-6 md:p-10 space-y-8 pb-32">
-            {isOwner && isPending && (
-              <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex items-center gap-3 animate-pulse">
-                <Info className="text-red-600" size={20} />
-                <p className="text-[10px] font-black text-red-600">این آگهی در انتظار تایید ادمین است و فعلاً فقط برای شما نمایش داده می‌شود.</p>
-              </div>
-            )}
-            <div className="space-y-2 pt-2 text-right">
-              <h1 className="text-2xl font-black text-gray-900 leading-tight">{String(property.title)}</h1>
-              <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] uppercase tracking-wider justify-end">
-                <Clock size={12} /> {getRelativeTime(property.date, 'dari')} در {String(property.city)}
-              </div>
+        <div className="flex-1 p-6 md:p-10 space-y-8 pb-32 text-right bg-white">
+            <div className="space-y-2">
+              <h1 className="text-2xl font-black text-gray-900 leading-tight">{property.title}</h1>
+              <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] justify-end"><Clock size={12} /> {getRelativeTime(property.created_at || property.date)} در {property.city}</div>
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y">
+               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">مساحت</span><span className="font-black">{(property as any).area} متر</span></div>
+               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">خواب</span><span className="font-black">{(property as any).bedrooms}</span></div>
+               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">پارکینگ</span><span className="font-black">{(property as any).has_parking ? 'دارد' : 'ندارد'}</span></div>
+               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">انباری</span><span className="font-black">{(property as any).has_storage ? 'دارد' : 'ندارد'}</span></div>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 py-6 border-y border-gray-100 text-center">
-                <div className="bg-red-50 p-3 rounded-2xl border border-red-100/50">
-                  <span className="block text-gray-400 text-[8px] font-black mb-1 uppercase tracking-widest">{String(t.city)}</span>
-                  <span className="font-black text-xs text-[#a62626] flex items-center justify-center gap-1"><MapPin size={12} /> {String(property.city)}</span>
+            <div className="bg-red-50/50 p-6 rounded-[2rem] border border-red-100 flex justify-between items-center shadow-inner">
+                <div className="text-right">
+                    <span className="text-gray-400 text-[10px] font-black block mb-1 uppercase tracking-widest">مبلغ معامله</span>
+                    <span className="text-2xl font-black text-[#a62626]">{property.price?.toLocaleString() || 'تماس بگیرید'} <small className="text-sm">AFN</small></span>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase tracking-widest">{String(t.area)}</span><span className="font-black text-xs">{String(property.area)} متر</span></div>
-                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase tracking-widest">{String(t.bedrooms)}</span><span className="font-black text-xs">{String(property.bedrooms)} خواب</span></div>
-                <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100/50"><span className="block text-gray-400 text-[8px] font-black mb-1 uppercase tracking-widest">{String(t.type)}</span><span className="font-black text-xs">{String(property.type)}</span></div>
+                {property.location && (
+                  <button onClick={onShowOnMap} className="w-14 h-14 bg-white text-[#a62626] rounded-2xl shadow-md border border-red-100 flex items-center justify-center active:scale-90 transition-transform"><MapPinned size={28} /></button>
+                )}
             </div>
 
-            <div className="flex gap-4">
-              <div className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-xs border ${property.hasParking ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-gray-50 text-gray-400 border-gray-100 opacity-50'}`}><Car size={18} /> پارکینگ</div>
-              <div className={`flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-xs border ${property.hasStorage ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-gray-50 text-gray-400 border-gray-100 opacity-50'}`}><Box size={18} /> انباری</div>
+            <div className="space-y-4">
+                <h3 className="text-lg font-black text-gray-900 border-r-4 border-red-600 pr-3">توضیحات آگهی</h3>
+                <p className="font-bold text-gray-600 leading-8 whitespace-pre-wrap">{property.description}</p>
             </div>
 
-            <div className="bg-red-50/50 p-6 rounded-[2.2rem] border border-red-100 shadow-inner">
-                <div className="flex justify-between items-center">
-                    <div className="text-right">
-                        {property.dealType === DealType.SALE ? (
-                          <><span className="text-gray-400 text-[10px] font-black block mb-1 uppercase tracking-widest">قیمت کل</span>
-                          <span className="text-2xl font-black text-[#a62626]">{Number(property.price)?.toLocaleString()} <small className="text-sm">افغانی</small></span></>
-                        ) : property.dealType === DealType.RENT ? (
-                          <div className="space-y-2">
-                            <div><span className="text-gray-400 text-[8px] font-black block">کرایه ماهانه:</span><span className="text-xl font-black text-[#a62626]">{Number(property.price)?.toLocaleString()} افغانی</span></div>
-                            <div><span className="text-gray-400 text-[8px] font-black block">پول ضمانت:</span><span className="text-xl font-black text-blue-700">{Number(property.deposit)?.toLocaleString()} افغانی</span></div>
-                          </div>
-                        ) : (
-                          <><span className="text-gray-400 text-[10px] font-black block mb-1 uppercase tracking-widest">مبلغ گروی</span>
-                          <span className="text-2xl font-black text-orange-600">{Number(property.mortgageAmount)?.toLocaleString()} <small className="text-sm">افغانی</small></span></>
-                        )}
-                    </div>
-                    <button onClick={onShowOnMap} className="w-14 h-14 bg-white text-[#a62626] rounded-2xl shadow-md border border-red-100 flex items-center justify-center active:scale-90 transition-transform"><MapPinned size={28} /></button>
-                </div>
-            </div>
-
-            <div className="space-y-8 text-right">
-                <div className="bg-white p-6 rounded-[2.5rem] border-2 border-dashed border-gray-100 shadow-sm">
-                    <h3 className="text-[10px] font-black text-gray-400 mb-3 flex items-center gap-2 uppercase tracking-widest justify-end"><MapPin size={18} className="text-red-600" /> آدرس دقیق:</h3>
-                    <p className="text-base font-black text-gray-800 leading-8">{String(property.address) || 'آدرسی ثبت نشده است'}</p>
-                </div>
-                
-                <div className="bg-white p-6 rounded-[2rem] border border-gray-100">
-                    <h3 className="text-lg font-black text-gray-900 border-r-4 border-red-600 pr-3 mb-4">جزئیات آگهی</h3>
-                    <div className="grid grid-cols-1 gap-4 text-sm font-bold text-gray-700">
-                      <div className="flex justify-between border-b pb-2">متراژ: <span className="text-gray-900">{String(property.area)} متر</span></div>
-                      <div className="flex justify-between border-b pb-2">تعداد اتاق: <span className="text-gray-900">{String(property.bedrooms)} خواب</span></div>
-                      <div className="flex justify-between border-b pb-2">نوع معامله: <span className="text-[#a62626]">{String(property.dealType)}</span></div>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    <h3 className="text-lg font-black text-gray-900 border-r-4 border-red-600 pr-3">توضیحات تکمیلی</h3>
-                    <p className="text-gray-600 leading-8 text-sm text-justify font-bold whitespace-pre-wrap">{String(property.description)}</p>
-                </div>
-
-                <div className="md:hidden pt-10 border-t">
-                   <ContactActions chatMsg={chatMsg} setChatMsg={setChatMsg} handleQuickChatSend={handleQuickChatSend} isSending={isSending} showContact={showContact} setShowContact={setShowContact} phoneNumber={property.phoneNumber} t={t} />
-                </div>
+            <div className="pt-10 border-t space-y-6">
+               <ProfileHeader name={ownerName} phone={ownerId} onShowOtherAds={onShowOtherAds} />
+               
+               {isOwner ? (
+                 <OwnerPanel onEdit={onEdit!} onDelete={onDelete!} onNardeban={handleNardeban} isNardebaning={isNardebaning} />
+               ) : (
+                 <div className="flex gap-3">
+                    <button onClick={handleChatOpen} className="flex-1 bg-white border border-gray-200 text-gray-700 h-14 rounded-2xl font-black text-sm flex items-center justify-center gap-3 active:scale-95 shadow-sm">
+                       <MessageCircle size={22} className="text-red-600" /> {String(t.chat)}
+                    </button>
+                    {!showContact ? (
+                      <button onClick={() => setShowContact(true)} className="flex-[2] bg-[#a62626] text-white h-14 rounded-2xl font-black text-sm active:scale-95 shadow-md">نمایش شماره تماس</button>
+                    ) : (
+                      <a href={`tel:${ownerId}`} className="flex-[2] bg-green-600 text-white h-14 rounded-2xl font-black text-xl flex items-center justify-center gap-4 animate-in zoom-in shadow-md">
+                        <Phone size={24} /> <span dir="ltr">{ownerId}</span>
+                      </a>
+                    )}
+                 </div>
+               )}
             </div>
         </div>
       </div>
+      {isChatOpen && <ChatWindow receiverPhone={ownerId} adId={property.id} adTitle={property.title} onClose={() => setIsChatOpen(false)} />}
     </div>
   );
 };

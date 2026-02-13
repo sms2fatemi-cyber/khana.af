@@ -1,6 +1,12 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, Briefcase, Building2, Wrench, Plus, List, Map as MapIcon, Loader2, Languages, Search, RefreshCcw, Sparkles, ChevronDown, Clock } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { 
+  Search, User, 
+  Home, PlusSquare, Menu,
+  List as ListIcon, Map as MapIcon, Globe, MessageCircle,
+  Briefcase, Wrench, Package, Car, Smartphone, Sofa, Heart,
+  HardHat, ShoppingBag, Filter, X as CloseIcon
+} from 'lucide-react';
 import MapView from './components/MapView';
 import PropertyCard from './components/PropertyCard';
 import PropertyDetails from './components/PropertyDetails';
@@ -8,473 +14,520 @@ import JobCard from './components/JobCard';
 import JobDetails from './components/JobDetails';
 import ServiceCard from './components/ServiceCard';
 import ServiceDetails from './components/ServiceDetails';
+import GeneralAdCard from './components/GeneralAdCard';
+import GeneralAdDetails from './components/GeneralAdDetails';
 import AddPropertyModal from './components/AddPropertyModal';
 import AddJobModal from './components/AddJobModal';
 import AddServiceModal from './components/AddServiceModal';
+import AddGeneralAdModal from './components/AddGeneralAdModal';
 import AuthModal from './components/AuthModal';
-import AdminPanel from './components/AdminPanel';
 import AdminLogin from './components/AdminLogin';
-import { Property, Job, Service, AppMode, Language, DealType, Location } from './types';
+import AdminPanel from './components/AdminPanel';
+import ChatList from './components/ChatList';
+import SkeletonCard from './components/SkeletonCard';
+import { AppMode, Language, Location, Ad } from './types';
 import { translations } from './services/translations';
 import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 
-type FilterCategory = 'ALL' | 'MY_ADS' | 'SAVED';
+const PAGE_SIZE = 15;
+const EXPIRY_DAYS = 60;
 
-const AppLogo = () => (
-  <div className="flex items-center gap-2">
-    <div className="flex flex-col items-end">
-      <h1 className="font-black text-gray-900 text-lg leading-none">Khana</h1>
-      <span className="text-[9px] font-black text-[#a62626] -mt-0.5">.shop</span>
-    </div>
-    <div className="w-10 h-10 relative">
-      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-sm">
-        <path d="M25 35C25 21.1929 36.1929 10 50 10C63.8071 10 75 21.1929 75 35V40H25V35Z" fill="#FF8A00" fillOpacity="0.2"/>
-        <path d="M20 40H80V80C80 85.5228 75.5228 90 70 90H30C24.4772 90 20 85.5228 20 80V40Z" fill="#a62626"/>
-        <path d="M35 40V35C35 26.7157 41.7157 20 50 20C58.2843 20 65 26.7157 65 35V40" stroke="#FF8A00" strokeWidth="6" strokeLinecap="round"/>
-        <path d="M50 50L35 62V78H44V68H56V78H65V62L50 50Z" fill="white"/>
-        <rect x="47" y="58" width="6" height="6" fill="#a62626" rx="1"/>
-      </svg>
-    </div>
-  </div>
-);
+const PROVINCE_COORDS: Record<string, Location> = {
+  'کابل': { lat: 34.5553, lng: 69.2075 },
+  'هرات': { lat: 34.3419, lng: 62.2031 },
+  'بلخ': { lat: 36.7061, lng: 67.1122 },
+  'قندهار': { lat: 31.6289, lng: 65.7372 },
+  'ننگرهار': { lat: 34.4261, lng: 70.4515 },
+  'بامیان': { lat: 34.8100, lng: 67.8212 },
+  'غزنی': { lat: 33.5450, lng: 68.4174 },
+  'کندوز': { lat: 36.7289, lng: 68.8679 },
+  'بدخشان': { lat: 37.1166, lng: 70.5800 },
+  'تخار': { lat: 36.6666, lng: 69.4666 },
+  'بغلان': { lat: 36.1779, lng: 68.7042 },
+  'پروان': { lat: 35.0135, lng: 69.2152 },
+  'کاپیسا': { lat: 34.9810, lng: 69.3845 },
+  'پنجشیر': { lat: 35.3353, lng: 69.5444 },
+  'میدان وردک': { lat: 34.3946, lng: 68.5144 },
+  'لوگر': { lat: 33.9972, lng: 69.1121 },
+  'پکتیا': { lat: 33.5239, lng: 69.2145 },
+  'پکتیکا': { lat: 32.7914, lng: 68.7997 },
+  'خوست': { lat: 33.3334, lng: 69.9167 },
+  'لغمان': { lat: 34.6667, lng: 70.1667 },
+  'کنر': { lat: 34.8465, lng: 71.1472 },
+  'نورستان': { lat: 35.3400, lng: 70.8300 },
+  'جوزجان': { lat: 36.6475, lng: 65.7501 },
+  'فاریاب': { lat: 35.9312, lng: 64.7824 },
+  'سرپل': { lat: 36.2206, lng: 65.9277 },
+  'سمنگان': { lat: 36.2646, lng: 68.0151 },
+  'بادغیس': { lat: 35.0000, lng: 63.5000 },
+  'غور': { lat: 34.5000, lng: 64.5000 },
+  'دایکندی': { lat: 33.6700, lng: 66.0700 },
+  'اروزگان': { lat: 32.9274, lng: 65.8672 },
+  'زابل': { lat: 32.1864, lng: 67.2343 },
+  'هلمند': { lat: 31.3636, lng: 64.3662 },
+  'فراه': { lat: 32.3421, lng: 62.1164 },
+  'نیمروز': { lat: 31.0000, lng: 62.5000 }
+};
+
+const toEnglishDigits = (str: string): string => {
+  return str.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+            .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+};
 
 function App() {
-  const [lang, setLang] = useState<Language>(() => (localStorage.getItem('app_lang') as Language) || 'dari');
-  const t = translations[lang];
+  const [lang, setLang] = useState<Language>(() => {
+    return (localStorage.getItem('app_lang') as Language) || 'dari';
+  });
+  const t = (translations as any)[lang];
 
-  const toggleLanguage = () => {
-    const newLang = lang === 'dari' ? 'pashto' : 'dari';
-    setLang(newLang);
-    localStorage.setItem('app_lang', newLang);
-    document.documentElement.lang = newLang === 'dari' ? 'fa' : 'ps';
-    document.documentElement.dir = 'rtl';
-  };
-
-  const [appMode, setAppMode] = useState<AppMode>('ESTATE');
+  const [userPhone] = useState<string | null>(localStorage.getItem('user_phone'));
+  const [appMode, setAppMode] = useState<AppMode | 'ALL' | 'SAVED' | 'CHATS'>('ALL');
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [displaySearch, setDisplaySearch] = useState('');
   const [selectedProvince, setSelectedProvince] = useState(t.provinces[0]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<any>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [activeDealFilter, setActiveDealFilter] = useState<'ALL' | DealType>('ALL');
-  const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [filterCategory, setFilterCategory] = useState<FilterCategory>('ALL');
-  
+  const [flyToLocation, setFlyToLocation] = useState<Location | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [dealTypeFilter, setDealTypeFilter] = useState<string | null>(null);
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
   const [items, setItems] = useState<any[]>([]);
-  const [hasMore, setHasMore] = useState(false);
-  const PAGE_SIZE = 15;
+  const [isLoading, setIsLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
 
-  const [mapFlyLocation, setMapFlyLocation] = useState<Location | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [pullProgress, setPullProgress] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const startTouchY = useRef(0);
-
-  const [hasNewUserChats, setHasNewUserChats] = useState(false);
-  const [hasNewAdminMessages, setHasNewAdminMessages] = useState(false);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
-  const [isAdminMode, setIsAdminMode] = useState(false);
-
-  useEffect(() => {
-    const handleBackButton = () => {
-      if (isDetailOpen) {
-        setIsDetailOpen(false);
-        setSelectedItem(null);
-        window.history.pushState(null, '', window.location.pathname);
-      } else if (showAddModal) {
-        setShowAddModal(false);
-        setEditingItem(null);
-        window.history.pushState(null, '', window.location.pathname);
-      } else if (showAuthModal) {
-        setShowAuthModal(false);
-        window.history.pushState(null, '', window.location.pathname);
-      }
-    };
-
-    window.history.pushState(null, '', window.location.pathname);
-    window.addEventListener('popstate', handleBackButton);
-    return () => window.removeEventListener('popstate', handleBackButton);
-  }, [isDetailOpen, showAddModal, showAuthModal]);
-
-  const mapItem = (item: any, type: AppMode) => ({
-    ...item,
-    itemType: type,
-    ownerId: item.owner_id || 'guest',
-    dealType: item.deal_type,
-    phoneNumber: item.phone_number,
-    showPhoneNumber: item.show_phone ?? true,
-    status: item.status || 'PENDING',
-    date: item.created_at,
-    price: item.price || 0,
-    salary: item.salary || 0,
-    mortgageAmount: item.mortgage_amount || 0,
-    deposit: item.deposit || 0,
-    hasStorage: item.has_storage ?? false,
-    hasParking: item.has_parking ?? false,
-    providerName: item.provider_name,
-    address: item.address || '',
-    city: item.city || (lang === 'dari' ? 'نامشخص' : 'نامعلوم'), 
-    area: item.area || 0,
-    bedrooms: item.bedrooms || 0,
-    images: Array.isArray(item.images) ? item.images : []
+  const [unreadAdminCount, setUnreadAdminCount] = useState(0);
+  const [unreadUserCount, setUnreadUserCount] = useState(0);
+  
+  const [savedIds, setSavedIds] = useState<Set<string>>(() => {
+    const local = localStorage.getItem('saved_ads_ids');
+    return local ? new Set(JSON.parse(local)) : new Set();
   });
 
-  const checkUnreadNotifications = useCallback(async () => {
-    const userPhone = localStorage.getItem('user_phone');
-    if (!userPhone || !isSupabaseReady()) return;
-    
+  const [visitedIds] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('visited_ads');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+
+  const [showAddCategoryPicker, setShowAddCategoryPicker] = useState(false);
+  const [showNavCategoryPicker, setShowNavCategoryPicker] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [targetAddMode, setTargetAddMode] = useState<AppMode | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [loggedAdmin, setLoggedAdmin] = useState<any>(null);
+
+  const mainScrollRef = useRef<HTMLDivElement>(null);
+
+  const handleLanguageChange = (newLang: Language) => {
+    setLang(newLang);
+    localStorage.setItem('app_lang', newLang);
+    window.location.reload();
+  };
+
+  const fetchUnreadCounts = useCallback(async () => {
+    if (!userPhone) return;
     try {
-      const { data: chats } = await supabase.from(TABLES.USER_CHATS)
-        .select('id')
-        .eq('receiver_phone', userPhone)
-        .eq('is_read', false)
-        .limit(1);
+      const { count: adminCount } = await supabase.from(TABLES.USER_CHATS).select('*', { count: 'exact', head: true }).match({ receiver_phone: userPhone, sender_phone: 'ADMIN', is_read: false });
+      const { count: userCount } = await supabase.from(TABLES.USER_CHATS).select('*', { count: 'exact', head: true }).eq('receiver_phone', userPhone).neq('sender_phone', 'ADMIN').eq('is_read', false);
+      setUnreadAdminCount(adminCount || 0);
+      setUnreadUserCount(userCount || 0);
+    } catch (e) { console.error("Count Error:", e); }
+  }, [userPhone]);
 
-      const { data: admins } = await supabase.from(TABLES.MESSAGES)
-        .select('id')
-        .eq('target_phone', userPhone)
-        .eq('is_read', false)
-        .limit(1);
-      
-      setHasNewUserChats((chats?.length || 0) > 0);
-      setHasNewAdminMessages((admins?.length || 0) > 0);
-    } catch (e) {
-      console.error("Error checking notifications:", e);
-    }
-  }, []);
+  useEffect(() => {
+    fetchUnreadCounts();
+    if (!userPhone) return;
 
-  const fetchAds = useCallback(async (isLoadMore = false, bounds?: any) => {
-    if (!isSupabaseReady()) return;
+    // اشتراک سراسری در جدول چت برای هر نوع تغییری (Insert یا Update)
+    // حذف فیلترهای سخت‌گیرانه برای اطمینان از دریافت رویداد
+    const channel = supabase.channel('global_unread_sync')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: TABLES.USER_CHATS
+      }, (payload: any) => { 
+        // فقط اگر پیام مربوط به کاربر فعلی است، شمارشگر را آپدیت کن
+        if (payload.new.receiver_phone === userPhone || payload.old?.receiver_phone === userPhone) {
+          fetchUnreadCounts(); 
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [userPhone, fetchUnreadCounts]);
+
+  const fetchSavedIdsFromDb = useCallback(async () => {
+    if (!userPhone) return;
+    try {
+      const { data } = await supabase.from(TABLES.SAVED_ADS).select('ad_id').eq('user_phone', userPhone);
+      if (data) {
+        const dbIds = new Set(data.map((d: any) => d.ad_id)) as Set<string>;
+        setSavedIds(prev => {
+          const merged = new Set<string>([...Array.from(prev), ...Array.from(dbIds)]);
+          localStorage.setItem('saved_ads_ids', JSON.stringify(Array.from(merged)));
+          return merged;
+        });
+      }
+    } catch (e) { console.error(e); }
+  }, [userPhone]);
+
+  useEffect(() => { fetchSavedIdsFromDb(); }, [fetchSavedIdsFromDb]);
+
+  const fetchAds = useCallback(async (isReset = false) => {
+    if (!isSupabaseReady() || (isLoading && !isReset)) return;
+    if ((appMode as string) === 'CHATS') return;
     
-    if (isLoadMore) setIsLoadingMore(true);
-    else if (items.length === 0) setIsLoading(true);
-
-    const from = isLoadMore ? items.length : 0;
-    const to = from + (bounds ? 100 : PAGE_SIZE) - 1;
-    const userPhone = localStorage.getItem('user_phone');
-
-    // محاسبه تاریخ ۱۰۰ روز پیش
-    const expiryDate = new Date();
-    expiryDate.setDate(expiryDate.getDate() - 100);
+    setIsLoading(true);
+    const currentPage = isReset ? 0 : page;
+    const expiryISO = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
     try {
-      if (filterCategory === 'MY_ADS' || filterCategory === 'SAVED') {
-        const [propRes, jobRes, servRes] = await Promise.all([
-          supabase.from(TABLES.PROPERTIES).select('*').gt('created_at', expiryDate.toISOString()),
-          supabase.from(TABLES.JOBS).select('*').gt('created_at', expiryDate.toISOString()),
-          supabase.from(TABLES.SERVICES).select('*').gt('created_at', expiryDate.toISOString())
-        ]);
-
-        let allCombined: any[] = [
-          ...(propRes.data || []).map(i => mapItem(i, 'ESTATE')),
-          ...(jobRes.data || []).map(i => mapItem(i, 'JOBS')),
-          ...(servRes.data || []).map(i => mapItem(i, 'SERVICES'))
-        ];
-
-        if (filterCategory === 'MY_ADS' && userPhone) {
-          allCombined = allCombined.filter(i => i.ownerId === userPhone);
-        } else if (filterCategory === 'SAVED') {
-          allCombined = allCombined.filter(i => savedIds.has(i.id));
-        }
-
-        allCombined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setItems(allCombined);
-        setHasMore(false);
-      } else {
-        const table = appMode === 'ESTATE' ? TABLES.PROPERTIES : appMode === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
-        
-        let query = supabase.from(table).select('*', { count: 'exact' });
-        
-        // فیلتر ۱۰۰ روزه برای نمایش عمومی
-        query = query.gt('created_at', expiryDate.toISOString());
-        
-        if (userPhone) {
-          query = query.or(`status.eq.APPROVED,and(status.eq.PENDING,owner_id.eq.${userPhone})`);
-        } else {
-          query = query.eq('status', 'APPROVED');
-        }
-        
-        if (bounds) {
-          query = query
-            .gte('location->lat', bounds.southWest.lat)
-            .lte('location->lat', bounds.northEast.lat)
-            .gte('location->lng', bounds.southWest.lng)
-            .lte('location->lng', bounds.northEast.lng);
-        } else if (selectedProvince !== translations.dari.provinces[0] && selectedProvince !== translations.pashto.provinces[0]) {
-          query = query.eq('city', selectedProvince);
-        }
-        
-        if (searchTerm) query = query.ilike('title', `%${searchTerm}%`);
-        if (appMode === 'ESTATE' && activeDealFilter !== 'ALL') query = query.eq('deal_type', activeDealFilter);
-
-        const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
-        if (error) throw error;
-
-        const newItems = (data || []).map(i => mapItem(i, appMode));
-        let updatedItems;
-        if (isLoadMore) {
-          updatedItems = [...items, ...newItems];
-          setItems(updatedItems);
-          setHasMore(count ? (items.length + newItems.length) < count : false);
-        } else {
-          updatedItems = newItems;
-          setItems(updatedItems);
-          setHasMore(count ? newItems.length < count : false);
-          
-          if (!bounds && !searchTerm && activeDealFilter === 'ALL' && selectedProvince === translations.dari.provinces[0]) {
-            localStorage.setItem(`cache_${appMode}`, JSON.stringify(newItems));
+      if (appMode === 'SAVED') {
+        const results = [];
+        const idsArray = Array.from(savedIds);
+        if (idsArray.length > 0) {
+          for (const table of [TABLES.PROPERTIES, TABLES.JOBS, TABLES.SERVICES, TABLES.GENERAL_ADS]) {
+            const { data } = await supabase.from(table).select('*').in('id', idsArray);
+            if (data) {
+              const typeMap: any = { [TABLES.PROPERTIES]: 'ESTATE', [TABLES.JOBS]: 'JOBS', [TABLES.SERVICES]: 'SERVICES', [TABLES.GENERAL_ADS]: 'GENERAL' };
+              results.push(...data.map(d => ({ ...d, adType: typeMap[table] })));
+            }
           }
         }
+        setItems(results.sort((a,b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime()));
+        setHasMore(false);
+        setIsLoading(false);
+        return;
       }
-    } catch (e) {
-      console.error("Fetch error:", e);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-      setIsRefreshing(false);
-      setPullProgress(0);
-    }
-  }, [appMode, selectedProvince, searchTerm, activeDealFilter, filterCategory, savedIds, items.length]);
 
-  useEffect(() => {
-    fetchAds(false);
-  }, [appMode, selectedProvince, searchTerm, activeDealFilter, filterCategory, savedIds]);
-
-  const handleDeleteItem = async (item: any) => {
-    if (!window.confirm("آیا از حذف این آگهی اطمینان دارید؟")) return;
-    const table = item.itemType === 'ESTATE' ? TABLES.PROPERTIES : item.itemType === 'JOBS' ? TABLES.JOBS : TABLES.SERVICES;
-    try {
-      const { error } = await supabase.from(table).delete().eq('id', item.id);
-      if (error) throw error;
-      alert("آگهی با موفقیت حذف شد.");
-      fetchAds(false);
-    } catch (e: any) {
-      alert("خطا در حذف آگهی: " + e.message);
-    }
-  };
-
-  const handleEditItem = (item: any) => {
-    setEditingItem(item);
-    setShowAddModal(true);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (scrollRef.current && scrollRef.current.scrollTop === 0) {
-      startTouchY.current = e.touches[0].clientY;
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (startTouchY.current > 0 && !isRefreshing) {
-      const diff = e.touches[0].clientY - startTouchY.current;
-      if (diff > 0 && scrollRef.current?.scrollTop === 0) {
-        const progress = Math.min(diff / 150, 1);
-        setPullProgress(progress);
-        if (diff > 120) {
-          setIsRefreshing(true);
-          fetchAds(false);
+      const applyFilters = (q: any, tableType: 'ESTATE' | 'JOBS' | 'SERVICES' | 'GENERAL') => {
+        let query = q.eq('status', 'APPROVED').gte('created_at', expiryISO);
+        if (ownerFilter) {
+          query = query.eq('owner_id', ownerFilter);
+        } else {
+          if (selectedProvince !== t.provinces[0]) query = query.eq('city', selectedProvince);
+          if (searchTerm) query = query.ilike('title', `%${searchTerm}%`);
+          if (tableType === 'ESTATE' && dealTypeFilter) query = query.eq('deal_type', dealTypeFilter);
+          
+          const engMin = minPrice ? parseInt(toEnglishDigits(minPrice.replace(/,/g, ''))) : null;
+          const engMax = maxPrice ? parseInt(toEnglishDigits(maxPrice.replace(/,/g, ''))) : null;
+          const priceCol = tableType === 'JOBS' ? 'salary' : 'price';
+          if (engMin !== null && !isNaN(engMin)) query = query.gte(priceCol, engMin);
+          if (engMax !== null && !isNaN(engMax)) query = query.lte(priceCol, engMax);
         }
-      }
-    }
-  };
+        return query;
+      };
 
-  const handleTouchEnd = () => {
-    startTouchY.current = 0;
-    if (!isRefreshing) setPullProgress(0);
-  };
+      let normalizedResults: any[] = [];
+      if (appMode === 'ALL') {
+        const itemsPerTable = 5;
+        const [p, j, s, g] = await Promise.all([
+          applyFilters(supabase.from(TABLES.PROPERTIES).select('*'), 'ESTATE').order('created_at', { ascending: false }).range(currentPage * itemsPerTable, (currentPage + 1) * itemsPerTable - 1),
+          applyFilters(supabase.from(TABLES.JOBS).select('*'), 'JOBS').order('created_at', { ascending: false }).range(currentPage * itemsPerTable, (currentPage + 1) * itemsPerTable - 1),
+          applyFilters(supabase.from(TABLES.SERVICES).select('*'), 'SERVICES').order('created_at', { ascending: false }).range(currentPage * itemsPerTable, (currentPage + 1) * itemsPerTable - 1),
+          applyFilters(supabase.from(TABLES.GENERAL_ADS).select('*'), 'GENERAL').order('created_at', { ascending: false }).range(currentPage * itemsPerTable, (currentPage + 1) * itemsPerTable - 1),
+        ]);
+        normalizedResults = [
+          ...(p.data || []).map((x: Ad) => ({...x, adType: 'ESTATE'})),
+          ...(j.data || []).map((x: Ad) => ({...x, adType: 'JOBS'})),
+          ...(s.data || []).map((x: Ad) => ({...x, adType: 'SERVICES'})),
+          ...(g.data || []).map((x: Ad) => ({...x, adType: 'GENERAL'})),
+        ].sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime());
+      } else {
+        const table = appMode === 'ESTATE' ? TABLES.PROPERTIES : appMode === 'JOBS' ? TABLES.JOBS : appMode === 'SERVICES' ? TABLES.SERVICES : TABLES.GENERAL_ADS;
+        const tableType = appMode === 'ESTATE' ? 'ESTATE' : appMode === 'JOBS' ? 'JOBS' : appMode === 'SERVICES' ? 'SERVICES' : 'GENERAL';
+        let q = supabase.from(table).select('*');
+        if (table === TABLES.GENERAL_ADS) q = q.eq('mode', appMode);
+        q = applyFilters(q, tableType);
+        const { data } = await q.order('created_at', { ascending: false }).range(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE - 1);
+        normalizedResults = (data || []).map((item: any) => ({ ...item, adType: tableType }));
+      }
+
+      if (isReset) {
+        setItems(normalizedResults);
+        setPage(1);
+        setHasMore(normalizedResults.length > 0); 
+      } else {
+        setItems(prev => [...prev, ...normalizedResults]);
+        setPage(currentPage + 1);
+        setHasMore(normalizedResults.length > 0);
+      }
+    } catch (err) { console.error(err); } finally { setIsLoading(false); }
+  }, [appMode, selectedProvince, searchTerm, dealTypeFilter, page, isLoading, userPhone, t, minPrice, maxPrice, savedIds, ownerFilter]);
 
   useEffect(() => {
-    const saved = localStorage.getItem('saved_items');
-    if (saved) {
-      try { setSavedIds(new Set(JSON.parse(saved))); } catch (e) {}
+    const timer = setTimeout(() => { fetchAds(true); }, 500);
+    return () => clearTimeout(timer);
+  }, [appMode, selectedProvince, searchTerm, dealTypeFilter, minPrice, maxPrice, ownerFilter]);
+
+  const handleProvinceChange = (province: string) => {
+    setSelectedProvince(province);
+    const coords = PROVINCE_COORDS[province];
+    if (coords) setFlyToLocation(coords);
+  };
+
+  const handleToggleSave = async (item: any) => {
+    const isSaved = savedIds.has(item.id);
+    const next = new Set(savedIds);
+    if (isSaved) next.delete(item.id); else next.add(item.id);
+    setSavedIds(next);
+    localStorage.setItem('saved_ads_ids', JSON.stringify(Array.from(next)));
+    if (userPhone) {
+      try {
+        const table = item.adType === 'ESTATE' ? TABLES.PROPERTIES : item.adType === 'JOBS' ? TABLES.JOBS : item.adType === 'SERVICES' ? TABLES.SERVICES : TABLES.GENERAL_ADS;
+        if (isSaved) await supabase.from(TABLES.SAVED_ADS).delete().match({ user_phone: userPhone, ad_id: item.id });
+        else await supabase.from(TABLES.SAVED_ADS).insert([{ user_phone: userPhone, ad_id: item.id, ad_table: table }]);
+      } catch (e) { console.error("Database sync failed."); }
     }
-  }, []);
-
-  useEffect(() => { 
-    checkUnreadNotifications();
-    if (!isSupabaseReady()) return;
-    const channel = supabase.channel('app_realtime_v11_sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, () => fetchAds(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SERVICES }, () => fetchAds(false))
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.MESSAGES }, () => checkUnreadNotifications())
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.USER_CHATS }, () => checkUnreadNotifications())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchAds, checkUnreadNotifications]);
-
-  const handleSelectItem = (item: any) => {
-    setVisitedIds(prev => new Set(prev).add(item.id));
-    setSelectedItem(item);
-    setIsDetailOpen(true);
   };
 
-  const handleModeChange = (mode: AppMode) => {
-    setAppMode(mode);
+  const handleShowOtherAds = (ownerId: string) => {
+    setOwnerFilter(ownerId);
+    setAppMode('ALL');
+    setIsDetailOpen(false);
     setSelectedItem(null);
-    setIsDetailOpen(false);
-    setViewMode('list');
-    setFilterCategory('ALL');
-    setActiveDealFilter('ALL');
-    setMapFlyLocation(null);
-    setItems([]);
+    if (mainScrollRef.current) mainScrollRef.current.scrollTop = 0;
   };
 
-  const handleShowOnMap = (location: Location) => {
-    setMapFlyLocation(location);
-    setViewMode('map');
-    setIsDetailOpen(false);
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 100 && hasMore && !isLoading && appMode !== 'SAVED' && appMode !== 'CHATS') {
+      fetchAds();
+    }
   };
 
-  if (isAdminMode) {
-    return <AdminPanel properties={[]} jobs={[]} services={[]} onExit={() => { setIsAdminMode(false); fetchAds(false); }} />;
-  }
+  if (isAdminMode) return <AdminPanel onExit={() => setIsAdminMode(false)} properties={[]} jobs={[]} services={[]} currentAdmin={loggedAdmin} />;
 
   return (
-    <div className="flex flex-col h-screen bg-white font-[Vazirmatn] overflow-hidden" dir="rtl">
-      <header className="h-[65px] bg-white border-b flex items-center justify-between px-4 z-[3000] shrink-0 shadow-sm">
-        <div className="flex items-center gap-2">
-          <button onClick={() => setViewMode(viewMode === 'list' ? 'map' : 'list')} className="bg-gray-900 text-white px-3 py-2 rounded-xl font-black text-[10px] flex items-center gap-1 active:scale-95 transition-transform">
-            {viewMode === 'list' ? ( <><MapIcon size={14} /> <span>{String(t.map)}</span></> ) : ( <><List size={14} /> <span>{String(t.list)}</span></> )}
-          </button>
-          <button onClick={toggleLanguage} className="flex items-center gap-1.5 px-3 py-2 bg-gray-50 border border-gray-100 rounded-xl text-[10px] font-black text-gray-600 hover:bg-gray-100">
-            <Languages size={14} className="text-[#a62626]" />
-            <span>{lang === 'dari' ? 'پشتو' : 'دری'}</span>
-          </button>
+    <div className="flex flex-col h-screen bg-white font-[Vazirmatn] overflow-hidden text-gray-800" dir="rtl">
+      {showAdminLogin && <AdminLogin onLogin={(adm) => { setLoggedAdmin(adm); setShowAdminLogin(false); setIsAdminMode(true); }} onCancel={() => setShowAdminLogin(false)} />}
+      
+      <header className={`bg-white border-b flex items-center justify-between px-4 lg:px-12 z-[3000] shrink-0 gap-2 transition-all ${viewMode === 'map' ? 'h-[45px] max-md:h-[40px] px-2' : 'h-[64px]'}`}>
+        <div className="flex items-center gap-2 lg:gap-6 flex-1 overflow-hidden">
+          <div className={`flex items-center cursor-pointer shrink-0 ${viewMode === 'map' ? 'max-md:hidden' : ''}`} onClick={() => {setAppMode('ALL'); setViewMode('list'); setDealTypeFilter(null); setOwnerFilter(null);}}>
+             <span className="text-[#a62626] text-lg lg:text-2xl font-black">Khana</span>
+          </div>
+          <div className={`flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1 shrink-0 border border-gray-200 ${viewMode === 'map' ? 'max-md:scale-90' : 'py-1.5'}`}>
+            <Globe size={14} className="text-gray-400" />
+            <select value={selectedProvince} onChange={(e) => handleProvinceChange(e.target.value)} className="bg-transparent text-[10px] lg:text-xs font-black outline-none border-none cursor-pointer">
+              {t.provinces.map((p: string) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+          <div className={`flex items-center flex-1 max-w-md relative ${viewMode === 'map' ? 'max-md:scale-90' : ''}`}>
+             <input type="text" placeholder={t.search_placeholder} className={`w-full bg-gray-50 rounded-md pr-8 pl-2 py-1.5 text-[10px] lg:text-xs font-black outline-none border border-gray-200 ${viewMode === 'map' ? 'max-md:py-1' : 'py-2'}`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+             <Search size={14} className="absolute right-2.5 text-gray-400" />
+          </div>
         </div>
-        
-        <AppLogo />
+        <div className="flex items-center gap-2">
+           <button onClick={() => setAppMode('CHATS')} className={`hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl border relative ${appMode === 'CHATS' ? 'bg-red-50 text-red-600' : 'text-gray-500 border-transparent hover:bg-gray-50'}`}>
+              <MessageCircle size={18}/>
+              <span className="text-xs font-black">{t.chat}</span>
+              {unreadUserCount > 0 && <div className="absolute top-1.5 right-2 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
+           </button>
+           <button onClick={() => userPhone ? setShowAddCategoryPicker(true) : setShowAuthModal(true)} className={`bg-[#a62626] text-white rounded-md font-black text-[10px] lg:text-xs shadow-md active:scale-95 transition-transform ${viewMode === 'map' ? 'px-2 py-1' : 'px-3 lg:px-6 py-2'}`}>{t.add_post}</button>
+        </div>
       </header>
 
-      <main className="flex-1 flex overflow-hidden relative">
-        <div className={`w-full md:w-[420px] h-full flex flex-col bg-white z-20 shrink-0 border-l ${viewMode === 'map' ? 'hidden md:flex' : 'flex'}`}>
-          <div className="p-3 bg-gray-50 shrink-0">
-            <div className="bg-white p-4 rounded-2xl border shadow-sm space-y-4">
-              <div className="flex gap-2">
-                <div className="flex-1 relative flex items-center">
-                  <input type="text" placeholder={appMode === 'ESTATE' ? String(t.search_estate) : appMode === 'JOBS' ? String(t.search_jobs) : String(t.search_services)} className="w-full bg-gray-100 rounded-xl pr-4 pl-10 py-2.5 text-xs font-bold outline-none border border-transparent focus:border-[#a62626]/20 transition-all" value={displaySearch} onChange={(e) => setDisplaySearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setSearchTerm(displaySearch)} />
-                  <button onClick={() => setSearchTerm(displaySearch)} className="absolute left-2 p-1.5 bg-[#a62626] text-white rounded-lg active:scale-90 transition-transform"> <Search size={14} /> </button>
+      <div className="flex-1 flex overflow-hidden">
+        <aside className="hidden lg:flex flex-col w-72 border-l overflow-y-auto p-5 shrink-0 no-scrollbar bg-white">
+           <nav className="space-y-1 flex-1">
+              {[
+                { id: 'ESTATE', label: t.estate, icon: Home },
+                { id: 'VEHICLES', label: t.vehicles, icon: Car },
+                { id: 'DIGITAL', label: t.digital, icon: Smartphone },
+                { id: 'HOME_KITCHEN', label: t.home_kitchen, icon: Sofa },
+                { id: 'SERVICES', label: t.services, icon: Wrench },
+                { id: 'JOBS', label: t.jobs, icon: Briefcase },
+                { id: 'PERSONAL', label: t.personal, icon: ShoppingBag },
+                { id: 'INDUSTRIAL', label: t.industrial, icon: HardHat },
+                { id: 'OTHERS', label: t.others, icon: Package },
+              ].map(cat => (
+                <div key={cat.id} onClick={() => {setAppMode(cat.id as any); setDealTypeFilter(null); setOwnerFilter(null);}} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${appMode === cat.id ? 'bg-red-50 text-red-600 font-black border border-red-100' : 'text-gray-500 hover:bg-gray-50'}`}>
+                   <cat.icon size={18} /> <span className="text-sm">{cat.label}</span>
                 </div>
-                <select value={selectedProvince} onChange={(e) => { setSelectedProvince(e.target.value); }} className="bg-gray-100 rounded-xl px-2 py-2.5 text-[10px] font-black outline-none border border-transparent focus:border-[#a62626]/20 max-w-[100px]">
-                  {t.provinces.map(p => <option key={String(p)} value={String(p)}>{String(p)}</option>)}
-                </select>
+              ))}
+           </nav>
+           <div className="pt-4 border-t space-y-1">
+              <div onClick={() => {setAppMode('SAVED'); setOwnerFilter(null);}} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${appMode === 'SAVED' ? 'bg-red-50 text-red-600 font-black border border-red-100' : 'text-gray-500 hover:bg-gray-50'}`}>
+                 <Heart size={18} className={appMode === 'SAVED' ? 'fill-red-600' : ''} /> <span className="text-sm">نشان شده‌ها</span>
               </div>
-              
-              {appMode === 'ESTATE' && filterCategory === 'ALL' && (
-                <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
-                  <button onClick={() => setActiveDealFilter('ALL')} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === 'ALL' ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{String(t.all)}</button>
-                  <button onClick={() => setActiveDealFilter(DealType.SALE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.SALE ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{String(t.sale)}</button>
-                  <button onClick={() => setActiveDealFilter(DealType.RENT)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.RENT ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{String(t.rent)}</button>
-                  <button onClick={() => setActiveDealFilter(DealType.MORTGAGE)} className={`px-4 py-2 rounded-xl text-[10px] font-black whitespace-nowrap transition-all ${activeDealFilter === DealType.MORTGAGE ? 'bg-[#a62626] text-white' : 'bg-gray-100 text-gray-400'}`}>{String(t.mortgage)}</button>
-                </div>
-              )}
+              <div onClick={() => setShowAuthModal(true)} className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all relative ${showAuthModal ? 'bg-red-50 text-red-600 font-black' : 'text-gray-500 hover:bg-gray-50'}`}>
+                 <User size={18} /> 
+                 <span className="text-sm">پروفایل من</span>
+                 {unreadAdminCount > 0 && <div className="absolute top-4 left-4 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
+              </div>
+           </div>
+        </aside>
 
-              {filterCategory !== 'ALL' && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-black text-gray-400">{filterCategory === 'MY_ADS' ? 'آگهی‌های من' : 'نشان شده‌ها'}</span>
-                  <button onClick={() => setFilterCategory('ALL')} className="text-[#a62626] text-[10px] font-black">بازگشت به خانه</button>
-                </div>
-              )}
-            </div>
-          </div>
-          <div ref={scrollRef} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} className="flex-1 overflow-y-auto px-3 pb-24 no-scrollbar space-y-3 pt-3 relative">
-            {(pullProgress > 0 || isRefreshing) && (
-              <div className="flex justify-center py-2 transition-all" style={{ opacity: pullProgress, transform: `scale(${pullProgress})` }}>
-                 <div className="bg-white p-3 rounded-full shadow-lg border border-red-50">
-                    <RefreshCcw className={`text-red-600 ${isRefreshing ? 'animate-spin' : ''}`} size={24} style={{ transform: `rotate(${pullProgress * 360}deg)` }} />
-                 </div>
-              </div>
-            )}
-            {isLoading && items.length === 0 ? ( <div className="flex flex-col items-center justify-center py-24 gap-4"> <Loader2 className="animate-spin text-[#a62626]" size={40} /> </div> ) : (
-              <>
-                {items.map(item => {
-                  const type = item.itemType;
-                  const isOwner = item.ownerId === localStorage.getItem('user_phone');
-                  const isPending = item.status === 'PENDING';
-                  
-                  return (
-                    <div key={item.id} className="relative">
-                      {isOwner && isPending && (
-                        <div className="absolute top-6 right-6 z-10 bg-red-600 text-white text-[8px] font-black px-2 py-1 rounded-lg shadow-lg flex items-center gap-1 animate-pulse">
-                          <Clock size={10} /> در انتظار تایید ادمین
+        <main ref={mainScrollRef} onScroll={isDetailOpen ? undefined : handleScroll} className={`flex-1 overflow-y-auto bg-gray-50 transition-all no-scrollbar pb-24 ${viewMode === 'map' ? 'max-md:pb-0' : ''}`}>
+          <div className={`max-w-6xl mx-auto h-full flex flex-col ${viewMode === 'map' ? 'max-md:p-0' : 'p-4 lg:p-8'}`}>
+             {appMode === 'CHATS' ? <ChatList onClose={() => setAppMode('ALL')} /> : (
+               <>
+                 <div className={`flex flex-col gap-4 mb-6 shrink-0 ${viewMode === 'map' ? 'max-md:hidden' : ''}`}>
+                    {ownerFilter && (
+                      <div className="bg-red-50 p-4 rounded-2xl border border-red-100 flex items-center justify-between">
+                        <span className="text-[10px] font-black text-red-600">در حال نمایش آگهی‌های کاربر: {ownerFilter}</span>
+                        <button onClick={() => setOwnerFilter(null)} className="p-1 hover:bg-red-100 rounded-full text-red-600"><CloseIcon size={16}/></button>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                       <h2 className="text-lg lg:text-xl font-black text-gray-900">
+                          {appMode === 'SAVED' ? 'آگهی‌های نشان شده' : (appMode === 'ALL' ? 'آگهی‌های اخیر' : (t as any)[appMode.toLowerCase()] || appMode)}
+                       </h2>
+                       {appMode !== 'SAVED' && (
+                        <div className="flex items-center bg-white border rounded-full px-1 py-1 gap-1 view-toggle-pill shadow-sm">
+                          <button onClick={() => setViewMode('list')} className={`p-1.5 px-3 rounded-full transition-all text-[10px] font-black flex items-center gap-1.5 ${viewMode === 'list' ? 'bg-[#a62626] text-white shadow-md' : 'text-gray-400'}`}>
+                            <ListIcon size={12}/> لیست
+                          </button>
+                          <button onClick={() => setViewMode('map')} className={`p-1.5 px-3 rounded-full transition-all text-[10px] font-black flex items-center gap-1.5 ${viewMode === 'map' ? 'bg-[#a62626] text-white shadow-md' : 'text-gray-400'}`}>
+                            <MapIcon size={12}/> نقشه
+                          </button>
                         </div>
-                      )}
-                      {type === 'ESTATE' ? 
-                        <PropertyCard property={item as Property} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} onEdit={isOwner ? () => handleEditItem(item) : undefined} onDelete={isOwner ? () => handleDeleteItem(item) : undefined} /> :
-                       type === 'JOBS' ? 
-                        <JobCard job={item as Job} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} onEdit={isOwner ? () => handleEditItem(item) : undefined} onDelete={isOwner ? () => handleDeleteItem(item) : undefined} /> :
-                        <ServiceCard service={item as Service} onClick={() => handleSelectItem(item)} isVisited={visitedIds.has(item.id)} isSaved={savedIds.has(item.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(item.id) ? n.delete(item.id) : n.add(item.id); localStorage.setItem('saved_items', JSON.stringify(Array.from(n))); return n; }); }} lang={lang} onEdit={isOwner ? () => handleEditItem(item) : undefined} onDelete={isOwner ? () => handleDeleteItem(item) : undefined} />
-                      }
+                       )}
                     </div>
-                  );
-                })}
-                
-                {hasMore && (
-                  <button 
-                    onClick={() => fetchAds(true)} 
-                    disabled={isLoadingMore}
-                    className="w-full bg-white border-2 border-dashed border-gray-200 text-gray-500 py-6 rounded-3xl font-black text-sm flex items-center justify-center gap-3 active:bg-gray-50 transition-colors mb-10"
-                  >
-                    {isLoadingMore ? <Loader2 className="animate-spin text-red-600" /> : <><ChevronDown size={20} /> مشاهده آگهی‌های بیشتر</>}
-                  </button>
-                )}
-              </>
-            )}
-            {!isLoading && items.length === 0 && ( <div className="text-center py-24 flex flex-col items-center gap-4 opacity-70 px-8"> <Sparkles size={48} className="text-gray-200" /> <h3 className="font-black text-gray-800 text-lg">{String(t.no_results)}</h3> </div> )}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 shrink-0">
+                        {appMode === 'ESTATE' && ['sale', 'rent', 'mortgage'].map(dt => (
+                          <button key={dt} onClick={() => setDealTypeFilter(dealTypeFilter === t[dt] ? null : t[dt])} className={`px-4 py-2 rounded-full text-[10px] font-black border transition-all whitespace-nowrap ${dealTypeFilter === t[dt] ? 'bg-[#a62626] text-white border-[#a62626]' : 'bg-white text-gray-600 border-gray-200'}`}>{t[dt]}</button>
+                        ))}
+                      </div>
+                      <div className="flex items-center bg-white border border-gray-200 rounded-full px-3 py-1.5 gap-2 shadow-sm mb-2">
+                        <Filter size={12} className="text-gray-400 shrink-0" />
+                        <div className="flex items-center gap-1">
+                          <input type="tel" placeholder="حداقل قیمت" value={minPrice} onChange={(e) => setMinPrice(e.target.value)} className="w-20 lg:w-28 text-[10px] font-black outline-none bg-transparent text-right" />
+                          <span className="text-gray-300">|</span>
+                          <input type="tel" placeholder="حداکثر قیمت" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)} className="w-20 lg:w-28 text-[10px] font-black outline-none bg-transparent text-right" />
+                        </div>
+                      </div>
+                    </div>
+                 </div>
+
+                 {viewMode === 'map' ? (
+                   <div className="flex-1 lg:h-[70vh] lg:rounded-[2.5rem] overflow-hidden lg:border shadow-xl relative h-full">
+                     <MapView items={items} selectedItem={selectedItem} onSelectItem={(it) => { setSelectedItem(it); setIsDetailOpen(true); }} visitedIds={visitedIds} flyToLocation={flyToLocation} />
+                     <div className="lg:hidden absolute top-2 right-2 z-[2000] flex flex-col gap-2 items-end">
+                        <div className="bg-white/90 backdrop-blur-md border border-white/60 p-2 rounded-2xl shadow-2xl flex items-center gap-2 origin-right">
+                           <input 
+                             type="tel" 
+                             placeholder="حداقل قیمت" 
+                             value={minPrice} 
+                             onChange={(e) => setMinPrice(e.target.value)} 
+                             className="w-24 text-[11px] font-black bg-transparent outline-none text-center border-b border-gray-200 py-1" 
+                           />
+                           <span className="text-gray-300 font-bold">|</span>
+                           <input 
+                             type="tel" 
+                             placeholder="حداکثر قیمت" 
+                             value={maxPrice} 
+                             onChange={(e) => setMaxPrice(e.target.value)} 
+                             className="w-24 text-[11px] font-black bg-transparent outline-none text-center border-b border-gray-200 py-1" 
+                           />
+                        </div>
+                        <button onClick={() => { setMinPrice(''); setMaxPrice(''); }} className={`bg-white/95 p-2 rounded-full shadow-lg text-red-600 transition-all border border-red-50 ${(!minPrice && !maxPrice) ? 'scale-0' : 'scale-90 active:scale-75'}`}><CloseIcon size={16}/></button>
+                     </div>
+                   </div>
+                 ) : (
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                     {items.length === 0 && !isLoading ? (
+                       <div className="col-span-full py-20 text-center text-gray-400 font-black">آگهی یافت نشد.</div>
+                     ) : items.map((item, idx) => (
+                       <div key={item.id || idx}>
+                         {item.adType === 'ESTATE' && <PropertyCard property={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} />}
+                         {item.adType === 'JOBS' && <JobCard job={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} />}
+                         {item.adType === 'SERVICES' && <ServiceCard service={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} />}
+                         {item.adType === 'GENERAL' && <GeneralAdCard ad={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} />}
+                       </div>
+                     ))}
+                     {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
+                     {!hasMore && items.length > 0 && <div className="col-span-full text-center py-10 text-gray-400 font-bold">پایان لیست</div>}
+                   </div>
+                 )}
+               </>
+             )}
+          </div>
+        </main>
+      </div>
+
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t flex justify-around items-center h-[65px] z-[4000] px-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] pb-safe transition-all ${viewMode === 'map' ? 'translate-y-full opacity-0 pointer-events-none' : ''}`}>
+        <button onClick={() => { setAppMode('ALL'); setViewMode('list'); setOwnerFilter(null); }} className={`flex flex-col items-center gap-1 ${appMode === 'ALL' ? 'text-[#a62626]' : 'text-gray-400'}`}><Home size={22} /><span className="text-[10px] font-black">خانه</span></button>
+        <button onClick={() => setShowNavCategoryPicker(true)} className="flex flex-col items-center gap-1 text-gray-400"><Menu size={22} /><span className="text-[10px] font-black">دسته‌ها</span></button>
+        <button onClick={() => userPhone ? setShowAddCategoryPicker(true) : setShowAuthModal(true)} className="flex flex-col items-center -mt-8 bg-[#a62626] text-white p-4 rounded-2xl shadow-xl border-4 border-white active:scale-95 transition-transform"><PlusSquare size={24} /></button>
+        <button onClick={() => setAppMode('CHATS')} className={`flex flex-col items-center gap-1 relative ${appMode === 'CHATS' ? 'text-[#a62626]' : 'text-gray-400'}`}>
+          <MessageCircle size={22} />
+          <span className="text-[10px] font-black">چت</span>
+          {unreadUserCount > 0 && <div className="absolute top-0 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
+        </button>
+        <button onClick={() => setShowAuthModal(true)} className={`flex flex-col items-center gap-1 relative ${showAuthModal ? 'text-[#a62626]' : 'text-gray-400'}`}>
+          <User size={22} />
+          <span className="text-[10px] font-black">پروفایل</span>
+          {unreadAdminCount > 0 && <div className="absolute top-0 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
+        </button>
+      </nav>
+
+      {viewMode === 'map' && (
+        <button onClick={() => setViewMode('list')} className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-[4005] bg-white text-[#a62626] px-6 py-3 rounded-full font-black text-xs shadow-2xl border border-gray-100 flex items-center gap-2 active:scale-90 transition-all">
+          <ListIcon size={18} /> مشاهده لیست
+        </button>
+      )}
+
+      {isDetailOpen && selectedItem && (
+        <div className="z-[5000] fixed inset-0 bg-white">
+          {selectedItem.adType === 'ESTATE' && <PropertyDetails property={selectedItem} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => { setFlyToLocation(selectedItem.location); setViewMode('map'); setIsDetailOpen(false); }} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => handleToggleSave(selectedItem)} t={t} onShowOtherAds={() => handleShowOtherAds(selectedItem.owner_id || selectedItem.ownerId)} />}
+          {selectedItem.adType === 'JOBS' && <JobDetails job={selectedItem} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => { setFlyToLocation(selectedItem.location); setViewMode('map'); setIsDetailOpen(false); }} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => handleToggleSave(selectedItem)} t={t} onShowOtherAds={() => handleShowOtherAds(selectedItem.owner_id || selectedItem.ownerId)} />}
+          {selectedItem.adType === 'SERVICES' && <ServiceDetails service={selectedItem} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => { setFlyToLocation(selectedItem.location); setViewMode('map'); setIsDetailOpen(false); }} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => handleToggleSave(selectedItem)} t={t} onShowOtherAds={() => handleShowOtherAds(selectedItem.owner_id || selectedItem.ownerId)} />}
+          {selectedItem.adType === 'GENERAL' && <GeneralAdDetails ad={selectedItem} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => { setFlyToLocation(selectedItem.location); setViewMode('map'); setIsDetailOpen(false); }} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => handleToggleSave(selectedItem)} t={t} onShowOtherAds={() => handleShowOtherAds(selectedItem.owner_id || selectedItem.ownerId)} />}
+        </div>
+      )}
+
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} onLanguageChange={handleLanguageChange} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} onCheckNotifications={() => {}} onSelectAd={(ad: any) => { setSelectedItem(ad); setIsDetailOpen(true); setShowAuthModal(false); }} onShowSaved={() => { setAppMode('SAVED'); setShowAuthModal(false); }} onShowChats={() => { setAppMode('CHATS'); setShowAuthModal(false); }} />}
+      {showNavCategoryPicker && (
+        <div className="fixed inset-0 bg-black/60 z-[10000] flex items-end" onClick={() => setShowNavCategoryPicker(false)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 grid grid-cols-3 gap-4" onClick={e => e.stopPropagation()}>
+            {[
+              { id: 'ESTATE', label: t.estate, icon: Home },
+              { id: 'VEHICLES', label: t.vehicles, icon: Car },
+              { id: 'DIGITAL', label: t.digital, icon: Smartphone },
+              { id: 'HOME_KITCHEN', label: t.home_kitchen, icon: Sofa },
+              { id: 'SERVICES', label: t.services, icon: Wrench },
+              { id: 'JOBS', label: t.jobs, icon: Briefcase },
+              { id: 'PERSONAL', label: t.personal, icon: ShoppingBag },
+              { id: 'INDUSTRIAL', label: t.industrial, icon: HardHat },
+              { id: 'OTHERS', label: t.others, icon: Package }
+            ].map(cat => (
+              <button key={cat.id} onClick={() => { setAppMode(cat.id as any); setOwnerFilter(null); setShowNavCategoryPicker(false); }} className="flex flex-col items-center gap-2 p-4 border rounded-2xl active:bg-gray-50"><cat.icon size={20} className="text-red-600" /><span className="text-[10px] font-black">{cat.label}</span></button>
+            ))}
           </div>
         </div>
-        <div className={`flex-1 h-full relative ${viewMode === 'list' ? 'hidden md:block' : 'block'}`}>
-          <MapView 
-            items={items} 
-            selectedItem={selectedItem} 
-            onSelectItem={handleSelectItem} 
-            mode={appMode} 
-            visitedIds={visitedIds} 
-            flyToLocation={mapFlyLocation}
-            onSearchInArea={(bounds) => fetchAds(false, bounds)}
-            viewMode={viewMode}
-          />
-        </div>
-        <div className="fixed bottom-0 left-0 right-0 h-[70px] bg-white/95 backdrop-blur-md border-t flex items-center justify-around z-[4000] px-2 shadow-sm pb-env">
-          <button onClick={() => handleModeChange('ESTATE')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'ESTATE' && filterCategory === 'ALL' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Building2 size={20} /><span className="text-[9px] font-black">{String(t.estate)}</span></button>
-          <button onClick={() => handleModeChange('JOBS')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'JOBS' && filterCategory === 'ALL' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Briefcase size={20} /><span className="text-[9px] font-black">{String(t.jobs)}</span></button>
-          <button onClick={() => { if(!localStorage.getItem('user_phone')) setShowAuthModal(true); else setShowAddModal(true); }} className="w-14 h-14 bg-[#a62626] text-white rounded-2xl flex items-center justify-center shadow-xl shadow-red-900/30 -top-6 relative active:scale-90 transition-all border-4 border-white"><Plus size={32} /></button>
-          <button onClick={() => handleModeChange('SERVICES')} className={`flex flex-col items-center flex-1 gap-1 transition-all ${appMode === 'SERVICES' && filterCategory === 'ALL' ? 'text-[#a62626] scale-110' : 'text-gray-300'}`}><Wrench size={20} /><span className="text-[9px] font-black">{String(t.services)}</span></button>
-          <button onClick={() => { checkUnreadNotifications(); setShowAuthModal(true); }} className={`flex flex-col items-center flex-1 gap-1 transition-all relative ${showAuthModal || filterCategory !== 'ALL' ? 'text-[#a62626]' : 'text-gray-300'}`}>
-            <User size={20} /> <span className="text-[9px] font-black">{String(t.account)}</span>
-            {(hasNewUserChats || hasNewAdminMessages) && <div className="absolute top-0 right-1/2 translate-x-3 w-2 h-2 bg-red-600 rounded-full border border-white animate-pulse"></div>}
-          </button>
-        </div>
-      </main>
-
-      {selectedItem && isDetailOpen && (
-        <div className="z-[5000] fixed inset-0">
-          {selectedItem.itemType === 'ESTATE' ? 
-            <PropertyDetails property={selectedItem as Property} onClose={() => { setIsDetailOpen(false); checkUnreadNotifications(); }} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} /> :
-           selectedItem.itemType === 'JOBS' ? 
-            <JobDetails job={selectedItem as Job} onClose={() => { setIsDetailOpen(false); checkUnreadNotifications(); }} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} /> :
-           <ServiceDetails service={selectedItem as Service} onClose={() => { setIsDetailOpen(false); checkUnreadNotifications(); }} onShowOnMap={() => handleShowOnMap(selectedItem.location)} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => { setSavedIds(prev => { const n = new Set(prev); n.has(selectedItem.id) ? n.delete(selectedItem.id) : n.add(selectedItem.id); return n; }); }} t={t} />
-          }
+      )}
+      {showAddCategoryPicker && (
+        <div className="fixed inset-0 bg-black/60 z-[10000] flex items-center justify-center p-4" onClick={() => setShowAddCategoryPicker(false)}>
+           <div className="bg-white w-full max-sm:max-w-xs rounded-3xl p-6" onClick={e => e.stopPropagation()}>
+              <h2 className="text-center font-black mb-6">ثبت آگهی</h2>
+              <div className="grid grid-cols-2 gap-3 max-h-[60vh] overflow-y-auto no-scrollbar">
+                 {[
+                   { id: 'ESTATE', label: t.estate, icon: Home },
+                   { id: 'VEHICLES', label: t.vehicles, icon: Car },
+                   { id: 'DIGITAL', label: t.digital, icon: Smartphone },
+                   { id: 'HOME_KITCHEN', label: t.home_kitchen, icon: Sofa },
+                   { id: 'SERVICES', label: t.services, icon: Wrench },
+                   { id: 'JOBS', label: t.jobs, icon: Briefcase },
+                   { id: 'PERSONAL', label: t.personal, icon: ShoppingBag },
+                   { id: 'INDUSTRIAL', label: t.industrial, icon: HardHat },
+                   { id: 'OTHERS', label: t.others, icon: Package }
+                 ].map(cat => (
+                   <button key={cat.id} onClick={() => { setTargetAddMode(cat.id as any); setShowAddForm(true); setShowAddCategoryPicker(false); }} className="flex flex-col items-center gap-2 p-4 bg-gray-50 rounded-2xl hover:bg-red-50 transition-all"><cat.icon size={24} className="text-red-600" /><span className="text-xs font-black">{cat.label}</span></button>
+                 ))}
+              </div>
+           </div>
         </div>
       )}
-
-      {showAddModal && (
-        <div className="z-[6000] fixed inset-0">
-          {(appMode === 'ESTATE' || editingItem?.itemType === 'ESTATE') && <AddPropertyModal editData={editingItem} onClose={() => { setShowAddModal(false); setEditingItem(null); fetchAds(false); }} t={t} />}
-          {(appMode === 'JOBS' || editingItem?.itemType === 'JOBS') && <AddJobModal editData={editingItem} onClose={() => { setShowAddModal(false); setEditingItem(null); fetchAds(false); }} t={t} />}
-          {(appMode === 'SERVICES' || editingItem?.itemType === 'SERVICES') && <AddServiceModal editData={editingItem} onClose={() => { setShowAddModal(false); setEditingItem(null); fetchAds(false); }} t={t} />}
-        </div>
-      )}
-
-      {showAuthModal && <AuthModal onClose={() => { checkUnreadNotifications(); setShowAuthModal(false); }} lang={lang} hasUnreadChats={hasNewUserChats} hasUnreadAdmin={hasNewAdminMessages} onShowMyAds={() => { setFilterCategory('MY_ADS'); setShowAuthModal(false); }} onShowSaved={() => { setFilterCategory('SAVED'); setShowAuthModal(false); }} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} onCheckNotifications={checkUnreadNotifications} />}
-      {showAdminLogin && <AdminLogin onLogin={() => { setShowAdminLogin(false); setIsAdminMode(true); }} onCancel={() => setShowAdminLogin(false)} />}
+      {showAddForm && targetAddMode === 'ESTATE' && <AddPropertyModal t={t} onClose={() => setShowAddForm(false)} />}
+      {showAddForm && targetAddMode === 'JOBS' && <AddJobModal t={t} onClose={() => setShowAddForm(false)} />}
+      {showAddForm && targetAddMode === 'SERVICES' && <AddServiceModal t={t} onClose={() => setShowAddForm(false)} />}
+      {showAddForm && targetAddMode && !['ESTATE', 'JOBS', 'SERVICES'].includes(targetAddMode) && <AddGeneralAdModal mode={targetAddMode} t={t} onClose={() => setShowAddForm(false)} />}
     </div>
   );
 }

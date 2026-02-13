@@ -1,3 +1,4 @@
+
 export type Language = 'dari' | 'pashto';
 
 export interface Location {
@@ -20,117 +21,90 @@ export enum DealType {
   MORTGAGE = 'گروی'
 }
 
-export interface AdminMessage {
-  id: string;
-  target_phone: string;
-  text: string;
-  date: string;
-  is_read: boolean;
-  created_at?: string;
+export enum ServiceCategory {
+  TECHNICAL = 'تخنیکی',
+  REPAIR = 'ترمیماتی',
+  CLEANING = 'نظافت',
+  BEAUTY = 'آرایشگری',
+  EDUCATIONAL = 'آموزشی',
+  TRANSPORT = 'حمل و نقل',
+  OTHERS = 'سایر'
 }
 
-export interface UserChat {
+export type AppMode = 
+  | 'ESTATE' 
+  | 'VEHICLES' 
+  | 'DIGITAL' 
+  | 'HOME_KITCHEN' 
+  | 'SERVICES' 
+  | 'PERSONAL' 
+  | 'INDUSTRIAL' 
+  | 'JOBS' 
+  | 'OTHERS';
+
+export interface SubCategory {
   id: string;
-  sender_phone: string;
-  receiver_phone: string;
-  ad_id: string;
-  ad_title: string;
-  text: string;
-  is_read: boolean;
-  created_at: string;
+  label: string;
+  icon?: any;
 }
 
-// Added itemType to support discriminator in lists
-export interface Property {
+export interface Ad {
   id: string;
-  itemType?: AppMode;
+  mode: AppMode;
+  sub_category?: string;
+  subCategory?: string;
   ownerId: string;
+  owner_id?: string;
   title: string;
   price: number;
-  deposit?: number;
-  mortgageAmount?: number;
   currency: string;
-  location: Location;
-  address: string;
-  city: string;
-  images: string[];
-  bedrooms: number;
-  hasStorage: boolean;
-  hasParking: boolean;
-  area: number;
-  type: PropertyType;
-  dealType: DealType;
-  description: string;
-  features: string[];
-  date: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  phoneNumber: string;
-  showPhoneNumber: boolean;
-}
-
-// Removed JobType as it's no longer used in the simplified flow
-export interface Job {
-  id: string;
-  itemType?: AppMode;
-  ownerId: string;
-  title: string;
-  company: string;
-  salary: number;
-  currency: string;
-  location: Location;
+  location: Location | null;
   address: string;
   city: string;
   images: string[];
   description: string;
-  requirements: string[];
   date: string;
+  created_at?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
   phoneNumber: string;
-  showPhoneNumber: boolean;
+  phone_number?: string;
+  item_condition?: 'نو' | 'در حد نو' | 'دست دوم';
+  // Fix: Added is_boosted to Ad interface to resolve TS errors in PropertyCard.tsx and JobCard.tsx
+  is_boosted?: boolean;
 }
-
-export enum ServiceCategory {
-  REPAIR = 'ترمیمات',
-  CLEANING = 'نظافت و پاک‌کاری',
-  EDUCATION = 'آموزش و تدریس',
-  TECHNICAL = 'فنی و مهندسی',
-  TRANSPORT = 'حمل و نقل'
-}
-
-// Added itemType to support discriminator in lists
-export interface Service {
-  id: string;
-  itemType?: AppMode;
-  ownerId: string;
-  title: string;
-  providerName: string;
-  category: ServiceCategory;
-  location: Location;
-  address: string;
-  city: string;
-  images: string[];
-  description: string;
-  experience: string;
-  phoneNumber: string;
-  date: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  showPhoneNumber: boolean;
-}
-
-export interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-  isThinking?: boolean;
-}
-
-export type AdminRole = 'SUPER' | 'NORMAL';
 
 export interface AdminUser {
   id: string;
   username: string;
-  password: string;
+  password?: string;
   fullName: string;
-  role: AdminRole;
+  role: 'SUPER' | 'NORMAL';
 }
 
-export type AppMode = 'ESTATE' | 'JOBS' | 'SERVICES';
+export interface Property extends Ad {
+  deposit?: number;
+  mortgage_amount?: number;
+  mortgageAmount?: number;
+  bedrooms: number;
+  has_storage?: boolean;
+  hasStorage: boolean;
+  has_parking?: boolean;
+  hasParking: boolean;
+  area: number;
+  type: PropertyType;
+  deal_type?: DealType;
+  dealType: DealType;
+  build_year?: number;
+}
+
+export interface Job extends Ad {
+  company: string;
+  salary: number;
+}
+
+export interface Service extends Ad {
+  provider_name?: string;
+  providerName: string;
+  experience: string;
+  category?: string;
+}

@@ -14,7 +14,6 @@ interface State {
 
 /**
  * ErrorBoundary class component to catch rendering errors in the component tree.
- * Inheriting from Component<Props, State> ensures setState and props are correctly typed and available.
  */
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
@@ -27,7 +26,6 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error, errorInfo: null };
   }
 
-  // componentDidCatch implementation to capture error details and update state
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error("Uncaught error:", error, errorInfo);
     this.setState({ errorInfo });
@@ -41,20 +39,13 @@ export class ErrorBoundary extends Component<Props, State> {
             <AlertTriangle size={40} />
           </div>
           <h1 className="text-xl font-black text-gray-800 mb-2">اوه! مشکلی پیش آمد</h1>
-          <p className="text-sm text-gray-500 mb-8 max-w-xs mx-auto leading-6">
-            متاسفانه برنامه با خطا مواجه شد.
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-[#a62626] text-white px-8 py-3 rounded-xl font-black shadow-lg active:scale-95 flex items-center gap-2"
-          >
-            <RefreshCw size={18} />
-            تلاش مجدد
+          <p className="text-sm text-gray-500 mb-8 max-w-xs mx-auto leading-6">متاسفانه برنامه با خطا مواجه شد.</p>
+          <button onClick={() => window.location.reload()} className="bg-[#a62626] text-white px-8 py-3 rounded-xl font-black shadow-lg flex items-center gap-2">
+            <RefreshCw size={18} /> تلاش مجدد
           </button>
         </div>
       );
     }
-
     return this.props.children;
   }
 }

@@ -1,6 +1,6 @@
 
-import { Property, Language, DealType } from '../types';
-import { Bookmark, Home, Trash2, Clock, Edit, MapPin, Box, Car } from 'lucide-react';
+import { Property, DealType } from '../types';
+import { Bookmark, Camera, Package, Car, Box, Calendar } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 
 interface PropertyCardProps {
@@ -9,81 +9,65 @@ interface PropertyCardProps {
   isVisited?: boolean;
   isSaved?: boolean;
   onToggleSave?: () => void;
-  onDelete?: () => void;
-  onEdit?: () => void;
-  lang: Language;
 }
 
-export default function PropertyCard({ 
-  property, 
-  onClick, 
-  isVisited, 
-  isSaved, 
-  onToggleSave, 
-  onDelete, 
-  onEdit, 
-  lang 
-}: PropertyCardProps) {
+export default function PropertyCard({ property, onClick, isVisited, isSaved, onToggleSave }: PropertyCardProps) {
   const hasImages = property.images && property.images.length > 0;
-  const cityName = property.city || (lang === 'dari' ? 'نامشخص' : 'نامعلوم');
-  
-  // منطق جدید برای نمایش صحیح مبلغ بر اساس نوع معامله
   const displayAmount = property.dealType === DealType.MORTGAGE 
-    ? (property.mortgageAmount || 0) 
+    ? ((property as any).mortgage_amount || property.mortgageAmount || 0) 
     : (property.price || 0);
-    
-  const priceDisplay = displayAmount.toLocaleString();
 
   return (
-    <div 
-      onClick={onClick}
-      className={`bg-white rounded-[2rem] p-4 flex gap-4 cursor-pointer hover:shadow-xl transition-all border border-transparent hover:border-gray-100 relative shadow-sm group ${isVisited ? 'opacity-85' : ''}`}
-    >
-      <div className="flex-1 flex flex-col justify-between py-1 text-right">
+    <div onClick={onClick} className={`bg-white rounded-2xl p-3 flex gap-3 cursor-pointer border border-gray-100 hover:shadow-divar transition-all relative group ${isVisited ? 'opacity-70' : ''}`}>
+      <div className="flex-1 flex flex-col justify-between py-0.5 text-right overflow-hidden">
         <div>
-          <div className="flex justify-between items-start">
-             <div className="flex items-center gap-1.5">
-               <span className="text-[9px] text-gray-400 font-bold flex items-center gap-0.5"><Clock size={10} /> {getRelativeTime(property.date, lang)}</span>
-             </div>
-             <div className="flex items-center gap-1">
-                {onEdit && (
-                  <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Edit size={16} /></button>
-                )}
-                {onDelete && (
-                  <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 bg-red-50 text-red-600 rounded-lg"><Trash2 size={16} /></button>
-                )}
-                <button onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }} className="p-2 text-gray-300 hover:text-[#a62626]">
-                    <Bookmark size={18} className={isSaved ? "fill-[#a62626] text-[#a62626]" : ""} />
-                </button>
-             </div>
-          </div>
-          <h3 className="font-black text-gray-800 text-[15px] leading-7 mt-2 line-clamp-2">{property.title}</h3>
+          <h3 className={`font-black text-[14px] leading-6 line-clamp-1 mb-1 ${isVisited ? 'text-gray-400' : 'text-gray-900'}`}>{property.title}</h3>
           
-          <div className="flex items-center justify-between mt-1.5">
-            <div className="flex items-center gap-1 text-[#a62626] text-[10px] font-black">
-              <MapPin size={12} />
-              <span>{cityName}</span>
-              <span className="mx-1 text-gray-300">|</span>
-              <span className="text-gray-400 font-bold">{property.dealType}</span>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              {property.hasParking && <Car size={14} className="text-blue-500" />}
-              {property.hasStorage && <Box size={14} className="text-amber-600" />}
-            </div>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {property.has_parking && (
+              <span className="flex items-center gap-0.5 text-[8px] font-black bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md border border-blue-100">
+                <Car size={10}/> پارکینگ
+              </span>
+            )}
+            {property.has_storage && (
+              <span className="flex items-center gap-0.5 text-[8px] font-black bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded-md border border-amber-100">
+                <Box size={10}/> انباری
+              </span>
+            )}
+            {property.build_year && (
+              <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-md border border-gray-100">
+                <Calendar size={10}/> {property.build_year}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-0.5">
+             <div className="text-[11px] text-gray-400 font-bold flex items-center gap-1 justify-end">{(property as any).deal_type || property.dealType} در {property.city}</div>
+             <div className="text-[14px] text-[#a62626] font-black flex items-center gap-1 justify-end">{displayAmount.toLocaleString()} <span className="text-[9px] text-gray-400 font-bold">AFN</span></div>
           </div>
         </div>
-        <div className="mt-4 flex items-baseline gap-1">
-          <span className="text-[#a62626] font-black text-xl tracking-tight">{priceDisplay}</span>
-          <small className="text-gray-400 text-[10px] font-black uppercase">AFN</small>
+        
+        <div className="flex items-center justify-between mt-2">
+          <div className="text-[9px] text-gray-400 font-bold flex items-center gap-1">
+             {getRelativeTime(property.created_at || property.date)}
+             {property.is_boosted === true && (
+               <span className="text-[#a62626] font-black border-r pr-1 mr-1 border-gray-200">نردبان</span>
+             )}
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); onToggleSave?.(); }} className="text-gray-200 hover:text-[#a62626] transition-colors p-1.5">
+            <Bookmark size={16} className={isSaved ? "fill-[#a62626] text-[#a62626]" : ""} />
+          </button>
         </div>
       </div>
-      <div className="w-[110px] h-[110px] rounded-[1.8rem] overflow-hidden bg-gray-50 shrink-0 relative flex items-center justify-center">
+      <div className="w-[100px] h-[100px] rounded-xl overflow-hidden bg-gray-50 shrink-0 relative border border-gray-100 shadow-inner">
         {hasImages ? (
-          <img src={property.images[0]} alt={property.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-        ) : (
-          <Home size={40} className="text-gray-200" />
-        )}
+          <>
+            <img src={property.images[0]} alt={property.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            {property.images.length > 1 && (
+              <div className="absolute bottom-1 right-1 bg-black/50 backdrop-blur-sm text-white text-[8px] px-1 py-0.5 rounded-md flex items-center gap-0.5 font-black"><Camera size={9} />{property.images.length}</div>
+            )}
+          </>
+        ) : <div className="w-full h-full flex flex-col items-center justify-center text-gray-200 bg-gray-50 gap-1"><Package size={24} /><span className="text-[7px] font-black">بدون تصویر</span></div>}
       </div>
     </div>
   );

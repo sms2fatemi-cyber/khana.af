@@ -5,7 +5,7 @@
 
 :root {
   --main-red: #a62626;
-  --safe-bottom: env(safe-area-inset-bottom);
+  --divar-gray: #707070;
 }
 
 body {
@@ -15,12 +15,12 @@ body {
   padding: 0;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
-  user-select: none;
-  -webkit-user-select: none;
   height: 100vh;
   width: 100vw;
   position: fixed;
   overflow: hidden;
+  color: #242424;
+  touch-action: pan-x pan-y;
 }
 
 #root {
@@ -28,7 +28,6 @@ body {
   width: 100%;
 }
 
-/* اسکرول‌بار مخفی */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -37,43 +36,31 @@ body {
   scrollbar-width: none;
 }
 
-/* رفع قطعی مشکل خاکستری نقشه */
+h1, h2, h3, h4 {
+  font-weight: 900;
+}
+
+.shadow-divar {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+main {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.font-black {
+  font-weight: 900;
+}
+
 .leaflet-container {
-  width: 100% !important;
-  height: 100% !important;
-  background: #f2efe9 !important;
-  outline: none;
+  touch-action: none !important;
+  cursor: grab;
 }
 
-.leaflet-control-container {
-  display: none !important;
-}
-
-.leaflet-popup-content-wrapper {
-  border-radius: 18px !important;
-  padding: 0 !important;
-  overflow: hidden;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.15) !important;
-}
-
-.leaflet-popup-content {
-  margin: 0 !important;
-  width: 200px !important;
-}
-
-/* انیمیشن برای دکمه شناور */
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-5px); }
-  100% { transform: translateY(0px); }
-}
-
-.floating-btn {
-  animation: float 3s ease-in-out infinite;
-}
-
-@media screen and (max-height: 500px) {
-  .fixed-bottom-bar {
-    display: none;
-  }
+/* دکمه سوئیچ شکیل و کوچک */
+.view-toggle-pill {
+  box-shadow: 0 2px 10px rgba(166, 38, 38, 0.15);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
 }

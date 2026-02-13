@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Phone, Check } from 'lucide-react';
+import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Crosshair, Phone, Check, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { Job } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -101,6 +101,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t }) => {
 
   const [city, setCity] = useState(editData?.city || t.provinces[1]);
   const [location, setLocation] = useState(editData?.location || { lat: 34.5553, lng: 69.2075 });
+  const [showPhone, setShowPhone] = useState((editData as any)?.show_phone ?? true);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
@@ -135,10 +136,11 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t }) => {
         address: addressRef.current?.value || '',
         description: descriptionRef.current?.value || '', 
         phone_number: userPhone,
-        location: location, 
+        show_phone: showPhone,
+        location: hasConfirmedLocation ? location : null, 
         images: allImages, 
         owner_id: userPhone, 
-        status: 'PENDING' // ویرایش هم نیاز به تایید مجدد دارد
+        status: 'PENDING'
       };
 
       if (editData) {
@@ -191,9 +193,12 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t }) => {
             </div>
           </div>
         )}
-        <div className="p-5 border-b flex justify-between items-center bg-white shrink-0">
-          <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش شغل' : 'ثبت شغل'}</h2>
-          <button onClick={onClose} className="p-2"><X size={32} /></button>
+        <div className="p-5 border-b flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><ArrowRight size={24} className="text-gray-800" /></button>
+            <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش شغل' : 'ثبت شغل'}</h2>
+          </div>
+          <button onClick={onClose} className="p-2 bg-gray-50 rounded-xl"><X size={24} className="text-gray-400" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 no-scrollbar pb-32 text-right">
           <form id="job-form" onSubmit={handleSubmit} className="space-y-6">
@@ -210,28 +215,49 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, editData, t }) => {
               <input type="file" ref={fileInputRef} hidden multiple onChange={handleFileChange} />
             </div>
             <div className="space-y-4">
+              {/* بخش نمایش شماره تلفن و تنظیمات حریم خصوصی */}
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-3">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <div className="p-2 bg-white rounded-xl shadow-sm text-blue-400"><Phone size={18} /></div>
+                       <span className="text-[13px] font-black text-gray-800" dir="ltr">{userPhone}</span>
+                    </div>
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">شماره تماس شما</span>
+                 </div>
+                 <div className="pt-3 border-t flex items-center justify-between">
+                    <button 
+                      type="button"
+                      onClick={() => setShowPhone(!showPhone)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${showPhone ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-600'}`}
+                    >
+                       {showPhone ? <Eye size={16} /> : <EyeOff size={16} />}
+                       <span className="text-[10px] font-black">{showPhone ? 'شماره نمایش داده شود' : 'شماره مخفی بماند'}</span>
+                    </button>
+                    <div className="flex items-center gap-2">
+                       <input 
+                         type="checkbox" 
+                         checked={showPhone} 
+                         onChange={() => setShowPhone(!showPhone)} 
+                         className="w-5 h-5 rounded accent-blue-600" 
+                       />
+                       <label className="text-[11px] font-bold text-gray-600">نمایش شماره در آگهی</label>
+                    </div>
+                 </div>
+              </div>
+
               <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder="عنوان شغل" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               <input type="text" ref={companyRef} defaultValue={editData?.company} placeholder="نام شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
-              <div className="relative">
-                <Phone size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="tel" value={userPhone} readOnly className="w-full bg-gray-100 border rounded-2xl px-11 py-4 font-black text-left outline-none text-gray-400 cursor-not-allowed" dir="ltr" />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                  <select value={city} onChange={e => setCity(e.target.value)} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {t.provinces.slice(1).map((p: string) => <option key={p} value={p}>{p}</option>)}
                  </select>
                  <div className="relative flex-1">
                     <input type="tel" ref={salaryRef} defaultValue={editData?.salary} placeholder="معاش پیشنهادی" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
-                    <div className="absolute left-4 top-4 text-[10px] font-black text-gray-400">AFN</div>
                  </div>
               </div>
               
-              <div className="relative">
-                <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق" className="w-full bg-gray-50 border rounded-2xl px-11 py-4 font-bold outline-none" required />
-              </div>
+              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
 
               <button 
                 type="button" 

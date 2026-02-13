@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, MapPinned, Crosshair, Phone } from 'lucide-react';
+import { X, Check, MapPin, ChevronRight, Loader2, Camera, Trash2, Crosshair, Phone, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { Service, ServiceCategory } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -99,6 +99,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
   const [category, setCategory] = useState(editData?.category || ServiceCategory.TECHNICAL);
   const [city, setCity] = useState(editData?.city || t.provinces[1]);
   const [location, setLocation] = useState(editData?.location || { lat: 34.5553, lng: 69.2075 });
+  const [showPhone, setShowPhone] = useState((editData as any)?.show_phone ?? true);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
@@ -114,10 +115,10 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
     }
   };
 
-  const removeImage = (index: number) => {
+  const removeImage = (idx: number) => {
     const existingCount = editData?.images?.length || 0;
-    if (index >= existingCount) setSelectedFiles(prev => prev.filter((_, i) => i !== (index - existingCount)));
-    setPreviews(prev => prev.filter((_, i) => i !== index));
+    if (idx >= existingCount) setSelectedFiles(prev => prev.filter((_, i) => i !== (idx - existingCount)));
+    setPreviews(prev => prev.filter((_, i) => i !== idx));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,31 +134,25 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
         category: category, 
         experience: experienceRef.current?.value || '',
         phone_number: userPhone, 
-        show_phone: true,
+        show_phone: showPhone,
         city: city, 
         address: addressRef.current?.value || '', 
         description: descriptionRef.current?.value || '',
-        location: location, 
+        location: hasConfirmedLocation ? location : null, 
         images: allImages, 
-        status: 'PENDING', // همیشه بعد از ویرایش یا ثبت به حالت انتظار می‌رود
+        status: 'PENDING', 
         owner_id: userPhone
       };
       
       if (editData) {
-        const { error } = await supabase.from(TABLES.SERVICES).update(payload).eq('id', editData.id);
-        if (error) throw error;
-        alert("تغییرات با موفقیت ذخیره شد و پس از تایید ادمین نمایش داده می‌شود.");
+        await supabase.from(TABLES.SERVICES).update(payload).eq('id', editData.id);
+        alert("تغییرات ذخیره شد.");
         onClose();
       } else {
-        const { error } = await supabase.from(TABLES.SERVICES).insert([payload]);
-        if (error) throw error;
+        await supabase.from(TABLES.SERVICES).insert([payload]);
         setIsSuccess(true);
       }
-    } catch (err: any) { 
-      alert("خطا در ثبت: " + (err.message || "لطفاً دوباره تلاش کنید.")); 
-    } finally { 
-      setIsSubmitting(false); 
-    }
+    } catch (err: any) { alert("خطا در ثبت."); } finally { setIsSubmitting(false); }
   };
 
   if (isSuccess) return (
@@ -165,14 +160,10 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
       <div className="bg-white w-full max-sm:max-w-xs rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
         <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
         <h2 className="text-2xl font-black mb-2">با موفقیت ثبت شد</h2>
-        <p className="text-xs font-bold text-gray-400 mb-8 leading-6">آگهی شما پس از تایید ادمین برای همه نمایش داده می‌شود. فعلاً می‌توانید آن را در لیست آگهی‌های خود ببینید.</p>
         <button onClick={onClose} className="w-full bg-orange-600 text-white py-4 rounded-xl font-black active:scale-95">بسیار عالی</button>
       </div>
     </div>
   );
-
-  const MapContainerAny = MapContainer as any;
-  const TileLayerAny = TileLayer as any;
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center" onClick={onClose}>
@@ -184,15 +175,15 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
               <h2 className="font-black mr-2 text-lg">تعیین موقعیت روی نقشه</h2>
             </div>
             <div className="flex-1 relative bg-gray-50">
-              <MapContainerAny center={[location.lat, location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-                <TileLayerAny url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <MapContainer center={[location.lat, location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 <MapResizer />
                 <UserLocationHandler />
                 <MapMoveHandler onMoveStart={() => setIsMapMoving(true)} onMoveEnd={() => setIsMapMoving(false)} onChange={(loc: any) => setLocation(loc)} />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-full z-[1000] pointer-events-none flex flex-col items-center">
                    <MapPin size={48} className={isMapMoving ? 'text-gray-400' : 'text-orange-600'} />
                 </div>
-              </MapContainerAny>
+              </MapContainer>
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
                 <button onClick={() => { setHasConfirmedLocation(true); setView('form'); }} disabled={isMapMoving} className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black shadow-xl">تایید موقعیت</button>
               </div>
@@ -200,9 +191,12 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
           </div>
         )}
 
-        <div className="flex justify-between items-center p-5 border-b shrink-0">
-          <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش خدمات' : 'ثبت خدمات جدید'}</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full"><X size={32} /></button>
+        <div className="p-5 border-b flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center gap-2">
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><ArrowRight size={24} className="text-gray-800" /></button>
+            <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش خدمات' : 'ثبت خدمات جدید'}</h2>
+          </div>
+          <button onClick={onClose} className="p-2 bg-gray-50 rounded-xl"><X size={24} className="text-gray-400" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 no-scrollbar pb-32">
@@ -221,14 +215,26 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
             </div>
 
             <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-3">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <div className="p-2 bg-white rounded-xl shadow-sm text-orange-400"><Phone size={18} /></div>
+                       <span className="text-[13px] font-black text-gray-800" dir="ltr">{userPhone}</span>
+                    </div>
+                    <span className="text-[10px] font-black text-gray-400">شماره تماس شما (قفل شده)</span>
+                 </div>
+                 <div className="pt-3 border-t flex items-center justify-between">
+                    <button type="button" onClick={() => setShowPhone(!showPhone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${showPhone ? 'bg-orange-50 text-orange-600' : 'bg-red-50 text-red-600'}`}>
+                       {showPhone ? <Eye size={16} /> : <EyeOff size={16} />}
+                       <span className="text-[10px] font-black">{showPhone ? 'شماره نمایش داده شود' : 'شماره مخفی بماند'}</span>
+                    </button>
+                    <input type="checkbox" checked={showPhone} onChange={() => setShowPhone(!showPhone)} className="w-5 h-5 accent-orange-600" />
+                 </div>
+              </div>
+
               <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder="عنوان خدمات" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               <input type="text" ref={providerRef} defaultValue={editData?.providerName} placeholder="نام متخصص یا شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
-              <div className="relative">
-                <Phone size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="tel" value={userPhone} readOnly className="w-full bg-gray-100 border rounded-2xl px-11 py-4 font-black text-left outline-none text-gray-400 cursor-not-allowed" dir="ltr" />
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                  <select value={city} onChange={e => setCity(e.target.value)} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {t.provinces.slice(1).map((p: string) => (<option key={p} value={p}>{p}</option>))}
@@ -240,10 +246,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
                  {Object.values(ServiceCategory).map(cat => (<option key={cat} value={cat}>{cat}</option>))}
               </select>
 
-              <div className="relative">
-                <MapPinned size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق محل خدمت" className="w-full bg-gray-50 border rounded-2xl px-11 py-4 font-bold outline-none" required />
-              </div>
+              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق محل خدمت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
 
               <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}>
                 {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه (اختیاری)</span></>}
