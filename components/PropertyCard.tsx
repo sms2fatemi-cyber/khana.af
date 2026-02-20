@@ -1,6 +1,6 @@
 
 import { Property, DealType } from '../types';
-import { Bookmark, Camera, Package, Car, Box, Calendar } from 'lucide-react';
+import { Bookmark, Camera, Package, Car, Box, Calendar, ArrowUp } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 
 interface PropertyCardProps {
@@ -13,9 +13,12 @@ interface PropertyCardProps {
 
 export default function PropertyCard({ property, onClick, isVisited, isSaved, onToggleSave }: PropertyCardProps) {
   const hasImages = property.images && property.images.length > 0;
-  const displayAmount = property.dealType === DealType.MORTGAGE 
-    ? ((property as any).mortgage_amount || property.mortgageAmount || 0) 
+  const displayAmount = property.deal_type === DealType.MORTGAGE 
+    ? (property.mortgage_amount || 0) 
     : (property.price || 0);
+
+  // Safe access to has_elevator
+  const hasElevator = (property as any).has_elevator === true;
 
   return (
     <div onClick={onClick} className={`bg-white rounded-2xl p-3 flex gap-3 cursor-pointer border border-gray-100 hover:shadow-divar transition-all relative group ${isVisited ? 'opacity-70' : ''}`}>
@@ -34,6 +37,11 @@ export default function PropertyCard({ property, onClick, isVisited, isSaved, on
                 <Box size={10}/> انباری
               </span>
             )}
+            {hasElevator && (
+              <span className="flex items-center gap-0.5 text-[8px] font-black bg-green-50 text-green-600 px-1.5 py-0.5 rounded-md border border-green-100">
+                <ArrowUp size={10}/> آسانسور
+              </span>
+            )}
             {property.build_year && (
               <span className="flex items-center gap-0.5 text-[8px] font-black bg-gray-50 text-gray-500 px-1.5 py-0.5 rounded-md border border-gray-100">
                 <Calendar size={10}/> {property.build_year}
@@ -42,7 +50,7 @@ export default function PropertyCard({ property, onClick, isVisited, isSaved, on
           </div>
 
           <div className="space-y-0.5">
-             <div className="text-[11px] text-gray-400 font-bold flex items-center gap-1 justify-end">{(property as any).deal_type || property.dealType} در {property.city}</div>
+             <div className="text-[11px] text-gray-400 font-bold flex items-center gap-1 justify-end">{property.deal_type} در {property.city}</div>
              <div className="text-[14px] text-[#a62626] font-black flex items-center gap-1 justify-end">{displayAmount.toLocaleString()} <span className="text-[9px] text-gray-400 font-bold">AFN</span></div>
           </div>
         </div>

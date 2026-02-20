@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, X, Loader2 } from 'lucide-react';
 import { supabase, TABLES } from '../services/supabaseClient';
 
@@ -27,7 +27,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
   const markAsRead = useCallback(async () => {
     if (!userPhone || !receiverPhone || !adId) return;
     try {
-      // علامت‌گذاری تمامی پیام‌های دریافتی از این شخص در این آگهی
+      // Step 1: Update the database
       const { error } = await supabase
         .from(TABLES.USER_CHATS)
         .update({ is_read: true })
@@ -38,7 +38,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
           is_read: false 
         });
       
-      if (error) console.error("MarkAsRead Update Error:", error);
+      if (error) {
+        console.error("MarkAsRead Error:", error);
+      } else {
+        // Step 2: Dispatch a custom event to force refresh UI in other components
+        window.dispatchEvent(new CustomEvent('messages_read'));
+      }
     } catch (e) {
       console.error("MarkAsRead Exception:", e);
     }
@@ -46,40 +51,36 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
 
   useEffect(() => {
     const initChat = async () => {
-      if (!receiverName) {
+      if (receiverPhone === 'ADMIN') {
+        setDisplayName('پشتیبانی خانه');
+      } else if (!receiverName) {
         const { data } = await supabase.from('profiles').select('full_name').eq('phone', receiverPhone).maybeSingle();
         if (data?.full_name) setDisplayName(data.full_name);
       }
       await fetchMessages();
-      await markAsRead(); // خواندن پیام‌ها در لحظه باز شدن
+      await markAsRead(); 
     };
 
     initChat();
     
-    // کانال اختصاصی برای دریافت پیام‌های این مکالمه
     const channel = supabase
-      .channel(`chat_active_${adId}_${userPhone}`)
+      .channel(`chat_active_${adId}_${userPhone}_${receiverPhone}`)
       .on('postgres_changes', { 
-        event: '*', // شنیدن همه تغییرات (Insert, Update)
+        event: '*', 
         schema: 'public', 
         table: TABLES.USER_CHATS,
         filter: `ad_id=eq.${adId}` 
       }, (payload: any) => {
         if (payload.eventType === 'INSERT') {
           const newMsg = payload.new;
-          // اگر پیام مربوط به همین مکالمه دو نفره است
           if ((newMsg.sender_phone === userPhone && newMsg.receiver_phone === receiverPhone) ||
               (newMsg.sender_phone === receiverPhone && newMsg.receiver_phone === userPhone)) {
-            
             setMessages(prev => [...prev, newMsg]);
-            
-            // اگر پیام جدید برای ما بود، بلافاصله آن را خوانده شده کن
             if (newMsg.receiver_phone === userPhone) {
               markAsRead();
             }
           }
         } else if (payload.eventType === 'UPDATE') {
-          // بروزرسانی وضعیت تیک‌ها در صورت نیاز
           setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
         }
       })

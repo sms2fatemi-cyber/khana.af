@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Crosshair, Car, Box, Check, Calendar, ArrowUpCircle, ArrowRight, Phone, Eye, EyeOff } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Crosshair, Check, ArrowRight, Phone, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { Property, PropertyType, DealType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -8,6 +8,7 @@ import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClie
 
 interface AddPropertyModalProps {
   onClose: () => void;
+  onBack?: () => void;
   editData?: Property | null;
   t: any;
 }
@@ -17,6 +18,12 @@ const toEnglishDigits = (str: any): string => {
   const s = str.toString();
   return s.replace(/[۰-۹]/g, (d: string) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
           .replace(/[٠-٩]/g, (d: string) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+};
+
+const formatNumber = (val: string) => {
+  const nums = toEnglishDigits(val).replace(/[^\d]/g, '');
+  if (!nums) return '';
+  return nums.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 };
 
 const MapResizer = () => {
@@ -54,67 +61,58 @@ const UserLocationHandler = () => {
   }, []);
 
   const handleLocate = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!navigator.geolocation) {
-      alert("GPS در دسترس نیست.");
-      return;
-    }
+    e.preventDefault(); e.stopPropagation();
+    if (!navigator.geolocation) { alert("GPS Error"); return; }
     setIsLocating(true);
-    
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords;
         map.flyTo([lat, lng], 17, { animate: true });
         setIsLocating(false);
       },
-      () => {
-        setIsLocating(false);
-        alert("خطا در مکان‌یابی.");
-      },
+      () => { setIsLocating(false); alert("GPS Error"); },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [map]);
 
   return (
-    <button 
-      ref={btnRef}
-      type="button" 
-      onClick={handleLocate} 
-      className="absolute bottom-32 right-6 z-[3000] w-14 h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 pointer-events-auto active:scale-90 transition-transform"
-    >
+    <button ref={btnRef} type="button" onClick={handleLocate} className="absolute bottom-32 right-6 z-[3000] w-14 h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 pointer-events-auto active:scale-90 transition-transform">
       {isLocating ? <Loader2 size={24} className="animate-spin" /> : <Crosshair size={28} />}
     </button>
   );
 };
 
-export default function AddPropertyModal({ onClose, editData, t }: AddPropertyModalProps) {
+export default function AddPropertyModal({ onClose, onBack, editData, t }: AddPropertyModalProps) {
   const [view, setView] = useState<'form' | 'map'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isMapMoving, setIsMapMoving] = useState(false);
   const [hasConfirmedLocation, setHasConfirmedLocation] = useState(!!editData?.location);
+  const [showPhone, setShowPhone] = useState((editData as any)?.show_phone !== false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
   const userPhone = localStorage.getItem('user_phone') || '';
 
   const titleRef = useRef<HTMLInputElement>(null);
-  const priceRef = useRef<HTMLInputElement>(null);
-  const depositRef = useRef<HTMLInputElement>(null);
-  const mortgageRef = useRef<HTMLInputElement>(null);
-  const areaRef = useRef<HTMLInputElement>(null);
-  const bedroomsRef = useRef<HTMLInputElement>(null);
-  const floorRef = useRef<HTMLInputElement>(null);
-  const totalFloorsRef = useRef<HTMLInputElement>(null);
-  const buildYearRef = useRef<HTMLInputElement>(null);
   const addressRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Controlled fields for comma formatting
+  const [price, setPrice] = useState(editData?.price ? formatNumber(editData.price.toString()) : '');
+  const [deposit, setDeposit] = useState(editData?.deposit ? formatNumber(editData.deposit.toString()) : '');
+  const [mortgage, setMortgage] = useState(editData?.mortgage_amount ? formatNumber(editData.mortgage_amount.toString()) : '');
+  const [area, setArea] = useState(editData?.area ? formatNumber(editData.area.toString()) : '');
+  const [bedrooms, setBedrooms] = useState(editData?.bedrooms ? editData.bedrooms.toString() : '');
+  const [floor, setFloor] = useState((editData as any)?.floor ? (editData as any).floor.toString() : '');
+  const [totalFloors, setTotalFloors] = useState((editData as any)?.total_floors ? (editData as any).total_floors.toString() : '');
+  const [buildYear, setBuildYear] = useState(editData?.build_year ? editData.build_year.toString() : '');
 
-  const [dealType, setDealType] = useState(editData?.dealType || DealType.SALE);
+  const [dealType, setDealType] = useState(editData?.deal_type || DealType.SALE);
   const [propertyType, setPropertyType] = useState(editData?.type || PropertyType.APARTMENT);
   const [city, setCity] = useState(editData?.city || t.provinces[1]);
-  const [hasParking, setHasParking] = useState(editData?.hasParking || false);
-  const [hasStorage, setHasStorage] = useState(editData?.hasStorage || false);
+  const [hasParking, setHasParking] = useState(editData?.has_parking || false);
+  const [hasStorage, setHasStorage] = useState(editData?.has_storage || false);
   const [hasElevator, setHasElevator] = useState((editData as any)?.has_elevator || false);
   const [location, setLocation] = useState(editData?.location || { lat: 34.5553, lng: 69.2075 });
-  const [showPhone, setShowPhone] = useState((editData as any)?.show_phone ?? true);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
@@ -130,32 +128,50 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
 
   const removeImage = (idx: number) => {
     const existingCount = editData?.images?.length || 0;
-    if (idx >= existingCount) {
-        setSelectedFiles(prev => prev.filter((_, i) => i !== (idx - existingCount)));
-    }
+    if (idx >= existingCount) setSelectedFiles(prev => prev.filter((_, i) => i !== (idx - existingCount)));
     setPreviews(prev => prev.filter((_, i) => i !== idx));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userPhone) return alert("ابتدا وارد شوید.");
+    setErrorMessage('');
+
+    if (!userPhone) {
+        setErrorMessage("لطفا ابتدا وارد حساب خود شوید.");
+        return;
+    }
+
+    if (!hasConfirmedLocation) {
+       setErrorMessage(t.location_on_map);
+       setView('map');
+       return;
+    }
+
     setIsSubmitting(true);
     try {
+      const { data: userExists } = await supabase.from('profiles').select('phone').eq('phone', userPhone).maybeSingle();
+      if (!userExists) {
+          localStorage.removeItem('user_phone');
+          alert("نشست شما منقضی شده یا حساب شما یافت نشد. لطفا دوباره ثبت‌نام کنید.");
+          window.location.reload();
+          return;
+      }
+
       const urls = await uploadMultipleImages(selectedFiles);
       const allImages = [...previews.filter(p => p.startsWith('http')), ...urls];
       
-      const payload = {
+      const payload: any = {
         title: titleRef.current?.value || '', 
-        price: Number(toEnglishDigits(priceRef.current?.value)) || 0, 
-        mortgage_amount: Number(toEnglishDigits(mortgageRef.current?.value)) || 0,
-        deposit: Number(toEnglishDigits(depositRef.current?.value)) || 0,
+        price: Number(toEnglishDigits(price).replace(/,/g, '')) || 0, 
+        mortgage_amount: Number(toEnglishDigits(mortgage).replace(/,/g, '')) || 0,
+        deposit: Number(toEnglishDigits(deposit).replace(/,/g, '')) || 0,
         deal_type: dealType, 
         type: propertyType,
-        area: Number(toEnglishDigits(areaRef.current?.value)) || 0,
-        bedrooms: (Number(toEnglishDigits(bedroomsRef.current?.value)) || 0),
-        floor: Number(toEnglishDigits(floorRef.current?.value)) || null,
-        total_floors: Number(toEnglishDigits(totalFloorsRef.current?.value)) || null,
-        build_year: buildYearRef.current?.value ? Number(toEnglishDigits(buildYearRef.current?.value)) : null,
+        area: Number(toEnglishDigits(area).replace(/,/g, '')) || 0,
+        bedrooms: Number(toEnglishDigits(bedrooms)) || 0,
+        floor: floor ? Number(toEnglishDigits(floor)) : null,
+        total_floors: totalFloors ? Number(toEnglishDigits(totalFloors)) : null,
+        build_year: buildYear ? Number(toEnglishDigits(buildYear)) : null,
         has_storage: hasStorage, 
         has_parking: hasParking,
         has_elevator: hasElevator,
@@ -164,23 +180,25 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
         description: descriptionRef.current?.value || '',
         phone_number: userPhone, 
         show_phone: showPhone,
-        location: hasConfirmedLocation ? location : null, 
+        location: location, 
         images: allImages,
         owner_id: userPhone, 
-        status: 'PENDING',
-        created_at: editData ? editData.created_at : new Date().toISOString()
+        status: 'PENDING'
       };
 
-      if (editData) {
-        await supabase.from(TABLES.PROPERTIES).update(payload).eq('id', editData.id);
-        alert("تغییرات ثبت شد.");
-      } else {
-        await supabase.from(TABLES.PROPERTIES).insert([payload]);
-        alert("آگهی با موفقیت ثبت شد.");
+      const { error } = editData 
+        ? await supabase.from(TABLES.PROPERTIES).update(payload).eq('id', editData.id)
+        : await supabase.from(TABLES.PROPERTIES).insert([payload]);
+
+      if (error) {
+        setErrorMessage("خطا در ثبت پایگاه داده: " + error.message);
+        return;
       }
+
+      alert(t.success_msg || "آگهی با موفقیت ثبت شد.");
       onClose();
     } catch (err: any) { 
-      alert("خطا در ثبت."); 
+      setErrorMessage("خطای سیستمی رخ داد.");
     } finally { 
       setIsSubmitting(false); 
     }
@@ -190,10 +208,10 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
     <div className="fixed inset-0 z-[10000] bg-black/60 flex items-center justify-center" onClick={onClose}>
       <div className="bg-white w-full h-full md:max-h-[95vh] md:max-w-xl md:rounded-[2.5rem] flex flex-col overflow-hidden relative shadow-2xl" onClick={e => e.stopPropagation()}>
         {view === 'map' && (
-          <div className="absolute inset-0 z-[110] bg-white flex flex-col">
+          <div className="absolute inset-0 z-[110] bg-white flex flex-col animate-in fade-in">
             <div className="h-16 flex items-center px-6 border-b shrink-0 text-right">
               <button onClick={() => setView('form')} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight size={32} /></button>
-              <h2 className="font-black mr-2 text-lg">تعیین موقعیت روی نقشه</h2>
+              <h2 className="font-black mr-2 text-lg">{t.location_on_map}</h2>
             </div>
             <div className="flex-1 relative bg-gray-50">
               <MapContainer center={[location.lat, location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
@@ -206,19 +224,25 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
                 </div>
               </MapContainer>
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
-                <button onClick={() => { setHasConfirmedLocation(true); setView('form'); }} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-xl">تایید موقعیت</button>
+                <button onClick={() => { setHasConfirmedLocation(true); setView('form'); }} className="w-full bg-[#a62626] text-white py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-all">تایید موقعیت</button>
               </div>
             </div>
           </div>
         )}
         <div className="p-5 border-b flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><ArrowRight size={24} className="text-gray-800" /></button>
-            <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش خانه' : 'ثبت خانه'}</h2>
+            <button onClick={onBack || onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><ArrowRight size={24} className="text-gray-800" /></button>
+            <h2 className="font-black text-xl text-gray-800">{editData ? t.edit_ad : t.add_post}</h2>
           </div>
           <button onClick={onClose} className="p-2 bg-gray-50 rounded-xl"><X size={24} className="text-gray-400" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 no-scrollbar pb-32">
+          {errorMessage && (
+             <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-3 text-xs font-black animate-in slide-in-from-top-2">
+                <AlertCircle size={20} />
+                <span>{errorMessage}</span>
+             </div>
+          )}
           <form id="property-form" onSubmit={handleSubmit} className="space-y-6 text-right">
             <div className="grid grid-cols-4 gap-3">
               {previews.map((src, i) => (
@@ -234,37 +258,20 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
             </div>
             
             <div className="space-y-4">
-              {/* بخش نمایش شماره تلفن و تنظیمات حریم خصوصی */}
               <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-3">
                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                        <div className="p-2 bg-white rounded-xl shadow-sm text-gray-400"><Phone size={18} /></div>
                        <span className="text-[13px] font-black text-gray-800" dir="ltr">{userPhone}</span>
                     </div>
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">شماره تماس شما</span>
-                 </div>
-                 <div className="pt-3 border-t flex items-center justify-between">
-                    <button 
-                      type="button"
-                      onClick={() => setShowPhone(!showPhone)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${showPhone ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}
-                    >
-                       {showPhone ? <Eye size={16} /> : <EyeOff size={16} />}
-                       <span className="text-[10px] font-black">{showPhone ? 'شماره نمایش داده شود' : 'شماره مخفی بماند'}</span>
+                    <button type="button" onClick={() => setShowPhone(!showPhone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${showPhone ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-200 border-gray-300 text-gray-500'}`}>
+                       {showPhone ? <Eye size={14} /> : <EyeOff size={14} />}
+                       <span className="text-[10px] font-black">{showPhone ? t.show_phone : t.hide_phone}</span>
                     </button>
-                    <div className="flex items-center gap-2">
-                       <input 
-                         type="checkbox" 
-                         checked={showPhone} 
-                         onChange={() => setShowPhone(!showPhone)} 
-                         className="w-5 h-5 rounded accent-[#a62626]" 
-                       />
-                       <label className="text-[11px] font-bold text-gray-600">نمایش شماره در آگهی</label>
-                    </div>
                  </div>
               </div>
 
-              <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder="عنوان آگهی (مثلاً آپارتمان ۱۲۰ متری در هرات)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder={t.title} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="grid grid-cols-2 gap-4">
                  <select value={dealType} onChange={e => setDealType(e.target.value as any)} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
@@ -273,73 +280,127 @@ export default function AddPropertyModal({ onClose, editData, t }: AddPropertyMo
                    <option value={DealType.MORTGAGE}>{t.mortgage}</option>
                  </select>
                  <select value={propertyType} onChange={e => setPropertyType(e.target.value as any)} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
-                   {Object.values(PropertyType).map(pt => <option key={pt} value={pt}>{pt}</option>)}
+                   {t.sub_categories.ESTATE.map((pt: string) => <option key={pt} value={pt}>{pt}</option>)}
                  </select>
               </div>
 
               {dealType === DealType.SALE && (
-                 <input type="tel" ref={priceRef} defaultValue={editData?.price} placeholder="قیمت کل (افغانی)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
+                 <input 
+                  type="tel" 
+                  value={price} 
+                  onChange={e => setPrice(formatNumber(e.target.value))} 
+                  placeholder={`${t.price} (${t.currency})`} 
+                  className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" 
+                  required 
+                 />
               )}
               {dealType === DealType.RENT && (
                  <div className="grid grid-cols-2 gap-4">
-                    <input type="tel" ref={priceRef} defaultValue={editData?.price} placeholder="کرایه ماهانه" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
-                    <input type="tel" ref={depositRef} defaultValue={editData?.deposit} placeholder="پول پیش (ضمانت)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
+                    <input 
+                      type="tel" 
+                      value={price} 
+                      onChange={e => setPrice(formatNumber(e.target.value))} 
+                      placeholder={t.rent} 
+                      className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" 
+                      required 
+                    />
+                    <input 
+                      type="tel" 
+                      value={deposit} 
+                      onChange={e => setDeposit(formatNumber(e.target.value))} 
+                      placeholder="Deposit" 
+                      className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" 
+                      required 
+                    />
                  </div>
               )}
               {dealType === DealType.MORTGAGE && (
-                 <input type="tel" ref={mortgageRef} defaultValue={(editData as any)?.mortgage_amount || editData?.mortgageAmount} placeholder="مبلغ گروی (افغانی)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" required />
+                 <input 
+                  type="tel" 
+                  value={mortgage} 
+                  onChange={e => setMortgage(formatNumber(e.target.value))} 
+                  placeholder={t.mortgage} 
+                  className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none" 
+                  required 
+                 />
               )}
 
               <div className="grid grid-cols-2 gap-4">
-                <input type="tel" ref={areaRef} defaultValue={editData?.area} placeholder="متراژ (مترمربع)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
-                <input type="tel" ref={bedroomsRef} defaultValue={editData?.bedrooms} placeholder="تعداد اتاق" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" />
+                <input 
+                  type="tel" 
+                  value={area} 
+                  onChange={e => setArea(formatNumber(e.target.value))} 
+                  placeholder={t.area} 
+                  className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" 
+                  required 
+                />
+                <input 
+                  type="tel" 
+                  value={bedrooms} 
+                  onChange={e => setBedrooms(toEnglishDigits(e.target.value).replace(/\D/g, ''))} 
+                  placeholder={t.bedrooms} 
+                  className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" 
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <input type="tel" ref={floorRef} defaultValue={(editData as any)?.floor} placeholder="طبقه" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" />
-                <input type="tel" ref={totalFloorsRef} defaultValue={(editData as any)?.total_floors} placeholder="تعداد طبقات کل" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" />
+                <input 
+                  type="tel" 
+                  value={floor} 
+                  onChange={e => setFloor(toEnglishDigits(e.target.value).replace(/\D/g, ''))} 
+                  placeholder={t.floor} 
+                  className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" 
+                />
+                <input 
+                  type="tel" 
+                  value={totalFloors} 
+                  onChange={e => setTotalFloors(toEnglishDigits(e.target.value).replace(/\D/g, ''))} 
+                  placeholder={t.total_floors} 
+                  className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" 
+                />
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                 <button type="button" onClick={() => setHasParking(!hasParking)} className={`py-4 rounded-2xl font-black text-[10px] border flex flex-col items-center justify-center gap-1 ${hasParking ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
-                   <Car size={16}/> پارکینگ
+                 <button type="button" onClick={() => setHasParking(!hasParking)} className={`py-4 rounded-2xl font-black text-[10px] border flex flex-col items-center justify-center gap-1 ${hasParking ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                   <Check size={16} className={hasParking ? "block" : "hidden"} /> {t.parking}
                  </button>
                  <button type="button" onClick={() => setHasStorage(!hasStorage)} className={`py-4 rounded-2xl font-black text-[10px] border flex flex-col items-center justify-center gap-1 ${hasStorage ? 'bg-amber-50 border-amber-200 text-amber-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
-                   <Box size={16}/> انباری
+                   <Check size={16} className={hasStorage ? "block" : "hidden"} /> {t.storage}
                  </button>
                  <button type="button" onClick={() => setHasElevator(!hasElevator)} className={`py-4 rounded-2xl font-black text-[10px] border flex flex-col items-center justify-center gap-1 ${hasElevator ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
-                   <ArrowUpCircle size={16}/> آسانسور
+                   <Check size={16} className={hasElevator ? "block" : "hidden"} /> {t.elevator}
                  </button>
               </div>
 
               <div className="relative">
-                <Calendar size={18} className="absolute right-4 top-4 text-gray-400" />
-                <input type="tel" ref={buildYearRef} defaultValue={editData?.build_year} placeholder="سال ساخت" className="w-full bg-gray-50 border rounded-2xl px-11 py-4 font-bold outline-none" />
+                <input 
+                  type="tel" 
+                  value={buildYear} 
+                  onChange={e => setBuildYear(toEnglishDigits(e.target.value).replace(/\D/g, ''))} 
+                  placeholder={t.build_year} 
+                  className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" 
+                />
               </div>
 
               <select value={city} onChange={e => setCity(e.target.value)} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-black outline-none">
                 {t.provinces.slice(1).map((p: string) => <option key={p} value={p}>{p}</option>)}
               </select>
 
-              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق و محله" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder={t.address} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
-              <button 
-                type="button" 
-                onClick={() => setView('map')} 
-                className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 ${hasConfirmedLocation ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400'}`}
-              >
-                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">موقعیت روی نقشه انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه (اختیاری)</span></>}
+              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-green-500 bg-green-50 text-green-700' : 'border-[#a62626] bg-red-50 text-[#a62626] animate-pulse'}`}>
+                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">{t.location_confirmed}</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
               </button>
 
-              <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder="توضیحات تکمیلی (دسترسی‌ها، امکانات و...)" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
+              <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder={t.description} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
             </div>
           </form>
         </div>
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
           <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg shadow-lg">
-            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? 'بروزرسانی آگهی' : 'انتشار آگهی')}
+            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? "بروزرسانی" : t.submit)}
           </button>
-          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">انصراف</button>
+          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">{t.cancel}</button>
         </div>
       </div>
     </div>

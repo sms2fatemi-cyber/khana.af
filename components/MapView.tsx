@@ -1,9 +1,9 @@
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Property, Job, Service, Location } from '../types';
-import { Car, ShieldCheck, MapPin, ChevronLeft } from 'lucide-react';
+import { Car, ShieldCheck, MapPin, ChevronLeft, Crosshair, Loader2, ArrowUp } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
 interface MapViewProps {
@@ -13,6 +13,40 @@ interface MapViewProps {
   visitedIds: Set<string>; 
   flyToLocation?: Location | null;
 }
+
+const UserLocationButton = () => {
+  const map = useMap();
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleLocate = useCallback(() => {
+    if (!navigator.geolocation) {
+      alert("GPS در دسترس نیست.");
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        map.flyTo([pos.coords.latitude, pos.coords.longitude], 16, { animate: true });
+        setIsLocating(false);
+      },
+      () => {
+        setIsLocating(false);
+        alert("خطا در مکان‌یابی. لطفا دسترسی GPS را چک کنید.");
+      },
+      { enableHighAccuracy: true }
+    );
+  }, [map]);
+
+  return (
+    <button 
+      onClick={handleLocate}
+      className="absolute bottom-[55px] right-4 lg:bottom-6 lg:right-6 z-[2000] w-12 h-11 lg:w-14 lg:h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 active:scale-90 transition-all pointer-events-auto"
+      title="موقعیت من"
+    >
+      {isLocating ? <Loader2 size={18} className="animate-spin" /> : <Crosshair size={22} className="lg:scale-125" />}
+    </button>
+  );
+};
 
 const MapController = ({ location, selectedItem, markerRefs }: { location: Location | null, selectedItem: any, markerRefs: any }) => {
   const map = useMap();
@@ -58,6 +92,7 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <MapController location={flyToLocation || null} selectedItem={selectedItem} markerRefs={markerRefs} />
+        <UserLocationButton />
         
         {items.filter(item => item.location?.lat && item.location?.lng).map((item) => (
           <Marker 
@@ -87,7 +122,8 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
                     </div>
                   )}
                   <div className="absolute top-2 left-2 flex gap-1">
-                     {(item as any).has_parking && <div className="bg-blue-600/90 backdrop-blur-sm text-white p-1 rounded-md shadow-sm"><Car size={10}/></div>}
+                     {(item as any).has_parking && <div className="bg-blue-600/90 backdrop-blur-sm text-white p-1 rounded-md shadow-sm" title="پارکینگ"><Car size={10}/></div>}
+                     {(item as any).has_elevator && <div className="bg-green-600/90 backdrop-blur-sm text-white p-1 rounded-md shadow-sm" title="آسانسور"><ArrowUp size={10}/></div>}
                   </div>
                 </div>
 

@@ -6,6 +6,30 @@ export interface Location {
   lng: number;
 }
 
+/**
+ * Added AdminUser interface for authentication and management.
+ */
+export interface AdminUser {
+  id: string;
+  username: string;
+  password?: string;
+  fullName: string;
+  role: 'SUPER' | 'EDITOR';
+}
+
+/**
+ * Added ServiceCategory enum for service classification.
+ */
+export enum ServiceCategory {
+  TECHNICAL = 'خدمات تخنیکی',
+  REPAIR = 'تعمیرات',
+  CLEANING = 'نظافت',
+  BEAUTY = 'آرایشگری',
+  EDUCATION = 'آموزشی',
+  TRANSPORT = 'حمل و نقل',
+  OTHERS = 'سایر'
+}
+
 export enum PropertyType {
   APARTMENT = 'آپارتمان',
   HOUSE = 'حویلی',
@@ -21,16 +45,6 @@ export enum DealType {
   MORTGAGE = 'گروی'
 }
 
-export enum ServiceCategory {
-  TECHNICAL = 'تخنیکی',
-  REPAIR = 'ترمیماتی',
-  CLEANING = 'نظافت',
-  BEAUTY = 'آرایشگری',
-  EDUCATIONAL = 'آموزشی',
-  TRANSPORT = 'حمل و نقل',
-  OTHERS = 'سایر'
-}
-
 export type AppMode = 
   | 'ESTATE' 
   | 'VEHICLES' 
@@ -40,21 +54,16 @@ export type AppMode =
   | 'PERSONAL' 
   | 'INDUSTRIAL' 
   | 'JOBS' 
+  | 'ENTERTAINMENT'
   | 'OTHERS';
-
-export interface SubCategory {
-  id: string;
-  label: string;
-  icon?: any;
-}
 
 export interface Ad {
   id: string;
   mode: AppMode;
+  adType?: string;
   sub_category?: string;
-  subCategory?: string;
-  ownerId: string;
   owner_id?: string;
+  ownerId?: string;
   title: string;
   price: number;
   currency: string;
@@ -66,34 +75,22 @@ export interface Ad {
   date: string;
   created_at?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  phoneNumber: string;
   phone_number?: string;
+  phoneNumber?: string;
   item_condition?: 'نو' | 'در حد نو' | 'دست دوم';
-  // Fix: Added is_boosted to Ad interface to resolve TS errors in PropertyCard.tsx and JobCard.tsx
   is_boosted?: boolean;
-}
-
-export interface AdminUser {
-  id: string;
-  username: string;
-  password?: string;
-  fullName: string;
-  role: 'SUPER' | 'NORMAL';
+  show_phone?: boolean;
 }
 
 export interface Property extends Ad {
   deposit?: number;
   mortgage_amount?: number;
-  mortgageAmount?: number;
   bedrooms: number;
   has_storage?: boolean;
-  hasStorage: boolean;
   has_parking?: boolean;
-  hasParking: boolean;
   area: number;
   type: PropertyType;
   deal_type?: DealType;
-  dealType: DealType;
   build_year?: number;
 }
 
@@ -104,7 +101,6 @@ export interface Job extends Ad {
 
 export interface Service extends Ad {
   provider_name?: string;
-  providerName: string;
   experience: string;
   category?: string;
 }

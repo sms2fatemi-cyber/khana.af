@@ -8,6 +8,7 @@ import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClie
 
 interface AddServiceModalProps {
   onClose: () => void;
+  onBack?: () => void;
   editData?: Service | null;
   t: any;
 }
@@ -64,7 +65,7 @@ const UserLocationHandler = () => {
       },
       () => { 
         setIsLocating(false); 
-        alert("یافتن مکان ناموفق بود."); 
+        alert("خطا در مکان‌یابی. لطفا دسترسی GPS را چک کنید."); 
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
@@ -76,18 +77,20 @@ const UserLocationHandler = () => {
       type="button" 
       onClick={handleLocate} 
       className="absolute bottom-32 right-6 z-[3000] w-14 h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-orange-600 border border-gray-100 pointer-events-auto active:scale-90 transition-transform"
+      title="موقعیت فعلی من"
     >
       {isLocating ? <Loader2 size={24} className="animate-spin" /> : <Crosshair size={28} />}
     </button>
   );
 };
 
-export default function AddServiceModal({ onClose, editData, t }: AddServiceModalProps) {
+export default function AddServiceModal({ onClose, onBack, editData, t }: AddServiceModalProps) {
   const [view, setView] = useState<'form' | 'map'>('form');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isMapMoving, setIsMapMoving] = useState(false);
   const [hasConfirmedLocation, setHasConfirmedLocation] = useState(!!editData?.location);
+  const [showPhone, setShowPhone] = useState((editData as any)?.show_phone !== false);
   const userPhone = localStorage.getItem('user_phone') || '';
 
   const titleRef = useRef<HTMLInputElement>(null);
@@ -99,7 +102,6 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
   const [category, setCategory] = useState(editData?.category || ServiceCategory.TECHNICAL);
   const [city, setCity] = useState(editData?.city || t.provinces[1]);
   const [location, setLocation] = useState(editData?.location || { lat: 34.5553, lng: 69.2075 });
-  const [showPhone, setShowPhone] = useState((editData as any)?.show_phone ?? true);
 
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
@@ -123,12 +125,18 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasConfirmedLocation) {
+        alert("لطفاً موقعیت ارائه خدمات را روی نقشه تعیین کنید. این مورد برای ثبت آگهی الزامی است.");
+        setView('map');
+        return;
+    }
+
     setIsSubmitting(true);
     try {
       const uploadedUrls = await uploadMultipleImages(selectedFiles);
       const allImages = [...previews.filter(p => p.startsWith('http')), ...uploadedUrls];
       
-      const payload = {
+      const payload: any = {
         title: titleRef.current?.value || '', 
         provider_name: providerRef.current?.value || '',
         category: category, 
@@ -138,7 +146,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
         city: city, 
         address: addressRef.current?.value || '', 
         description: descriptionRef.current?.value || '',
-        location: hasConfirmedLocation ? location : null, 
+        location: location, 
         images: allImages, 
         status: 'PENDING', 
         owner_id: userPhone
@@ -150,6 +158,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
         onClose();
       } else {
         await supabase.from(TABLES.SERVICES).insert([payload]);
+        alert("آگهی با موفقیت ثبت شد.");
         setIsSuccess(true);
       }
     } catch (err: any) { alert("خطا در ثبت."); } finally { setIsSubmitting(false); }
@@ -172,7 +181,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
           <div className="absolute inset-0 z-[110] bg-white flex flex-col animate-in fade-in duration-300">
             <div className="h-16 flex items-center px-6 border-b shrink-0 text-right">
               <button onClick={() => setView('form')} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight size={32} /></button>
-              <h2 className="font-black mr-2 text-lg">تعیین موقعیت روی نقشه</h2>
+              <h2 className="font-black mr-2 text-lg">تعیین موقعیت الزامی روی نقشه</h2>
             </div>
             <div className="flex-1 relative bg-gray-50">
               <MapContainer center={[location.lat, location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
@@ -185,7 +194,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
                 </div>
               </MapContainer>
               <div className="absolute bottom-10 left-8 right-8 z-[1000]">
-                <button onClick={() => { setHasConfirmedLocation(true); setView('form'); }} disabled={isMapMoving} className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black shadow-xl">تایید موقعیت</button>
+                <button onClick={() => { setHasConfirmedLocation(true); setView('form'); }} disabled={isMapMoving} className="w-full bg-orange-600 text-white py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-all">تایید موقعیت</button>
               </div>
             </div>
           </div>
@@ -193,7 +202,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
 
         <div className="p-5 border-b flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-2">
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><ArrowRight size={24} className="text-gray-800" /></button>
+            <button onClick={onBack || onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><ArrowRight size={24} className="text-gray-800" /></button>
             <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش خدمات' : 'ثبت خدمات جدید'}</h2>
           </div>
           <button onClick={onClose} className="p-2 bg-gray-50 rounded-xl"><X size={24} className="text-gray-400" /></button>
@@ -209,7 +218,7 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
                 </div>
               ))}
               <button type="button" onClick={() => fileInputRef.current?.click()} className="aspect-square rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 bg-gray-50 active:bg-gray-100">
-                <Camera size={32} /> <span className="text-[10px] mt-1 font-black">افزودن عکس</span>
+                <Camera size={32} />
               </button>
               <input type="file" ref={fileInputRef} hidden multiple onChange={handleFileChange} />
             </div>
@@ -221,19 +230,15 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
                        <div className="p-2 bg-white rounded-xl shadow-sm text-orange-400"><Phone size={18} /></div>
                        <span className="text-[13px] font-black text-gray-800" dir="ltr">{userPhone}</span>
                     </div>
-                    <span className="text-[10px] font-black text-gray-400">شماره تماس شما (قفل شده)</span>
-                 </div>
-                 <div className="pt-3 border-t flex items-center justify-between">
-                    <button type="button" onClick={() => setShowPhone(!showPhone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${showPhone ? 'bg-orange-50 text-orange-600' : 'bg-red-50 text-red-600'}`}>
-                       {showPhone ? <Eye size={16} /> : <EyeOff size={16} />}
-                       <span className="text-[10px] font-black">{showPhone ? 'شماره نمایش داده شود' : 'شماره مخفی بماند'}</span>
+                    <button type="button" onClick={() => setShowPhone(!showPhone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${showPhone ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-200 border-gray-300 text-gray-500'}`}>
+                       {showPhone ? <Eye size={14} /> : <EyeOff size={14} />}
+                       <span className="text-[10px] font-black">{showPhone ? 'شماره نمایش داده می‌شود' : 'شماره مخفی است'}</span>
                     </button>
-                    <input type="checkbox" checked={showPhone} onChange={() => setShowPhone(!showPhone)} className="w-5 h-5 accent-orange-600" />
                  </div>
               </div>
 
               <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder="عنوان خدمات" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
-              <input type="text" ref={providerRef} defaultValue={editData?.providerName} placeholder="نام متخصص یا شرکت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={providerRef} defaultValue={editData?.provider_name} placeholder="نام متخصص" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="grid grid-cols-2 gap-4">
                  <select value={city} onChange={e => setCity(e.target.value)} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
@@ -243,16 +248,16 @@ export default function AddServiceModal({ onClose, editData, t }: AddServiceModa
               </div>
 
               <select value={category} onChange={e => setCategory(e.target.value as any)} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
-                 {Object.values(ServiceCategory).map(cat => (<option key={cat} value={cat}>{cat}</option>))}
+                 {Object.values(ServiceCategory).map(cat => (<option key={cat as any} value={cat as any}>{cat as any}</option>))}
               </select>
 
-              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس دقیق محل خدمت" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
 
-              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-gray-200 text-gray-400 hover:bg-gray-50'}`}>
-                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">تعیین مکان روی نقشه (اختیاری)</span></>}
+              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-orange-600 bg-orange-50 text-orange-600 animate-pulse'}`}>
+                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
               </button>
               
-              <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder="توضیحات کامل خدمات..." className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
+              <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder="توضیجات..." className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
             </div>
           </form>
         </div>

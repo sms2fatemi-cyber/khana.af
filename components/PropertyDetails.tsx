@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Property } from '../types';
-import { Bookmark, ChevronRight, ChevronLeft, Phone, Clock, MapPinned, Edit3, Trash2, MessageCircle, UserPlus, User, RefreshCcw, Loader2 } from 'lucide-react';
+import { Bookmark, ChevronRight, Phone, Clock, MapPinned, Edit3, Trash2, MessageCircle, UserPlus, User, RefreshCcw, Loader2, Home, Box, Car, Calendar, ArrowUpCircle, X, ArrowUp } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 import { supabase, TABLES } from '../services/supabaseClient';
 import ChatWindow from './ChatWindow';
@@ -18,13 +18,21 @@ interface PropertyDetailsProps {
   onShowOtherAds?: () => void;
 }
 
+const SpecItem = ({ icon: Icon, label, value, color = "text-red-600" }: { icon: any, label: string, value: any, color?: string }) => (
+  <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-2xl border border-gray-100 shadow-sm gap-1">
+    <Icon size={18} className={color} />
+    <span className="text-[10px] text-gray-400 font-black text-center">{label}</span>
+    <span className="text-xs font-black text-gray-800 text-center">{value}</span>
+  </div>
+);
+
 const ProfileHeader: React.FC<{ name: string; phone: string; onShowOtherAds?: () => void }> = ({ name, phone, onShowOtherAds }) => (
   <div className="bg-white p-6 rounded-[2.5rem] border border-gray-100 shadow-sm space-y-4">
     <div className="flex items-center gap-4">
       <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center border-2 border-white shadow-md">
         <User size={32} />
       </div>
-      <div className="flex-1">
+      <div className="flex-1 text-right">
         <h4 className="font-black text-gray-900 text-lg">{name || phone}</h4>
         <p className="text-[10px] text-gray-400 font-bold">آگهی‌دهنده تایید شده</p>
       </div>
@@ -76,6 +84,9 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
   const isOwner = ownerId === userPhone;
   const allImages = property?.images?.filter(img => img) || [];
 
+  // Safe access to has_elevator
+  const hasElevator = (property as any).has_elevator === true;
+
   const nextImage = useCallback(() => {
     if (allImages.length > 1) {
       setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
@@ -87,15 +98,6 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
       setActiveImageIndex(prev => (prev > 0 ? prev - 1 : allImages.length - 1));
     }
   }, [allImages.length]);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') prevImage();
-      else if (e.key === 'ArrowLeft') nextImage();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextImage, prevImage]);
 
   useEffect(() => {
     const fetchOwner = async () => {
@@ -116,7 +118,6 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
       const { error } = await supabase.from(TABLES.PROPERTIES).update({ created_at: new Date(), is_boosted: true }).eq('id', property.id);
       if (error) throw error;
       alert("آگهی نردبان شد!");
-      window.location.reload();
     } catch (e) { alert("خطا در نردبان"); } finally { setIsNardebaning(false); }
   };
 
@@ -129,14 +130,13 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
       <div className="absolute top-0 left-0 right-0 h-14 z-[5002] flex items-center justify-between px-4 pt-2 pointer-events-none">
-        <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90"><ChevronRight size={24} /></button>
-        <button onClick={onToggleSave} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto">
-          <Bookmark size={20} className={isSaved ? "fill-[#a62626] text-[#a62626]" : "text-gray-700"} />
+        <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100">
+          <X size={24} className="text-gray-800" />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto md:flex md:flex-row bg-gray-50 no-scrollbar">
-        <div className="w-full md:w-[60%] flex flex-col shrink-0 bg-white">
+        <div className="w-full md:w-[60%] flex flex-col shrink-0 bg-white relative">
             <div className="w-full h-[50vh] md:h-full bg-zinc-900 relative flex items-center justify-center overflow-hidden group"
                  onTouchStart={(e) => touchStartX.current = e.touches[0].clientX}
                  onTouchEnd={(e) => {
@@ -151,11 +151,11 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
                     
                     {allImages.length > 1 && (
                       <>
-                        <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex items-center justify-center z-10">
-                          <ChevronRight size={32} />
+                        <button onClick={prevImage} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 text-white rounded-full hover:bg-black/40 transition-all z-10 hidden md:flex">
+                           <ChevronRight size={28} />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex items-center justify-center z-10">
-                          <ChevronLeft size={32} />
+                        <button onClick={nextImage} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 text-white rounded-full hover:bg-black/40 transition-all z-10 hidden md:flex">
+                           <ChevronRight size={28} className="rotate-180" />
                         </button>
 
                         <div className="absolute inset-x-0 bottom-6 flex gap-1.5 justify-center pointer-events-none">
@@ -177,11 +177,26 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
               <div className="flex items-center gap-2 text-gray-400 font-bold text-[10px] justify-end"><Clock size={12} /> {getRelativeTime(property.created_at || property.date)} در {property.city}</div>
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y">
-               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">مساحت</span><span className="font-black">{(property as any).area} متر</span></div>
-               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">خواب</span><span className="font-black">{(property as any).bedrooms}</span></div>
-               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">پارکینگ</span><span className="font-black">{(property as any).has_parking ? 'دارد' : 'ندارد'}</span></div>
-               <div className="text-center bg-gray-50 p-4 rounded-2xl"><span className="block text-gray-400 text-[10px] mb-1">انباری</span><span className="font-black">{(property as any).has_storage ? 'دارد' : 'ندارد'}</span></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+               <SpecItem icon={Home} label="متراژ" value={`${property.area} متر`} />
+               <SpecItem icon={MessageCircle} label="اتاق" value={property.bedrooms || '۰'} />
+               <SpecItem icon={Calendar} label="سال ساخت" value={property.build_year || 'نامشخص'} />
+               <SpecItem icon={ArrowUpCircle} label="طبقه" value={(property as any).floor || 'همکف'} />
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+               <div className={`p-4 rounded-2xl border flex flex-col items-center justify-center shadow-sm text-center gap-1 ${property.has_parking ? 'bg-blue-50 border-blue-100 text-blue-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                  <Car size={18}/>
+                  <span className="text-[10px] font-black">پارکینگ: {property.has_parking ? 'دارد' : 'ندارد'}</span>
+               </div>
+               <div className={`p-4 rounded-2xl border flex flex-col items-center justify-center shadow-sm text-center gap-1 ${property.has_storage ? 'bg-amber-50 border-amber-100 text-amber-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                  <Box size={18}/>
+                  <span className="text-[10px] font-black">انباری: {property.has_storage ? 'دارد' : 'ندارد'}</span>
+               </div>
+               <div className={`p-4 rounded-2xl border flex flex-col items-center justify-center shadow-sm text-center gap-1 ${hasElevator ? 'bg-green-50 border-green-100 text-green-700' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                  <ArrowUp size={18}/>
+                  <span className="text-[10px] font-black">آسانسور: {hasElevator ? 'دارد' : 'ندارد'}</span>
+               </div>
             </div>
 
             <div className="bg-red-50/50 p-6 rounded-[2rem] border border-red-100 flex justify-between items-center shadow-inner">
@@ -206,6 +221,9 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
                  <OwnerPanel onEdit={onEdit!} onDelete={onDelete!} onNardeban={handleNardeban} isNardebaning={isNardebaning} />
                ) : (
                  <div className="flex gap-3">
+                    <button onClick={onToggleSave} className={`w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center border transition-all active:scale-90 shadow-sm ${isSaved ? 'bg-red-50 border-red-200 text-red-600' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+                       <Bookmark size={24} className={isSaved ? "fill-current" : ""} />
+                    </button>
                     <button onClick={handleChatOpen} className="flex-1 bg-white border border-gray-200 text-gray-700 h-14 rounded-2xl font-black text-sm flex items-center justify-center gap-3 active:scale-95 shadow-sm">
                        <MessageCircle size={22} className="text-red-600" /> {String(t.chat)}
                     </button>

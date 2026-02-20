@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Bookmark, ChevronRight, Phone, MapPinned, ChevronLeft, Clock, MapPin, Loader2, Info, UserPlus, Edit3, Trash2, RefreshCcw, Shield, MessageCircle } from 'lucide-react';
+import { Bookmark, Phone, MapPinned, Clock, MapPin, Loader2, Info, UserPlus, Edit3, Trash2, RefreshCcw, Shield, MessageCircle, X } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 import { supabase, TABLES } from '../services/supabaseClient';
 import ChatWindow from './ChatWindow';
@@ -24,8 +24,10 @@ const ContactActions: React.FC<{
   phoneNumber: string;
   ownerName: string;
   t: any;
+  isSaved: boolean;
+  onToggleSave: () => void;
   onShowOtherAds?: () => void;
-}> = ({ handleChatOpen, showContact, setShowContact, phoneNumber, ownerName, t, onShowOtherAds }) => (
+}> = ({ handleChatOpen, showContact, setShowContact, phoneNumber, ownerName, t, isSaved, onToggleSave, onShowOtherAds }) => (
   <div className="space-y-4 bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100 shadow-inner">
     <div className="flex flex-col gap-3">
       {onShowOtherAds && (
@@ -34,6 +36,9 @@ const ContactActions: React.FC<{
         </button>
       )}
       <div className="flex gap-3">
+         <button onClick={onToggleSave} className={`w-14 h-14 shrink-0 rounded-2xl flex items-center justify-center border transition-all active:scale-90 shadow-sm ${isSaved ? 'bg-red-50 border-red-200 text-red-600' : 'bg-gray-50 border-gray-100 text-gray-400'}`}>
+            <Bookmark size={24} className={isSaved ? "fill-current" : ""} />
+         </button>
          <button onClick={handleChatOpen} className="flex-1 bg-white border border-gray-200 text-gray-700 h-14 rounded-2xl font-black text-sm flex items-center justify-center gap-3 active:scale-95 shadow-sm">
             <MessageCircle size={22} className="text-red-600" /> {String(t.chat)}
          </button>
@@ -102,15 +107,6 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
   }, [allImages.length]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') prevImage();
-      else if (e.key === 'ArrowLeft') nextImage();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [nextImage, prevImage]);
-
-  useEffect(() => {
     const fetchOwnerName = async () => {
       const phone = ad.owner_id || ad.ownerId;
       if (phone) {
@@ -143,15 +139,15 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
 
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
+      {/* Header: Fixed top left exit button */}
       <div className="absolute top-0 left-0 right-0 h-14 z-[5002] flex items-center justify-between px-4 pt-2 pointer-events-none">
-        <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto text-gray-700 active:scale-90"><ChevronRight size={24} /></button>
-        <button onClick={onToggleSave} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto text-gray-700">
-             <Bookmark size={20} className={isSaved ? "fill-[#a62626] text-[#a62626]" : ""} />
+        <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100">
+          <X size={24} className="text-gray-800" />
         </button>
       </div>
 
       <div className="flex-1 overflow-y-auto md:overflow-hidden md:flex md:flex-row bg-gray-50 h-full no-scrollbar">
-        <div className="w-full md:w-[60%] md:h-full flex flex-col shrink-0 md:border-l bg-white md:overflow-y-auto no-scrollbar">
+        <div className="w-full md:w-[60%] md:h-full flex flex-col shrink-0 md:border-l bg-white md:overflow-y-auto no-scrollbar relative">
             <div className="w-full h-[45vh] md:h-[75vh] bg-zinc-900 relative shrink-0 flex items-center justify-center overflow-hidden" 
                  onTouchStart={(e) => touchStartX.current = e.touches[0].clientX} 
                  onTouchEnd={(e) => {
@@ -166,11 +162,11 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
                     
                     {allImages.length > 1 && (
                       <>
-                        <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex z-10">
-                          <ChevronRight size={32} />
+                        <button onClick={prevImage} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex z-10">
+                          <Bookmark className="rotate-180" size={32} />
                         </button>
-                        <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex z-10">
-                          <ChevronLeft size={32} />
+                        <button onClick={nextImage} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex z-10">
+                          <Bookmark size={32} />
                         </button>
 
                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest">
@@ -185,7 +181,7 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
                {isOwner ? (
                  <OwnerPanel onEdit={onEdit!} onDelete={onDelete!} onNardeban={handleNardeban} isNardebaning={isNardebaning} />
                ) : (
-                 <ContactActions ownerName={ownerName} onShowOtherAds={onShowOtherAds} handleChatOpen={handleChatOpen} showContact={showContact} setShowContact={setShowContact} phoneNumber={ad.phoneNumber || (ad as any).phone_number} t={t} />
+                 <ContactActions ownerName={ownerName} isSaved={isSaved} onToggleSave={onToggleSave} onShowOtherAds={onShowOtherAds} handleChatOpen={handleChatOpen} showContact={showContact} setShowContact={setShowContact} phoneNumber={ad.phoneNumber || (ad as any).phone_number} t={t} />
                )}
             </div>
         </div>
@@ -194,7 +190,7 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
             {isOwner && isPending && (
               <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 flex items-center gap-3 animate-pulse">
                 <Info className="text-amber-600" size={20} />
-                <p className="text-[10px] font-black text-amber-600">این آگهی در انتظار تایید ادمین است و فعلاً فقط برای شما نمایش داده می‌شود.</p>
+                <p className="text-[10px] font-black text-amber-600">در انتظار تایید ادمین.</p>
               </div>
             )}
             <div className="space-y-2 pt-2 text-right">
@@ -246,7 +242,7 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
                    {isOwner ? (
                      <OwnerPanel onEdit={onEdit!} onDelete={onDelete!} onNardeban={handleNardeban} isNardebaning={isNardebaning} />
                    ) : (
-                     <ContactActions ownerName={ownerName} onShowOtherAds={onShowOtherAds} handleChatOpen={handleChatOpen} showContact={showContact} setShowContact={setShowContact} phoneNumber={ad.phoneNumber || (ad as any).phone_number} t={t} />
+                     <ContactActions ownerName={ownerName} isSaved={isSaved} onToggleSave={onToggleSave} onShowOtherAds={onShowOtherAds} handleChatOpen={handleChatOpen} showContact={showContact} setShowContact={setShowContact} phoneNumber={ad.phoneNumber || (ad as any).phone_number} t={t} />
                    )}
                 </div>
             </div>

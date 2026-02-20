@@ -47,7 +47,8 @@ export default function ServiceCard({
              </div>
           </div>
           <h3 className={`font-black text-[15px] leading-7 mt-2 line-clamp-2 ${isVisited ? 'text-gray-400' : 'text-gray-800'}`}>{service.title}</h3>
-          <p className="text-gray-400 text-[11px] font-bold mt-1">{service.providerName}</p>
+          {/* Fix: changed providerName to provider_name */}
+          <p className="text-gray-400 text-[11px] font-bold mt-1">{service.provider_name}</p>
         </div>
         <div className="mt-4 flex items-center gap-2">
           <div className="p-1.5 bg-orange-50 text-orange-600 rounded-lg"><Wrench size={14} /></div>
