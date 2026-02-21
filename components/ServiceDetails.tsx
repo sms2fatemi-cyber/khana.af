@@ -1,11 +1,10 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Service } from '../types';
-// Added ChevronRight to the imports
 import { 
   X, Bookmark, MapPinned, Phone, MessageCircle, 
   Clock, MapPin, Wrench, ShieldCheck, 
-  UserPlus, Edit3, Trash2, RefreshCcw, Loader2, User, ChevronRight
+  UserPlus, Edit3, Trash2, RefreshCcw, Loader2, User, ChevronRight, Flag, AlertTriangle
 } from 'lucide-react';
 import ChatWindow from './ChatWindow';
 import { getRelativeTime } from '../services/translations';
@@ -82,12 +81,43 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isNardebaning, setIsNardebaning] = useState(false);
   const [ownerName, setOwnerName] = useState<string>('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   const touchStartX = useRef<number | null>(null);
   
   const userPhone = localStorage.getItem('user_phone');
   const ownerId = service.owner_id || service.ownerId || (service as any).phone_number;
   const isOwner = ownerId === userPhone;
   const allImages = service.images?.filter(img => img) || [];
+
+  const reportReasons = [
+    "دیگر خدمات ارائه نمی‌دهد",
+    "کلاه برداری است",
+    "تخصص ادعا شده را ندارد",
+    "شماره تماس اشتباه یا عدم پاسخگویی",
+    "محتوای نامناسب یا توهین آمیز",
+    "آگهی تکراری / اسپم"
+  ];
+
+  const handleReport = async (reason: string) => {
+    setIsReporting(true);
+    try {
+      const { error } = await supabase.from(TABLES.REPORTS).insert([{
+        ad_id: service.id,
+        reporter_phone: userPhone || 'ANONYMOUS',
+        reason: reason,
+        ad_title: service.title,
+        ad_type: 'SERVICES'
+      }]);
+      if (error) throw error;
+      alert("گزارش ثبت شد.");
+      setShowReportModal(false);
+    } catch (e) {
+      alert("خطا در ثبت گزارش.");
+    } finally {
+      setIsReporting(false);
+    }
+  };
 
   const nextImage = useCallback(() => {
     if (allImages.length > 1) setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
@@ -128,11 +158,18 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
 
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
-      {/* Header: Fixed top left exit button */}
       <div className="absolute top-0 left-0 right-0 h-14 z-[5002] flex items-center justify-between px-4 pt-2 pointer-events-none">
         <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100">
           <X size={24} className="text-gray-800" />
         </button>
+        {!isOwner && (
+          <button 
+            onClick={() => setShowReportModal(true)} 
+            className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100 text-gray-400 hover:text-orange-600 transition-colors"
+          >
+            <Flag size={20} />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto md:flex md:flex-row bg-gray-50 no-scrollbar">
@@ -152,11 +189,9 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
                     {allImages.length > 1 && (
                       <>
                         <button onClick={prevImage} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 text-white rounded-full hover:bg-black/40 transition-all z-10 hidden md:flex">
-                           {/* Fixed ChevronRight missing error */}
                            <ChevronRight size={28} className="rotate-180" />
                         </button>
                         <button onClick={nextImage} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 text-white rounded-full hover:bg-black/40 transition-all z-10 hidden md:flex">
-                           {/* Fixed ChevronRight missing error */}
                            <ChevronRight size={28} />
                         </button>
 
@@ -226,6 +261,31 @@ const ServiceDetails: React.FC<ServiceDetailsProps> = ({ service, onClose, onSho
         </div>
       </div>
       {isChatOpen && <ChatWindow receiverPhone={ownerId} adId={service.id} adTitle={service.title} onClose={() => setIsChatOpen(false)} />}
+      
+      {showReportModal && (
+        <div className="fixed inset-0 z-[15000] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowReportModal(false)}>
+           <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-6 text-orange-600">
+                 <div className="p-3 bg-orange-50 rounded-xl"><AlertTriangle size={24} /></div>
+                 <h3 className="font-black text-lg">گزارش تخصص / خدمات</h3>
+              </div>
+              <div className="space-y-2">
+                 {reportReasons.map((reason, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => handleReport(reason)}
+                      disabled={isReporting}
+                      className="w-full text-right p-4 rounded-xl hover:bg-gray-50 font-bold text-sm border border-transparent hover:border-gray-100 transition-all flex items-center justify-between group disabled:opacity-50"
+                    >
+                      {reason}
+                      <ChevronRight size={16} className="text-gray-300 group-hover:text-orange-600 transition-colors" />
+                    </button>
+                 ))}
+              </div>
+              <button onClick={() => setShowReportModal(false)} className="w-full mt-6 py-3 text-gray-400 font-black text-sm">انصراف</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

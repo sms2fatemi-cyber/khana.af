@@ -5,6 +5,7 @@ import { Property, PropertyType, DealType } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
+import { PROVINCE_COORDS } from '../App';
 
 interface AddPropertyModalProps {
   onClose: () => void;
@@ -118,6 +119,15 @@ export default function AddPropertyModal({ onClose, onBack, editData, t }: AddPr
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Auto-center map on city when clicking "Location on Map"
+  const handleOpenMap = () => {
+    if (!hasConfirmedLocation) {
+        const coords = PROVINCE_COORDS[city];
+        if (coords) setLocation(coords);
+    }
+    setView('map');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files) as File[];
@@ -143,7 +153,7 @@ export default function AddPropertyModal({ onClose, onBack, editData, t }: AddPr
 
     if (!hasConfirmedLocation) {
        setErrorMessage(t.location_on_map);
-       setView('map');
+       handleOpenMap();
        return;
     }
 
@@ -195,7 +205,7 @@ export default function AddPropertyModal({ onClose, onBack, editData, t }: AddPr
         return;
       }
 
-      alert(t.success_msg || "آگهی با موفقیت ثبت شد.");
+      alert(editData ? t.update_ad : t.success_msg);
       onClose();
     } catch (err: any) { 
       setErrorMessage("خطای سیستمی رخ داد.");
@@ -388,7 +398,7 @@ export default function AddPropertyModal({ onClose, onBack, editData, t }: AddPr
 
               <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder={t.address} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
-              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-green-500 bg-green-50 text-green-700' : 'border-[#a62626] bg-red-50 text-[#a62626] animate-pulse'}`}>
+              <button type="button" onClick={handleOpenMap} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-green-500 bg-green-50 text-green-700' : 'border-[#a62626] bg-red-50 text-[#a62626] animate-pulse'}`}>
                 {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">{t.location_confirmed}</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
               </button>
 
@@ -398,7 +408,7 @@ export default function AddPropertyModal({ onClose, onBack, editData, t }: AddPr
         </div>
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
           <button form="property-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-[#a62626] text-white py-4 rounded-2xl font-black text-lg shadow-lg">
-            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? "بروزرسانی" : t.submit)}
+            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? t.update_ad : t.submit)}
           </button>
           <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">{t.cancel}</button>
         </div>

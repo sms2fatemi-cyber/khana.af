@@ -11,11 +11,11 @@ interface JobCardProps {
   onToggleSave?: () => void;
 }
 
-export default function JobCard({ job, onClick, isVisited, isSaved, onToggleSave }: JobCardProps) {
+export default function JobCard({ job, onClick, isSaved, onToggleSave }: JobCardProps) {
   const hasImages = job.images && job.images.length > 0;
 
   return (
-    <div onClick={onClick} className={`bg-white rounded-[2rem] p-4 flex gap-4 cursor-pointer hover:shadow-xl transition-all border border-transparent shadow-sm group ${isVisited ? 'opacity-50 grayscale-[0.5]' : ''}`}>
+    <div onClick={onClick} className="bg-white rounded-[2rem] p-4 flex gap-4 cursor-pointer hover:shadow-xl transition-all border border-transparent shadow-sm group">
       <div className="flex-1 flex flex-col justify-between py-1 text-right overflow-hidden">
         <div>
           <div className="flex justify-between items-start">
@@ -27,7 +27,7 @@ export default function JobCard({ job, onClick, isVisited, isSaved, onToggleSave
                 <Bookmark size={18} className={isSaved ? "fill-blue-600 text-blue-600" : "text-gray-300"} />
              </button>
           </div>
-          <h3 className={`font-black text-[15px] leading-7 mt-2 line-clamp-2 ${isVisited ? 'text-gray-400' : 'text-gray-800'}`}>{job.title}</h3>
+          <h3 className="font-black text-[15px] leading-7 mt-2 line-clamp-2 text-gray-800">{job.title}</h3>
           <div className="flex items-center gap-1 text-gray-400 text-[11px] font-bold mt-1">
             <Building2 size={12} /> <span>{job.company}</span>
           </div>

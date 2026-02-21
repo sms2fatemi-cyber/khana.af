@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 const getEnvVar = (name: string): string => {
@@ -31,7 +32,8 @@ export const TABLES = {
   USER_CHATS: 'user_chats',
   GENERAL_ADS: 'general_ads',
   APP_SETTINGS: 'app_settings',
-  SAVED_ADS: 'saved_ads'
+  SAVED_ADS: 'saved_ads',
+  REPORTS: 'reports'
 };
 
 export const isSupabaseReady = () => isConfigured;

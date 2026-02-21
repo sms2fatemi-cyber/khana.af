@@ -4,6 +4,7 @@ import { X, MapPin, ChevronRight, Loader2, Camera, Trash2, Crosshair, Check, Arr
 import { AppMode } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
+import { PROVINCE_COORDS } from '../App';
 
 interface AddGeneralAdModalProps {
   mode: AppMode;
@@ -105,6 +106,14 @@ export default function AddGeneralAdModal({ mode, onClose, onBack, editData, t }
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleOpenMap = () => {
+    if (!hasConfirmedLocation) {
+        const coords = PROVINCE_COORDS[city];
+        if (coords) setLocation(coords);
+    }
+    setView('map');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files) as File[];
@@ -125,7 +134,7 @@ export default function AddGeneralAdModal({ mode, onClose, onBack, editData, t }
     
     if (!hasConfirmedLocation) {
         alert(t.location_required);
-        setView('map');
+        handleOpenMap();
         return;
     }
 
@@ -154,7 +163,7 @@ export default function AddGeneralAdModal({ mode, onClose, onBack, editData, t }
 
       if (editData) {
         await supabase.from(TABLES.GENERAL_ADS).update(payload).eq('id', editData.id);
-        alert(t.success_msg);
+        alert(t.update_ad);
       } else {
         await supabase.from(TABLES.GENERAL_ADS).insert([payload]);
         alert(t.success_msg);
@@ -262,10 +271,10 @@ export default function AddGeneralAdModal({ mode, onClose, onBack, editData, t }
               
               <button 
                 type="button" 
-                onClick={() => setView('map')} 
+                onClick={handleOpenMap} 
                 className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-600 bg-red-50 text-red-600 animate-pulse'}`}
               >
-                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">{t.confirm_location}</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
+                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">{t.location_confirmed}</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
               </button>
 
               <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder={t.description} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
@@ -274,7 +283,7 @@ export default function AddGeneralAdModal({ mode, onClose, onBack, editData, t }
         </div>
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
           <button form="gen-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-red-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all">
-            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? t.edit_ad : t.submit)}
+            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? t.update_ad : t.submit)}
           </button>
           <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">{t.cancel}</button>
         </div>

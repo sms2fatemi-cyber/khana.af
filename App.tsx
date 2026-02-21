@@ -32,7 +32,7 @@ import { supabase, TABLES, isSupabaseReady } from './services/supabaseClient';
 const PAGE_SIZE = 15;
 const EXPIRY_DAYS = 60;
 
-const PROVINCE_COORDS: Record<string, Location> = {
+export const PROVINCE_COORDS: Record<string, Location> = {
   'کابل': { lat: 34.5553, lng: 69.2075 },
   'هرات': { lat: 34.3419, lng: 62.2031 },
   'بلخ': { lat: 36.7061, lng: 67.1122 },
@@ -58,7 +58,7 @@ const PROVINCE_COORDS: Record<string, Location> = {
   'جوزجان': { lat: 36.6475, lng: 65.7501 },
   'فاریاب': { lat: 35.9312, lng: 64.7824 },
   'سرپل': { lat: 36.2206, lng: 65.9277 },
-  'سمنگان': { lat: 36.2646, lng: 68.0151 },
+  'sمنگان': { lat: 36.2646, lng: 68.0151 },
   'بادغیس': { lat: 35.0000, lng: 63.5000 },
   'غور': { lat: 34.5000, lng: 64.5000 },
   'دایکندی': { lat: 33.6700, lng: 66.0700 },
@@ -89,7 +89,11 @@ function App() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
-  const [selectedProvince, setSelectedProvince] = useState(t.provinces[0]);
+  
+  const [selectedProvince, setSelectedProvince] = useState(() => {
+    return localStorage.getItem('user_province') || t.provinces[0];
+  });
+
   const [flyToLocation, setFlyToLocation] = useState<Location | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dealTypeFilter, setDealTypeFilter] = useState<string | null>(null);
@@ -109,7 +113,7 @@ function App() {
     return local ? new Set(JSON.parse(local)) : new Set();
   });
 
-  const [visitedIds] = useState<Set<string>>(() => {
+  const [visitedIds, setVisitedIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('visited_ads');
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
@@ -170,7 +174,6 @@ function App() {
                   setIsLoading(false);
               }
           }
-
           for (const table of [TABLES.PROPERTIES, TABLES.JOBS, TABLES.SERVICES, TABLES.GENERAL_ADS]) {
             const { data } = await supabase.from(table).select('*').in('id', idsArray);
             if (data) {
@@ -196,7 +199,6 @@ function App() {
           if (selectedProvince !== t.provinces[0]) query = query.eq('city', selectedProvince);
           if (searchTerm) query = query.ilike('title', `%${searchTerm}%`);
           if (tableType === 'ESTATE' && dealTypeFilter) query = query.eq('deal_type', dealTypeFilter);
-          
           const engMin = minPrice ? parseInt(toEnglishDigits(minPrice).replace(/,/g, '')) : null;
           const engMax = maxPrice ? parseInt(toEnglishDigits(maxPrice).replace(/,/g, '')) : null;
           const priceCol = tableType === 'JOBS' ? 'salary' : 'price';
@@ -246,33 +248,71 @@ function App() {
 
   useEffect(() => {
     fetchUnreadCounts();
+    const chatChannel = supabase.channel('live-chats').on('postgres_changes', { event: '*', schema: 'public', table: TABLES.USER_CHATS }, () => fetchUnreadCounts()).subscribe();
     
-    // ۱. گوش دادن به چت‌های جدید
-    const chatChannel = supabase.channel('live-chats')
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.USER_CHATS }, () => {
-        fetchUnreadCounts();
-      })
-      .subscribe();
-
-    // ۲. گوش دادن به آگهی‌های جدید (این بخش لیست آگهی‌ها را زنده می‌کند)
+    // Ads Channel Listener: Clear from visitedIds if an ad is boosted (updated)
     const adsChannel = supabase.channel('live-ads-feed')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(true))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(true))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: TABLES.PROPERTIES }, () => fetchAds(true))
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, () => fetchAds(true))
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SERVICES }, () => fetchAds(true))
-      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GENERAL_ADS }, () => fetchAds(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.PROPERTIES }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+           setVisitedIds(prev => {
+             const next = new Set(prev);
+             if (next.has(payload.new.id)) {
+               next.delete(payload.new.id);
+               localStorage.setItem('visited_ads', JSON.stringify(Array.from(next)));
+             }
+             return next;
+           });
+        }
+        fetchAds(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.JOBS }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+          setVisitedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(payload.new.id)) {
+              next.delete(payload.new.id);
+              localStorage.setItem('visited_ads', JSON.stringify(Array.from(next)));
+            }
+            return next;
+          });
+        }
+        fetchAds(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SERVICES }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+          setVisitedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(payload.new.id)) {
+              next.delete(payload.new.id);
+              localStorage.setItem('visited_ads', JSON.stringify(Array.from(next)));
+            }
+            return next;
+          });
+        }
+        fetchAds(true);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.GENERAL_ADS }, (payload) => {
+        if (payload.eventType === 'UPDATE') {
+          setVisitedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(payload.new.id)) {
+              next.delete(payload.new.id);
+              localStorage.setItem('visited_ads', JSON.stringify(Array.from(next)));
+            }
+            return next;
+          });
+        }
+        fetchAds(true);
+      })
       .subscribe();
 
     const handleMessagesRead = () => fetchUnreadCounts();
     window.addEventListener('messages_read', handleMessagesRead);
-
     const handleSavedSync = () => {
         const local = localStorage.getItem('saved_ads_ids');
         setSavedIds(local ? new Set(JSON.parse(local)) : new Set());
     };
     window.addEventListener('saved_ads_updated', handleSavedSync);
-
     return () => { 
       supabase.removeChannel(chatChannel); 
       supabase.removeChannel(adsChannel);
@@ -291,6 +331,7 @@ function App() {
 
   const handleProvinceChange = (province: string) => {
     setSelectedProvince(province);
+    localStorage.setItem('user_province', province);
     const coords = PROVINCE_COORDS[province];
     if (coords) setFlyToLocation(coords);
   };
@@ -301,7 +342,6 @@ function App() {
     if (isSaved) next.delete(item.id); else next.add(item.id);
     setSavedIds(next);
     localStorage.setItem('saved_ads_ids', JSON.stringify(Array.from(next)));
-    
     const cachedObjects = localStorage.getItem('saved_ads_content_cache');
     if (cachedObjects) {
         let parsed = JSON.parse(cachedObjects);
@@ -311,11 +351,23 @@ function App() {
     }
   };
 
+  const handleSelectItem = (item: any) => {
+    setSelectedItem(item);
+    setIsDetailOpen(true);
+    
+    // Add to visitedIds and persist
+    setVisitedIds(prev => {
+      if (prev.has(item.id)) return prev;
+      const next = new Set(prev);
+      next.add(item.id);
+      localStorage.setItem('visited_ads', JSON.stringify(Array.from(next)));
+      return next;
+    });
+  };
+
   const handleDeleteAd = async (item: any) => {
     if (!confirm('آیا از حذف این آگهی مطمئن هستید؟')) return;
-    const table = item.adType === 'ESTATE' ? TABLES.PROPERTIES : 
-                  item.adType === 'JOBS' ? TABLES.JOBS : 
-                  item.adType === 'SERVICES' ? TABLES.SERVICES : TABLES.GENERAL_ADS;
+    const table = item.adType === 'ESTATE' ? TABLES.PROPERTIES : item.adType === 'JOBS' ? TABLES.JOBS : item.adType === 'SERVICES' ? TABLES.SERVICES : TABLES.GENERAL_ADS;
     const { error } = await supabase.from(table).delete().eq('id', item.id);
     if (!error) {
       setItems(prev => prev.filter(i => i.id !== item.id));
@@ -338,30 +390,19 @@ function App() {
     setMinPrice('');
     setMaxPrice('');
     setSearchTerm('');
-    if (viewMode === 'list') {
-      mainScrollRef.current?.scrollTo(0, 0);
-    }
+    if (viewMode === 'list') mainScrollRef.current?.scrollTo(0, 0);
     fetchAds(true);
   };
 
   const openAddPost = () => {
-    const currentPhone = localStorage.getItem('user_phone');
-    if (!currentPhone) {
-        setShowAuthModal(true);
-    } else {
-        setEditData(null);
-        setShowAddCategoryPicker(true);
-    }
-  };
-
-  const openProfile = () => {
-    setShowAuthModal(true);
+    if (!userPhone) setShowAuthModal(true);
+    else { setEditData(null); setShowAddCategoryPicker(true); }
   };
 
   if (isAdminMode) return <AdminPanel onExit={() => setIsAdminMode(false)} currentAdmin={loggedAdmin} properties={[]} jobs={[]} services={[]} />;
 
   return (
-    <div className="flex flex-col h-screen bg-white font-[Vazirmatn] overflow-hidden text-gray-800" dir="rtl">
+    <div className="flex flex-col h-[100dvh] bg-white font-[Vazirmatn] overflow-hidden text-gray-800" dir="rtl">
       {showAdminLogin && <AdminLogin onLogin={(adm) => { setLoggedAdmin(adm); setShowAdminLogin(false); setIsAdminMode(true); }} onCancel={() => setShowAdminLogin(false)} />}
       
       <header className={`bg-white border-b flex items-center justify-between px-4 lg:px-12 z-[3000] shrink-0 gap-1 lg:gap-2 transition-all ${viewMode === 'map' ? 'h-[45px] max-md:h-[40px] px-2' : 'h-[64px]'}`}>
@@ -370,18 +411,15 @@ function App() {
              <button onClick={() => setViewMode('list')} className={`p-1 px-2 rounded-md transition-all text-[8px] font-black ${(viewMode as string) === 'list' ? 'bg-[#a62626] text-white' : 'text-gray-400'}`}>{t.list}</button>
              <button onClick={() => setViewMode('map')} className={`p-1 px-2 rounded-md transition-all text-[8px] font-black ${(viewMode as string) === 'map' ? 'bg-[#a62626] text-white' : 'text-gray-400'}`}>{t.map}</button>
           </div>
-          
-          <div className={`hidden md:flex items-center cursor-pointer shrink-0`} onClick={handleNavHome}>
+          <div className="hidden md:flex items-center cursor-pointer shrink-0" onClick={handleNavHome}>
              <span className="text-[#a62626] text-lg lg:text-2xl font-black">Khana</span>
           </div>
-
           <div className={`flex items-center gap-0.5 bg-gray-100 rounded-lg px-1.5 py-1 shrink-0 border border-gray-200 transition-all ${viewMode === 'map' ? 'max-md:scale-75' : 'max-md:scale-90 max-md:-ml-1'}`}>
             <Globe size={12} className="text-gray-400" />
             <select value={selectedProvince} onChange={(e) => handleProvinceChange(e.target.value)} className="bg-transparent text-[9px] lg:text-xs font-black outline-none border-none cursor-pointer">
               {t.provinces.map((p: string) => <option key={p} value={p}>{p}</option>)}
             </select>
           </div>
-
           <div className={`flex items-center flex-1 relative max-w-[200px] lg:max-w-md ${viewMode === 'map' ? 'max-md:scale-85' : 'max-md:scale-95 max-md:-mr-2'}`}>
              <input type="text" placeholder={t.search_placeholder} className={`w-full bg-gray-50 rounded-md pr-7 pl-2 py-1 text-[9px] lg:text-xs font-black outline-none border border-gray-200 ${viewMode === 'map' ? 'max-md:py-0.5' : 'py-1.5'}`} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
              <Search size={12} className="absolute right-2 text-gray-400" />
@@ -393,7 +431,7 @@ function App() {
               <span className="text-xs font-black">{t.chat}</span>
               {unreadUserCount > 0 && <div className="absolute top-1.5 right-2 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
            </button>
-           <button onClick={openProfile} className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 relative">
+           <button onClick={() => setShowAuthModal(true)} className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 relative">
               <User size={18}/>
               <span className="text-xs font-black">{t.profile}</span>
               {unreadAdminCount > 0 && <div className="absolute top-1 right-2 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
@@ -420,8 +458,8 @@ function App() {
            </nav>
         </aside>
 
-        <main ref={mainScrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto bg-gray-50 transition-all no-scrollbar pb-24 lg:pb-8">
-          <div className={`max-w-7xl mx-auto h-full flex flex-col ${viewMode === 'map' ? 'p-0 lg:p-2' : 'p-4 lg:p-8'}`}>
+        <main ref={mainScrollRef} onScroll={handleScroll} className={`flex-1 overflow-y-auto bg-gray-50 transition-all no-scrollbar lg:pb-8 ${viewMode === 'map' ? 'pb-0' : 'pb-[350px]'}`}>
+          <div className={`max-w-7xl mx-auto flex flex-col ${viewMode === 'map' ? 'h-full p-0 lg:p-2' : 'p-4 lg:p-8'}`}>
              {appMode === 'CHATS' ? <ChatList onClose={() => setAppMode('ALL')} /> : (
                <>
                  <div className="flex flex-col gap-3 md:gap-4 mb-4 md:mb-6 shrink-0">
@@ -430,71 +468,35 @@ function App() {
                          <h2 className="text-base md:text-xl font-black text-gray-900 whitespace-nowrap truncate max-w-[120px] md:max-w-none">
                             {appMode === 'SAVED' ? t.saved : (appMode === 'ALL' ? t.recent_ads : (t as any)[appMode.toLowerCase()] || appMode)}
                          </h2>
-                         
                          {viewMode === 'map' && appMode === 'ESTATE' && (
                             <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-1">
                                {[null, DealType.SALE, DealType.RENT, DealType.MORTGAGE].map(type => (
-                                  <button 
-                                    key={type || 'all'} 
-                                    onClick={() => setDealTypeFilter(type)} 
-                                    className={`px-2 md:px-4 py-1 rounded-lg text-[8px] md:text-[10px] font-black border transition-all whitespace-nowrap ${dealTypeFilter === type ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-500 border-gray-200 shadow-sm'}`}
-                                  >
+                                  <button key={type || 'all'} onClick={() => setDealTypeFilter(type)} className={`px-2 md:px-4 py-1 rounded-lg text-[8px] md:text-[10px] font-black border transition-all whitespace-nowrap ${dealTypeFilter === type ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-500 border-gray-200 shadow-sm'}`}>
                                      {type ? type : t.all}
                                   </button>
                                ))}
                             </div>
                          )}
                        </div>
-
                        <div className="flex items-center shrink-0">
                           <div className="hidden md:flex items-center bg-white border rounded-full px-1 py-1 gap-1 view-toggle-pill shadow-sm">
-                            <button onClick={() => setViewMode('list')} className={`p-1.5 px-3 rounded-full transition-all text-[10px] font-black flex items-center gap-1.5 ${(viewMode as string) === 'list' ? 'bg-[#a62626] text-white' : 'text-gray-400'}`}>
-                              <ListIcon size={12}/> {t.list}
-                            </button>
-                            <button onClick={() => setViewMode('map')} className={`p-1.5 px-3 rounded-full transition-all text-[10px] font-black flex items-center gap-1.5 ${(viewMode as string) === 'map' ? 'bg-[#a62626] text-white' : 'text-gray-400'}`}>
-                              <MapIcon size={12}/> {t.map}
-                            </button>
+                            <button onClick={() => setViewMode('list')} className={`p-1.5 px-3 rounded-full transition-all text-[10px] font-black flex items-center gap-1.5 ${(viewMode as string) === 'list' ? 'bg-[#a62626] text-white' : 'text-gray-400'}`}><ListIcon size={12}/> {t.list}</button>
+                            <button onClick={() => setViewMode('map')} className={`p-1.5 px-3 rounded-full transition-all text-[10px] font-black flex items-center gap-1.5 ${(viewMode as string) === 'map' ? 'bg-[#a62626] text-white' : 'text-gray-400'}`}><MapIcon size={12}/> {t.map}</button>
                           </div>
-
                           {viewMode === 'list' && (
                              <div className="md:hidden flex items-center gap-1 bg-white border border-gray-100 rounded-xl px-2 py-1 shadow-sm">
-                                <input 
-                                  type="tel" 
-                                  placeholder={t.min} 
-                                  value={minPrice} 
-                                  onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} 
-                                  className="w-20 text-[10px] font-black outline-none bg-transparent text-center" 
-                                />
+                                <input type="tel" placeholder={t.min} value={minPrice} onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} className="w-20 text-[10px] font-black outline-none bg-transparent text-center" />
                                 <span className="text-gray-300 text-[8px]">|</span>
-                                <input 
-                                  type="tel" 
-                                  placeholder={t.max} 
-                                  value={maxPrice} 
-                                  onChange={(e) => setMaxPrice(formatNumberWithCommas(e.target.value))} 
-                                  className="w-20 text-[10px] font-black outline-none bg-transparent text-center" 
-                                />
+                                <input type="tel" placeholder={t.max} value={maxPrice} onChange={(e) => setMaxPrice(formatNumberWithCommas(e.target.value))} className="w-20 text-[10px] font-black outline-none bg-transparent text-center" />
                              </div>
                           )}
                        </div>
                     </div>
-
                     <div className="flex flex-wrap items-center gap-2">
                        <div className="hidden md:flex bg-white border rounded-xl px-3 py-1.5 items-center gap-2 shadow-sm border-gray-100">
-                          <input 
-                            type="tel" 
-                            placeholder={t.min_price} 
-                            value={minPrice} 
-                            onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} 
-                            className="w-20 md:w-28 text-[10px] font-black outline-none" 
-                          />
+                          <input type="tel" placeholder={t.min_price} value={minPrice} onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} className="w-20 md:w-28 text-[10px] font-black outline-none" />
                           <span className="text-gray-300">|</span>
-                          <input 
-                            type="tel" 
-                            placeholder={t.max_price} 
-                            value={maxPrice} 
-                            onChange={(e) => setMaxPrice(formatNumberWithCommas(e.target.value))} 
-                            className="w-20 md:w-28 text-[10px] font-black outline-none" 
-                          />
+                          <input type="tel" placeholder={t.max_price} value={maxPrice} onChange={(e) => setMaxPrice(formatNumberWithCommas(e.target.value))} className="w-20 md:w-28 text-[10px] font-black outline-none" />
                        </div>
                        {viewMode === 'list' && appMode === 'ESTATE' && [null, DealType.SALE, DealType.RENT, DealType.MORTGAGE].map(type => (
                           <button key={type || 'all'} onClick={() => setDealTypeFilter(type)} className={`px-4 py-1 md:py-1.5 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black border transition-all ${dealTypeFilter === type ? 'bg-red-600 text-white border-red-600 shadow-md' : 'bg-white text-gray-500 border-gray-100'}`}>
@@ -506,30 +508,14 @@ function App() {
 
                  {viewMode === 'map' ? (
                    <div className="flex-1 lg:rounded-[1.5rem] overflow-hidden lg:border shadow-xl relative h-full bg-white">
-                     <MapView items={items} selectedItem={selectedItem} onSelectItem={(it) => { setSelectedItem(it); setIsDetailOpen(true); }} visitedIds={visitedIds} flyToLocation={flyToLocation} />
-                     
-                     <div className="lg:hidden absolute bottom-[55px] left-4 z-[2000] flex items-center gap-2 pointer-events-none">
-                        <button onClick={() => setViewMode('list')} className="pointer-events-auto flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white text-[#a62626] rounded-2xl shadow-2xl active:scale-95 transition-all font-black text-[9px] border border-gray-100">
-                           <ListIcon size={14} /> <span>{t.list}</span>
-                        </button>
+                     <MapView items={items} selectedItem={selectedItem} onSelectItem={handleSelectItem} visitedIds={visitedIds} flyToLocation={flyToLocation} />
+                     <div className="lg:hidden absolute bottom-[120px] left-4 z-[5000] flex items-center gap-2 pointer-events-none">
+                        <button onClick={() => setViewMode('list')} className="pointer-events-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-white text-[#a62626] rounded-xl shadow-lg font-black text-[9px] border border-gray-100"><ListIcon size={14} /> <span>{t.list}</span></button>
                      </div>
-
                      <div className="absolute top-3 left-3 z-[2000] bg-white/95 backdrop-blur-md shadow-xl rounded-xl border border-gray-100 p-1 flex items-center gap-1 scale-90">
-                        <input 
-                          type="tel" 
-                          placeholder={t.min} 
-                          value={minPrice} 
-                          onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} 
-                          className="w-16 md:w-20 text-[9px] font-black outline-none bg-transparent text-center" 
-                        />
+                        <input type="tel" placeholder={t.min} value={minPrice} onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} className="w-16 md:w-20 text-[9px] font-black outline-none bg-transparent text-center" />
                         <span className="text-gray-300 text-[8px]">|</span>
-                        <input 
-                          type="tel" 
-                          placeholder={t.max} 
-                          value={maxPrice} 
-                          onChange={(e) => setMaxPrice(formatNumberWithCommas(e.target.value))} 
-                          className="w-16 md:w-20 text-[9px] font-black outline-none bg-transparent text-center" 
-                        />
+                        <input type="tel" placeholder={t.max} value={maxPrice} onChange={(e) => setMaxPrice(formatNumberWithCommas(e.target.value))} className="w-16 md:w-20 text-[9px] font-black outline-none bg-transparent text-center" />
                      </div>
                    </div>
                  ) : (
@@ -538,10 +524,10 @@ function App() {
                        <div className="col-span-full py-20 text-center text-gray-400 font-black">{t.no_results}</div>
                      ) : items.map((item, idx) => (
                        <div key={item.id || idx}>
-                         {item.adType === 'ESTATE' && <PropertyCard property={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} />}
-                         {item.adType === 'JOBS' && <JobCard job={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} />}
-                         {item.adType === 'SERVICES' && <ServiceCard service={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} />}
-                         {item.adType === 'GENERAL' && <GeneralAdCard ad={item} onClick={() => {setSelectedItem(item); setIsDetailOpen(true);}} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} />}
+                         {item.adType === 'ESTATE' && <PropertyCard property={item} onClick={() => handleSelectItem(item)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} isVisited={visitedIds.has(item.id)} />}
+                         {item.adType === 'JOBS' && <JobCard job={item} onClick={() => handleSelectItem(item)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} isVisited={visitedIds.has(item.id)} />}
+                         {item.adType === 'SERVICES' && <ServiceCard service={item} onClick={() => handleSelectItem(item)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} lang={lang} isVisited={visitedIds.has(item.id)} />}
+                         {item.adType === 'GENERAL' && <GeneralAdCard ad={item} onClick={() => handleSelectItem(item)} isSaved={savedIds.has(item.id)} onToggleSave={() => handleToggleSave(item)} isVisited={visitedIds.has(item.id)} />}
                        </div>
                      ))}
                      {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
@@ -553,22 +539,38 @@ function App() {
         </main>
       </div>
 
-      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 border-t flex justify-around items-center h-[65px] z-[4000] px-4 pb-safe transition-all ${viewMode === 'map' ? 'bg-transparent border-none shadow-none scale-95' : 'bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.05)]'}`}>
-        <button onClick={handleNavHome} className={`flex flex-col items-center gap-1 ${appMode === 'ALL' ? 'text-[#a62626]' : 'text-gray-400'}`}><Home size={22} /><span className="text-[9px] font-black">{t.home}</span></button>
-        <button onClick={() => setShowNavCategoryPicker(true)} className="flex flex-col items-center gap-1 text-gray-400"><Layers size={22} /><span className="text-[9px] font-black">{t.categories}</span></button>
-        <button onClick={openAddPost} className="flex flex-col items-center -mt-8 bg-[#a62626] text-white p-4 rounded-2xl shadow-xl border-4 border-white active:scale-95 transition-transform"><PlusSquare size={24} /></button>
-        <button onClick={() => setAppMode('CHATS')} className={`flex flex-col items-center gap-1 relative ${appMode === 'CHATS' ? 'text-[#a62626]' : 'text-gray-400'}`}>
-          <MessageCircle size={22} /><span className="text-[9px] font-black">{t.chat}</span>
-          {unreadUserCount > 0 && <div className="absolute top-0 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
+      <nav className={`lg:hidden fixed bottom-0 left-0 right-0 z-[4000] px-2 pb-safe transition-all grid grid-cols-5 items-center ${viewMode === 'map' ? 'bg-white h-[52px] shadow-none border-none' : 'bg-white h-[65px] border-t border-gray-100 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]'}`}>
+        <button onClick={handleNavHome} className={`flex flex-col items-center justify-center gap-1 h-full ${appMode === 'ALL' ? 'text-[#a62626]' : 'text-gray-400'}`}>
+          <Home size={viewMode === 'map' ? 20 : 22} />
+          <span className="text-[8px] font-black">{t.home}</span>
         </button>
-        <button onClick={openProfile} className="flex flex-col items-center gap-1 text-gray-400 relative">
-          <User size={22} /><span className="text-[9px] font-black">{t.profile}</span>
-          {unreadAdminCount > 0 && <div className="absolute top-0 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
+        
+        <button onClick={() => setShowNavCategoryPicker(true)} className="flex flex-col items-center justify-center gap-1 h-full text-gray-400">
+          <Layers size={viewMode === 'map' ? 20 : 22} />
+          <span className="text-[8px] font-black">{t.categories}</span>
+        </button>
+
+        <div className="flex items-center justify-center relative h-full">
+          <button onClick={openAddPost} className={`flex items-center justify-center bg-[#a62626] text-white shadow-lg active:scale-90 transition-all ${viewMode === 'map' ? 'w-10 h-10 rounded-xl' : 'w-12 h-12 rounded-2xl -mt-8 border-4 border-white shadow-red-100'}`}>
+            <PlusSquare size={viewMode === 'map' ? 20 : 24} />
+          </button>
+        </div>
+
+        <button onClick={() => setAppMode('CHATS')} className={`flex flex-col items-center justify-center gap-1 h-full relative ${appMode === 'CHATS' ? 'text-[#a62626]' : 'text-gray-400'}`}>
+          <MessageCircle size={viewMode === 'map' ? 20 : 22} />
+          <span className="text-[8px] font-black">{t.chat}</span>
+          {unreadUserCount > 0 && <div className="absolute top-1 right-1/4 w-2 h-2 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
+        </button>
+
+        <button onClick={() => setShowAuthModal(true)} className="flex flex-col items-center justify-center gap-1 h-full text-gray-400 relative">
+          <User size={viewMode === 'map' ? 20 : 22} />
+          <span className="text-[8px] font-black">{t.profile}</span>
+          {unreadAdminCount > 0 && <div className="absolute top-1 right-1/4 w-2 h-2 bg-red-600 rounded-full border-2 border-white animate-pulse" />}
         </button>
       </nav>
 
       {isDetailOpen && selectedItem && (
-        <div className="z-[5000] fixed inset-0 bg-white">
+        <div className="z-[6000] fixed inset-0 bg-white">
           {selectedItem.adType === 'ESTATE' && <PropertyDetails property={selectedItem} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => { setFlyToLocation(selectedItem.location); setViewMode('map'); setIsDetailOpen(false); }} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => handleToggleSave(selectedItem)} t={t} onShowOtherAds={() => {setOwnerFilter(selectedItem.owner_id); setIsDetailOpen(false);}} onEdit={() => handleEditAd(selectedItem)} onDelete={() => handleDeleteAd(selectedItem)} />}
           {selectedItem.adType === 'JOBS' && <JobDetails job={selectedItem} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => { setFlyToLocation(selectedItem.location); setViewMode('map'); setIsDetailOpen(false); }} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => handleToggleSave(selectedItem)} t={t} onShowOtherAds={() => {setOwnerFilter(selectedItem.owner_id); setIsDetailOpen(false);}} onEdit={() => handleEditAd(selectedItem)} onDelete={() => handleDeleteAd(selectedItem)} />}
           {selectedItem.adType === 'SERVICES' && <ServiceDetails service={selectedItem} onClose={() => setIsDetailOpen(false)} onShowOnMap={() => { setFlyToLocation(selectedItem.location); setViewMode('map'); setIsDetailOpen(false); }} isSaved={savedIds.has(selectedItem.id)} onToggleSave={() => handleToggleSave(selectedItem)} t={t} onShowOtherAds={() => {setOwnerFilter(selectedItem.owner_id); setIsDetailOpen(false);}} onEdit={() => handleEditAd(selectedItem)} onDelete={() => handleDeleteAd(selectedItem)} />}
@@ -615,7 +617,7 @@ function App() {
       {showAddForm && targetAddMode === 'JOBS' && <AddJobModal t={t} onClose={() => setShowAddForm(false)} onBack={() => { setShowAddForm(false); setShowAddCategoryPicker(true); }} editData={editData} />}
       {showAddForm && targetAddMode === 'SERVICES' && <AddServiceModal t={t} onClose={() => setShowAddForm(false)} onBack={() => { setShowAddForm(false); setShowAddCategoryPicker(true); }} editData={editData} />}
       {showAddForm && targetAddMode && !['ESTATE', 'JOBS', 'SERVICES'].includes(targetAddMode) && <AddGeneralAdModal mode={targetAddMode} t={t} onClose={() => setShowAddForm(false)} onBack={() => { setShowAddForm(false); setShowAddCategoryPicker(true); }} editData={editData} />}
-      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} onLanguageChange={setLang} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} onCheckNotifications={() => {}} onShowSaved={() => {setAppMode('SAVED'); setShowAuthModal(false);}} onShowChats={() => {setAppMode('CHATS'); setShowAuthModal(false);}} onSelectAd={(ad) => { setSelectedItem(ad); setIsDetailOpen(true); setShowAuthModal(false); }} t={t} />}
+      {showAuthModal && <AuthModal onClose={() => setShowAuthModal(false)} lang={lang} onLanguageChange={setLang} onAdminClick={() => { setShowAuthModal(false); setShowAdminLogin(true); }} onCheckNotifications={() => {}} onShowSaved={() => {setAppMode('SAVED'); setShowAuthModal(false);}} onShowChats={() => {setAppMode('CHATS'); setShowAuthModal(false);}} onSelectAd={handleSelectItem} t={t} />}
     </div>
   );
 

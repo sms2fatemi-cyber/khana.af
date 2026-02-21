@@ -1,8 +1,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Job } from '../types';
-// Added ChevronRight to the imports
-import { X, Bookmark, MapPinned, Phone, MessageCircle, Clock, MapPin, Building2, UserPlus, Edit3, Trash2, RefreshCcw, Loader2, User, ChevronRight } from 'lucide-react';
+import { X, Bookmark, MapPinned, Phone, MessageCircle, Clock, MapPin, Building2, UserPlus, Edit3, Trash2, RefreshCcw, Loader2, User, ChevronRight, Flag, AlertTriangle } from 'lucide-react';
 import ChatWindow from './ChatWindow';
 import { getRelativeTime } from '../services/translations';
 import { supabase, TABLES } from '../services/supabaseClient';
@@ -78,12 +77,43 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
   const [isNardebaning, setIsNardebaning] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [ownerName, setOwnerName] = useState<string>('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   const touchStartX = useRef<number | null>(null);
   
   const userPhone = localStorage.getItem('user_phone');
   const ownerId = job.owner_id || job.ownerId || (job as any).phone_number;
   const isOwner = ownerId === userPhone;
   const allImages = job.images?.filter(img => img) || [];
+
+  const reportReasons = [
+    "ظرفیت تکمیل شده است",
+    "کلاه برداری است",
+    "شرایط کار با توضیحات فرق دارد",
+    "شماره تماس اشتباه یا عدم پاسخگویی",
+    "محتوای نامناسب یا توهین آمیز",
+    "آگهی تکراری / اسپم"
+  ];
+
+  const handleReport = async (reason: string) => {
+    setIsReporting(true);
+    try {
+      const { error } = await supabase.from(TABLES.REPORTS).insert([{
+        ad_id: job.id,
+        reporter_phone: userPhone || 'ANONYMOUS',
+        reason: reason,
+        ad_title: job.title,
+        ad_type: 'JOBS'
+      }]);
+      if (error) throw error;
+      alert("گزارش شما ثبت شد.");
+      setShowReportModal(false);
+    } catch (e) {
+      alert("خطا در ثبت گزارش.");
+    } finally {
+      setIsReporting(false);
+    }
+  };
 
   const nextImage = useCallback(() => {
     if (allImages.length > 1) setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
@@ -124,11 +154,18 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
 
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
-      {/* Header: Fixed top left exit button */}
       <div className="absolute top-0 left-0 right-0 h-14 z-[5002] flex items-center justify-between px-4 pt-2 pointer-events-none">
         <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100">
           <X size={24} className="text-gray-800" />
         </button>
+        {!isOwner && (
+          <button 
+            onClick={() => setShowReportModal(true)} 
+            className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100 text-gray-400 hover:text-red-600 transition-colors"
+          >
+            <Flag size={20} />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto md:flex md:flex-row bg-gray-50 no-scrollbar">
@@ -148,11 +185,9 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
                     {allImages.length > 1 && (
                       <>
                         <button onClick={prevImage} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 text-white rounded-full hover:bg-black/40 transition-all z-10 hidden md:flex">
-                           {/* Fixed ChevronRight missing error */}
                            <ChevronRight size={28} className="rotate-180" />
                         </button>
                         <button onClick={nextImage} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 text-white rounded-full hover:bg-black/40 transition-all z-10 hidden md:flex">
-                           {/* Fixed ChevronRight missing error */}
                            <ChevronRight size={28} />
                         </button>
 
@@ -222,6 +257,31 @@ const JobDetails: React.FC<JobDetailsProps> = ({ job, onClose, onShowOnMap, isSa
         </div>
       </div>
       {isChatOpen && <ChatWindow receiverPhone={ownerId} adId={job.id} adTitle={job.title} onClose={() => setIsChatOpen(false)} />}
+      
+      {showReportModal && (
+        <div className="fixed inset-0 z-[15000] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowReportModal(false)}>
+           <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-6 text-blue-600">
+                 <div className="p-3 bg-blue-50 rounded-xl"><AlertTriangle size={24} /></div>
+                 <h3 className="font-black text-lg">گزارش فرصت شغلی</h3>
+              </div>
+              <div className="space-y-2">
+                 {reportReasons.map((reason, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => handleReport(reason)}
+                      disabled={isReporting}
+                      className="w-full text-right p-4 rounded-xl hover:bg-gray-50 font-bold text-sm border border-transparent hover:border-gray-100 transition-all flex items-center justify-between group disabled:opacity-50"
+                    >
+                      {reason}
+                      <ChevronRight size={16} className="text-gray-300 group-hover:text-blue-600 transition-colors" />
+                    </button>
+                 ))}
+              </div>
+              <button onClick={() => setShowReportModal(false)} className="w-full mt-6 py-3 text-gray-400 font-black text-sm">انصراف</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

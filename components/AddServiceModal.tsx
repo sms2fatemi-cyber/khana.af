@@ -5,6 +5,7 @@ import { Service, ServiceCategory } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
+import { PROVINCE_COORDS } from '../App';
 
 interface AddServiceModalProps {
   onClose: () => void;
@@ -107,6 +108,14 @@ export default function AddServiceModal({ onClose, onBack, editData, t }: AddSer
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleOpenMap = () => {
+    if (!hasConfirmedLocation) {
+        const coords = PROVINCE_COORDS[city];
+        if (coords) setLocation(coords);
+    }
+    setView('map');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files) as File[];
@@ -126,8 +135,8 @@ export default function AddServiceModal({ onClose, onBack, editData, t }: AddSer
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasConfirmedLocation) {
-        alert("لطفاً موقعیت ارائه خدمات را روی نقشه تعیین کنید. این مورد برای ثبت آگهی الزامی است.");
-        setView('map');
+        alert(t.location_on_map);
+        handleOpenMap();
         return;
     }
 
@@ -154,11 +163,11 @@ export default function AddServiceModal({ onClose, onBack, editData, t }: AddSer
       
       if (editData) {
         await supabase.from(TABLES.SERVICES).update(payload).eq('id', editData.id);
-        alert("تغییرات ذخیره شد.");
+        alert(t.update_ad);
         onClose();
       } else {
         await supabase.from(TABLES.SERVICES).insert([payload]);
-        alert("آگهی با موفقیت ثبت شد.");
+        alert(t.success_msg);
         setIsSuccess(true);
       }
     } catch (err: any) { alert("خطا در ثبت."); } finally { setIsSubmitting(false); }
@@ -168,7 +177,7 @@ export default function AddServiceModal({ onClose, onBack, editData, t }: AddSer
     <div className="fixed inset-0 z-[10001] bg-black/80 flex items-center justify-center p-4">
       <div className="bg-white w-full max-sm:max-w-xs rounded-[3rem] p-10 text-center animate-slide-up shadow-2xl">
         <div className="w-20 h-20 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto mb-6"><Check size={40} /></div>
-        <h2 className="text-2xl font-black mb-2">با موفقیت ثبت شد</h2>
+        <h2 className="text-2xl font-black mb-2">{t.location_confirmed}</h2>
         <button onClick={onClose} className="w-full bg-orange-600 text-white py-4 rounded-xl font-black active:scale-95">بسیار عالی</button>
       </div>
     </div>
@@ -181,7 +190,7 @@ export default function AddServiceModal({ onClose, onBack, editData, t }: AddSer
           <div className="absolute inset-0 z-[110] bg-white flex flex-col animate-in fade-in duration-300">
             <div className="h-16 flex items-center px-6 border-b shrink-0 text-right">
               <button onClick={() => setView('form')} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight size={32} /></button>
-              <h2 className="font-black mr-2 text-lg">تعیین موقعیت الزامی روی نقشه</h2>
+              <h2 className="font-black mr-2 text-lg">{t.location_on_map}</h2>
             </div>
             <div className="flex-1 relative bg-gray-50">
               <MapContainer center={[location.lat, location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
@@ -203,7 +212,7 @@ export default function AddServiceModal({ onClose, onBack, editData, t }: AddSer
         <div className="p-5 border-b flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-2">
             <button onClick={onBack || onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-all"><ArrowRight size={24} className="text-gray-800" /></button>
-            <h2 className="font-black text-xl text-gray-800">{editData ? 'ویرایش خدمات' : 'ثبت خدمات جدید'}</h2>
+            <h2 className="font-black text-xl text-gray-800">{editData ? t.edit_ad : t.services}</h2>
           </div>
           <button onClick={onClose} className="p-2 bg-gray-50 rounded-xl"><X size={24} className="text-gray-400" /></button>
         </div>
@@ -232,41 +241,41 @@ export default function AddServiceModal({ onClose, onBack, editData, t }: AddSer
                     </div>
                     <button type="button" onClick={() => setShowPhone(!showPhone)} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all ${showPhone ? 'bg-green-50 border-green-200 text-green-700' : 'bg-gray-200 border-gray-300 text-gray-500'}`}>
                        {showPhone ? <Eye size={14} /> : <EyeOff size={14} />}
-                       <span className="text-[10px] font-black">{showPhone ? 'شماره نمایش داده می‌شود' : 'شماره مخفی است'}</span>
+                       <span className="text-[10px] font-black">{showPhone ? t.show_phone : t.hide_phone}</span>
                     </button>
                  </div>
               </div>
 
-              <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder="عنوان خدمات" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
-              <input type="text" ref={providerRef} defaultValue={editData?.provider_name} placeholder="نام متخصص" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={titleRef} defaultValue={editData?.title} placeholder={t.title} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={providerRef} defaultValue={editData?.provider_name} placeholder={t.provider} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               
               <div className="grid grid-cols-2 gap-4">
                  <select value={city} onChange={e => setCity(e.target.value)} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
                    {t.provinces.slice(1).map((p: string) => (<option key={p} value={p}>{p}</option>))}
                  </select>
-                 <input type="text" ref={experienceRef} defaultValue={editData?.experience} placeholder="سابقه کاری" className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+                 <input type="text" ref={experienceRef} defaultValue={editData?.experience} placeholder={t.experience} className="bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
               </div>
 
               <select value={category} onChange={e => setCategory(e.target.value as any)} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none">
-                 {Object.values(ServiceCategory).map(cat => (<option key={cat as any} value={cat as any}>{cat as any}</option>))}
+                 {t.sub_categories.SERVICES.map((cat: string) => (<option key={cat} value={cat}>{cat}</option>))}
               </select>
 
-              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder="آدرس" className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
+              <input type="text" ref={addressRef} defaultValue={editData?.address} placeholder={t.address} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none" required />
 
-              <button type="button" onClick={() => setView('map')} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-orange-600 bg-orange-50 text-orange-600 animate-pulse'}`}>
-                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">محل انتخاب شد</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
+              <button type="button" onClick={handleOpenMap} className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-orange-500 bg-orange-50 text-orange-700' : 'border-orange-600 bg-orange-50 text-orange-600 animate-pulse'}`}>
+                {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">{t.location_confirmed}</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
               </button>
               
-              <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder="توضیجات..." className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
+              <textarea rows={4} ref={descriptionRef} defaultValue={editData?.description} placeholder={t.description} className="w-full bg-gray-50 border rounded-2xl px-5 py-4 font-bold outline-none resize-none"></textarea>
             </div>
           </form>
         </div>
 
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
           <button form="service-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-orange-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg">
-            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? 'اعمال تغییرات' : 'ثبت آگهی')}
+            {isSubmitting ? <Loader2 className="animate-spin m-auto" /> : (editData ? t.update_ad : t.submit)}
           </button>
-          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">انصراف</button>
+          <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">{t.cancel}</button>
         </div>
       </div>
     </div>

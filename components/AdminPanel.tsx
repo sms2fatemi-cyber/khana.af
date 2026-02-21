@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Property, Job, Service } from '../types';
 import { 
-  Home, Briefcase, Wrench, ShieldCheck, X, MessageSquare, Users, Settings, User as UserIcon, ArrowRight, PhoneCall, Key, UserPlus, Package, Car, Smartphone, Sofa, ShoppingBag, HardHat, MapPin, Loader2, Instagram, Send, AlertCircle, History, Trophy, Facebook, RefreshCcw, CheckSquare, Square, SendHorizontal, LayoutGrid, Info
+  Home, Briefcase, Wrench, ShieldCheck, X, MessageSquare, Users, Settings, User as UserIcon, ArrowRight, PhoneCall, Key, UserPlus, Package, Car, Smartphone, Sofa, ShoppingBag, HardHat, MapPin, Loader2, Instagram, Send, AlertCircle, History, Trophy, Facebook, RefreshCcw, CheckSquare, Square, SendHorizontal, LayoutGrid, Info, Flag, Trash2, ExternalLink
 } from 'lucide-react';
 import { supabase, TABLES } from '../services/supabaseClient';
 
@@ -18,7 +18,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
   const [activeTab, setActiveTab] = useState<any>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [adminNote, setAdminNote] = useState('');
-  const [data, setData] = useState<any>({ properties: [], jobs: [], services: [], general: [], users: [] });
+  const [data, setData] = useState<any>({ properties: [], jobs: [], services: [], general: [], users: [], reports: [] });
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({ contact_phone: '', instagram: '', telegram: '', facebook: '', about_text: '' });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -40,11 +40,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
       const { data: profiles, error: pErr } = await supabase.from('profiles').select('*');
       if (pErr) console.error("Profiles Error:", pErr);
 
-      const [propsRes, jobsRes, servRes, genRes, settingsRes] = await Promise.all([
+      const [propsRes, jobsRes, servRes, genRes, reportsRes, settingsRes] = await Promise.all([
         supabase.from(TABLES.PROPERTIES).select('*').order('created_at', { ascending: false }),
         supabase.from(TABLES.JOBS).select('*').order('created_at', { ascending: false }),
         supabase.from(TABLES.SERVICES).select('*').order('created_at', { ascending: false }),
         supabase.from(TABLES.GENERAL_ADS).select('*').order('created_at', { ascending: false }),
+        supabase.from(TABLES.REPORTS).select('*').order('created_at', { ascending: false }),
         supabase.from(TABLES.APP_SETTINGS).select('*').maybeSingle()
       ]);
 
@@ -53,7 +54,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
         properties: (propsRes.data || []).map(x => ({ ...x, adType: 'ESTATE' })), 
         jobs: (jobsRes.data || []).map(x => ({ ...x, adType: 'JOBS' })), 
         services: (servRes.data || []).map(x => ({ ...x, adType: 'SERVICES' })), 
-        general: (genRes.data || []).map(x => ({ ...x, adType: 'GENERAL' })) 
+        general: (genRes.data || []).map(x => ({ ...x, adType: 'GENERAL' })),
+        reports: reportsRes.data || []
       });
 
       if (settingsRes.data) {
@@ -106,7 +108,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
         is_read: false
       }));
 
-      // Supabase supports bulk insert
       const { error } = await supabase.from(TABLES.USER_CHATS).insert(messages);
       if (error) throw error;
 
@@ -177,8 +178,20 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
     }
   };
 
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm("آیا از حذف این گزارش مطمئن هستید؟")) return;
+    try {
+      const { error } = await supabase.from(TABLES.REPORTS).delete().eq('id', reportId);
+      if (error) throw error;
+      setData({ ...data, reports: data.reports.filter((r: any) => r.id !== reportId) });
+    } catch (e) {
+      alert("خطا در حذف گزارش.");
+    }
+  };
+
   const menuItems = [
     { id: 'PENDING_APPROVAL', label: 'تایید آگهی‌ها', icon: AlertCircle, color: 'bg-red-600', badge: 0 },
+    { id: 'REPORTS', label: 'گزارشات تخلف', icon: Flag, color: 'bg-orange-600', badge: 0 },
     { id: 'EXPIRED_ADS', label: 'آگهی‌های قدیمی', icon: History, color: 'bg-gray-700' },
     { id: 'ESTATE', label: 'املاک', icon: Home, color: 'bg-blue-600' },
     { id: 'VEHICLES', label: 'وسایل نقلیه', icon: Car, color: 'bg-green-600' },
@@ -205,18 +218,29 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
     if (activeTab === 'ESTATE') return data.properties;
     if (activeTab === 'JOBS') return data.jobs;
     if (activeTab === 'SERVICES') return data.services;
-    if (activeTab === 'USERS' || activeTab === 'SETTINGS') return [];
+    if (activeTab === 'USERS' || activeTab === 'SETTINGS' || activeTab === 'REPORTS') return [];
     return data.general.filter((x: any) => x.mode === activeTab);
   };
 
   const pendingCount = [...data.properties, ...data.jobs, ...data.services, ...data.general].filter(a => a.status === 'PENDING').length;
+  const reportsCount = data.reports.length;
+  
   const pendingItem = menuItems.find(i => i.id === 'PENDING_APPROVAL');
   if (pendingItem) pendingItem.badge = pendingCount;
+  
+  const reportsItem = menuItems.find(i => i.id === 'REPORTS');
+  if (reportsItem) reportsItem.badge = reportsCount;
 
-  // Helper to find advertiser name
   const getAdvertiserName = (phone: string) => {
     const user = data.users.find((u: any) => u.phone === phone);
     return user ? user.full_name : 'کاربر ناشناس';
+  };
+
+  const openReportedAd = (report: any) => {
+    const allAds = [...data.properties, ...data.jobs, ...data.services, ...data.general];
+    const ad = allAds.find(a => a.id === report.ad_id);
+    if (ad) setSelectedItem(ad);
+    else alert("آگهی مورد نظر یافت نشد (احتمالاً حذف شده است).");
   };
 
   return (
@@ -271,9 +295,35 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                     {loading && <div className="flex items-center gap-2 text-gray-400 text-xs font-bold"><Loader2 className="animate-spin" size={14}/> در حال دریافت داده‌ها...</div>}
                   </div>
 
-                  {activeTab === 'USERS' ? (
+                  {activeTab === 'REPORTS' ? (
+                    <div className="space-y-4">
+                       {data.reports.length === 0 && !loading ? (
+                         <div className="py-20 text-center text-gray-400 font-black">هیچ گزارش تخلفی ثبت نشده است.</div>
+                       ) : data.reports.map((report: any) => (
+                         <div key={report.id} className="bg-white border-2 border-orange-100 rounded-[1.8rem] p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-all">
+                            <div className="flex items-center gap-4">
+                               <div className="p-4 bg-orange-50 text-orange-600 rounded-2xl"><Flag size={24}/></div>
+                               <div>
+                                  <h4 className="font-black text-sm text-gray-800">{report.ad_title}</h4>
+                                  <div className="flex items-center gap-3 mt-1">
+                                     <span className="text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">{report.reason}</span>
+                                     <span className="text-[9px] text-gray-400 font-bold" dir="ltr">{new Date(report.created_at).toLocaleString('fa-AF')}</span>
+                                  </div>
+                               </div>
+                            </div>
+                            <div className="flex items-center gap-2 border-t md:border-t-0 pt-3 md:pt-0">
+                               <button onClick={() => openReportedAd(report)} className="flex-1 md:flex-none flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-xl font-black text-[10px] hover:bg-blue-600 hover:text-white transition-all">
+                                  <ExternalLink size={14}/> مشاهده آگهی
+                               </button>
+                               <button onClick={() => handleDeleteReport(report.id)} className="flex-1 md:flex-none flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 rounded-xl font-black text-[10px] hover:bg-red-600 hover:text-white transition-all">
+                                  <Trash2 size={14}/> حذف گزارش
+                               </button>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                  ) : activeTab === 'USERS' ? (
                      <div className="space-y-6">
-                        {/* Users Controls Header */}
                         <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
                            <div className="flex items-center gap-4">
                               <button 
@@ -496,7 +546,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                   ) : (
                     <div className="space-y-6 pb-20">
                       
-                      {/* Advertiser Information */}
                       <div className="bg-indigo-50 border border-indigo-100 p-5 rounded-[2rem] flex items-center gap-4">
                          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-100">
                             <UserIcon size={32} />
@@ -508,7 +557,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                          </div>
                       </div>
 
-                      {/* Full Gallery */}
                       <div className="space-y-3">
                          <div className="flex items-center gap-2 text-gray-400">
                             <LayoutGrid size={18} />
@@ -527,7 +575,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                          </div>
                       </div>
 
-                      {/* Main Title & Price */}
                       <div className="text-right space-y-2 border-b pb-6">
                            <div className="flex items-center gap-2 text-red-600 mb-1">
                               <Info size={18} />
@@ -542,28 +589,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                            </div>
                       </div>
 
-                      {/* Technical Specs Detailed Grid */}
                       <div className="bg-gray-50 p-6 rounded-[2.5rem] border space-y-5">
                          <h4 className="text-xs font-black text-gray-400 flex items-center gap-2 border-b pb-3 mb-2"><LayoutGrid size={16} /> مشخصات فنی و سیستمی:</h4>
                          
                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {/* Common Data */}
                             <div className="flex justify-between items-center bg-white p-3 rounded-xl border"><span className="text-gray-400 text-[10px] font-bold">شناسه آگهی:</span><span className="text-gray-700 text-[10px] font-black">{selectedItem.id}</span></div>
                             <div className="flex justify-between items-center bg-white p-3 rounded-xl border"><span className="text-gray-400 text-[10px] font-bold">تاریخ ثبت:</span><span className="text-gray-700 text-[10px] font-black" dir="ltr">{new Date(selectedItem.created_at || selectedItem.date).toLocaleString('fa-AF')}</span></div>
                             <div className="flex justify-between items-center bg-white p-3 rounded-xl border"><span className="text-gray-400 text-[10px] font-bold">ولایت:</span><span className="text-gray-700 text-[10px] font-black">{selectedItem.city}</span></div>
                             
-                            {/* Estate Specifics */}
                             {selectedItem.adType === 'ESTATE' && (
                                <>
                                   <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-xl border border-blue-100"><span className="text-blue-400 text-[10px] font-bold">متراژ:</span><span className="text-blue-700 text-xs font-black">{selectedItem.area} متر</span></div>
                                   <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-xl border border-blue-100"><span className="text-blue-400 text-[10px] font-bold">تعداد اتاق:</span><span className="text-blue-700 text-xs font-black">{selectedItem.bedrooms}</span></div>
                                   <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-xl border border-blue-100"><span className="text-blue-400 text-[10px] font-bold">نوع ملک:</span><span className="text-blue-700 text-xs font-black">{selectedItem.type}</span></div>
                                   <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-xl border border-blue-100"><span className="text-blue-400 text-[10px] font-bold">نوع معامله:</span><span className="text-blue-700 text-xs font-black">{selectedItem.deal_type}</span></div>
-                                  <div className="flex justify-between items-center bg-blue-50/50 p-3 rounded-xl border border-blue-100"><span className="text-blue-400 text-[10px] font-bold">طبقه:</span><span className="text-blue-700 text-xs font-black">{selectedItem.floor || 'نامشخص'}</span></div>
                                </>
                             )}
 
-                            {/* Job Specifics */}
                             {selectedItem.adType === 'JOBS' && (
                                <>
                                   <div className="flex justify-between items-center bg-cyan-50/50 p-3 rounded-xl border border-cyan-100"><span className="text-cyan-400 text-[10px] font-bold">نام شرکت:</span><span className="text-cyan-700 text-xs font-black">{selectedItem.company}</span></div>
@@ -571,11 +613,9 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                                </>
                             )}
 
-                            {/* Service Specifics */}
                             {selectedItem.adType === 'SERVICES' && (
                                <>
                                   <div className="flex justify-between items-center bg-amber-50/50 p-3 rounded-xl border border-amber-100"><span className="text-amber-400 text-[10px] font-bold">سابقه:</span><span className="text-amber-700 text-xs font-black">{selectedItem.experience}</span></div>
-                                  <div className="flex justify-between items-center bg-amber-50/50 p-3 rounded-xl border border-amber-100"><span className="text-amber-400 text-[10px] font-bold">دسته بندی:</span><span className="text-amber-700 text-xs font-black">{selectedItem.category}</span></div>
                                </>
                             )}
                          </div>
@@ -597,7 +637,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                         <p className="bg-gray-50 p-5 rounded-3xl border text-[13px] leading-8 text-gray-600 font-bold whitespace-pre-wrap shadow-inner">{selectedItem.description}</p>
                       </div>
 
-                      {/* Admin Response Box */}
                       <div className="bg-gray-900 p-6 rounded-[2.5rem] space-y-4 shadow-xl border border-gray-800">
                          <div className="flex items-center gap-2">
                            <Send className="text-blue-500" size={18} />
@@ -624,7 +663,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                          </div>
                       </div>
 
-                      {/* Action Buttons */}
                       <div className="grid grid-cols-2 gap-4 shrink-0 mt-4">
                         <button onClick={async () => {
                            const table = selectedItem.adType === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.adType === 'JOBS' ? TABLES.JOBS : selectedItem.adType === 'SERVICES' ? TABLES.SERVICES : TABLES.GENERAL_ADS;
@@ -633,7 +671,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
                         }} className="bg-green-600 text-white py-5 rounded-[1.8rem] font-black shadow-xl shadow-green-100 hover:bg-green-700 active:scale-95 transition-all text-sm">تایید و انتشار نهایی</button>
                         
                         <button onClick={async () => {
-                           if(confirm('آیا از حذف کامل و دائمی این آگهی مطمئن هستید؟ این عمل غیرقابل بازگشت است.')) {
+                           if(confirm('آیا از حذف کامل و دائمی این آگهی مطمئن هستید؟')) {
                              const table = selectedItem.adType === 'ESTATE' ? TABLES.PROPERTIES : selectedItem.adType === 'JOBS' ? TABLES.JOBS : selectedItem.adType === 'SERVICES' ? TABLES.SERVICES : TABLES.GENERAL_ADS;
                              await supabase.from(table).delete().eq('id', selectedItem.id); 
                              setSelectedItem(null); fetchData();

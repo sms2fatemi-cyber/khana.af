@@ -17,7 +17,6 @@ interface ServiceCardProps {
 export default function ServiceCard({ 
   service, 
   onClick, 
-  isVisited, 
   isSaved, 
   onToggleSave, 
   onDelete, 
@@ -30,7 +29,7 @@ export default function ServiceCard({
   return (
     <div 
       onClick={onClick}
-      className={`bg-white rounded-[2rem] p-4 flex gap-4 cursor-pointer hover:shadow-xl transition-all border border-transparent hover:border-gray-100 relative shadow-sm group ${isVisited ? 'opacity-50 grayscale-[0.5]' : ''}`}
+      className="bg-white rounded-[2rem] p-4 flex gap-4 cursor-pointer hover:shadow-xl transition-all border border-transparent hover:border-gray-100 relative shadow-sm group"
     >
       <div className="flex-1 flex flex-col justify-between py-1 text-right">
         <div>
@@ -46,8 +45,7 @@ export default function ServiceCard({
                 </button>
              </div>
           </div>
-          <h3 className={`font-black text-[15px] leading-7 mt-2 line-clamp-2 ${isVisited ? 'text-gray-400' : 'text-gray-800'}`}>{service.title}</h3>
-          {/* Fix: changed providerName to provider_name */}
+          <h3 className="font-black text-[15px] leading-7 mt-2 line-clamp-2 text-gray-800">{service.title}</h3>
           <p className="text-gray-400 text-[11px] font-bold mt-1">{service.provider_name}</p>
         </div>
         <div className="mt-4 flex items-center gap-2">

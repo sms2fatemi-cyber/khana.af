@@ -20,6 +20,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
   const userPhone = localStorage.getItem('user_phone') || '';
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const isAdminChat = receiverPhone === 'ADMIN';
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -27,7 +29,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
   const markAsRead = useCallback(async () => {
     if (!userPhone || !receiverPhone || !adId) return;
     try {
-      // Step 1: Update the database
       const { error } = await supabase
         .from(TABLES.USER_CHATS)
         .update({ is_read: true })
@@ -41,7 +42,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
       if (error) {
         console.error("MarkAsRead Error:", error);
       } else {
-        // Step 2: Dispatch a custom event to force refresh UI in other components
         window.dispatchEvent(new CustomEvent('messages_read'));
       }
     } catch (e) {
@@ -111,6 +111,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAdminChat) return; // Users cannot message Admin
     if (!inputText.trim() || isSending) return;
     setIsSending(true);
     try {
@@ -161,8 +162,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ receiverPhone, receiverName, ad
         </div>
 
         <form onSubmit={sendMessage} className="p-4 border-t bg-white flex gap-2">
-          <input type="text" value={inputText} onChange={e => setInputText(e.target.value)} placeholder="پیام خود را بنویسید..." className="flex-1 bg-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none border-2 border-transparent focus:border-red-100 transition-all" />
-          <button type="submit" disabled={!inputText.trim() || isSending} className="w-12 h-12 bg-[#a62626] text-white rounded-xl flex items-center justify-center active:scale-90 disabled:opacity-50 transition-all shadow-lg">
+          <input 
+            type="text" 
+            value={isAdminChat ? 'کانال اطلاع‌رسانی سیستم (غیرقابل پاسخ)' : inputText} 
+            onChange={e => setInputText(e.target.value)} 
+            disabled={isAdminChat}
+            placeholder={isAdminChat ? '' : "پیام خود را بنویسید..."} 
+            className={`flex-1 bg-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none border-2 border-transparent transition-all ${isAdminChat ? 'opacity-50 text-gray-500 cursor-not-allowed' : 'focus:border-red-100'}`} 
+          />
+          <button 
+            type="submit" 
+            disabled={!inputText.trim() || isSending || isAdminChat} 
+            className="w-12 h-12 bg-[#a62626] text-white rounded-xl flex items-center justify-center active:scale-90 disabled:opacity-50 transition-all shadow-lg"
+          >
             {isSending ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} className="rotate-180" />}
           </button>
         </form>

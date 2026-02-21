@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Bookmark, Phone, MapPinned, Clock, MapPin, Loader2, Info, UserPlus, Edit3, Trash2, RefreshCcw, Shield, MessageCircle, X } from 'lucide-react';
+import { Bookmark, Phone, MapPinned, Clock, MapPin, Loader2, Info, UserPlus, Edit3, Trash2, RefreshCcw, Shield, MessageCircle, X, Flag, ChevronRight, AlertTriangle } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 import { supabase, TABLES } from '../services/supabaseClient';
 import ChatWindow from './ChatWindow';
@@ -90,6 +90,8 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isNardebaning, setIsNardebaning] = useState(false);
   const [ownerName, setOwnerName] = useState<string>(ad.phoneNumber || (ad as any).phone_number || '');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   
   const userPhone = localStorage.getItem('user_phone');
   const isOwner = ad.owner_id === userPhone || ad.ownerId === userPhone;
@@ -97,6 +99,35 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
   
   const touchStartX = useRef<number | null>(null);
   const allImages = ad?.images?.filter((img: any) => img) || [];
+
+  const reportReasons = [
+    "فروخته شده است",
+    "کلاه برداری است",
+    "اطلاعات نادرست / قیمت اشتباه",
+    "شماره تماس اشتباه یا عدم پاسخگویی",
+    "محتوای نامناسب یا توهین آمیز",
+    "آگهی تکراری / اسپم"
+  ];
+
+  const handleReport = async (reason: string) => {
+    setIsReporting(true);
+    try {
+      const { error } = await supabase.from(TABLES.REPORTS).insert([{
+        ad_id: ad.id,
+        reporter_phone: userPhone || 'ANONYMOUS',
+        reason: reason,
+        ad_title: ad.title,
+        ad_type: 'GENERAL'
+      }]);
+      if (error) throw error;
+      alert("گزارش تخلف ثبت شد.");
+      setShowReportModal(false);
+    } catch (e) {
+      alert("خطا در ثبت گزارش.");
+    } finally {
+      setIsReporting(false);
+    }
+  };
 
   const nextImage = useCallback(() => {
     if (allImages.length > 1) setActiveImageIndex(prev => (prev < allImages.length - 1 ? prev + 1 : 0));
@@ -139,11 +170,18 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
 
   return (
     <div className="fixed inset-0 z-[5000] bg-white font-[Vazirmatn] flex flex-col h-[100dvh] w-full" dir="rtl">
-      {/* Header: Fixed top left exit button */}
       <div className="absolute top-0 left-0 right-0 h-14 z-[5002] flex items-center justify-between px-4 pt-2 pointer-events-none">
         <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100">
           <X size={24} className="text-gray-800" />
         </button>
+        {!isOwner && (
+          <button 
+            onClick={() => setShowReportModal(true)} 
+            className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100 text-gray-400 hover:text-red-600 transition-colors"
+          >
+            <Flag size={20} />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto md:overflow-hidden md:flex md:flex-row bg-gray-50 h-full no-scrollbar">
@@ -163,10 +201,10 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
                     {allImages.length > 1 && (
                       <>
                         <button onClick={prevImage} className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex z-10">
-                          <Bookmark className="rotate-180" size={32} />
+                          <ChevronRight className="rotate-180" size={32} />
                         </button>
                         <button onClick={nextImage} className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all hidden md:flex z-10">
-                          <Bookmark size={32} />
+                          <ChevronRight size={32} />
                         </button>
 
                         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-black/40 backdrop-blur-md text-white px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest">
@@ -249,6 +287,31 @@ export default function GeneralAdDetails({ ad, onClose, onShowOnMap, isSaved, on
         </div>
       </div>
       {isChatOpen && <ChatWindow receiverPhone={ad.phoneNumber || (ad as any).phone_number} adId={ad.id} adTitle={ad.title} onClose={() => setIsChatOpen(false)} />}
+      
+      {showReportModal && (
+        <div className="fixed inset-0 z-[15000] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowReportModal(false)}>
+           <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-6">
+                 <div className="p-3 bg-red-50 text-red-600 rounded-xl"><AlertTriangle size={24} /></div>
+                 <h3 className="font-black text-lg">گزارش تخلف آگهی</h3>
+              </div>
+              <div className="space-y-2">
+                 {reportReasons.map((reason, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => handleReport(reason)}
+                      disabled={isReporting}
+                      className="w-full text-right p-4 rounded-xl hover:bg-gray-50 font-bold text-sm border border-transparent hover:border-gray-100 transition-all flex items-center justify-between group disabled:opacity-50"
+                    >
+                      {reason}
+                      <ChevronRight size={16} className="text-gray-300 group-hover:text-red-600 transition-colors" />
+                    </button>
+                 ))}
+              </div>
+              <button onClick={() => setShowReportModal(false)} className="w-full mt-6 py-3 text-gray-400 font-black text-sm">انصراف</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -10,11 +10,11 @@ interface GeneralAdCardProps {
   onToggleSave?: () => void;
 }
 
-export default function GeneralAdCard({ ad, onClick, isVisited, isSaved, onToggleSave }: GeneralAdCardProps) {
+export default function GeneralAdCard({ ad, onClick, isSaved, onToggleSave }: GeneralAdCardProps) {
   return (
     <div 
       onClick={onClick}
-      className={`bg-white rounded-2xl p-3 flex gap-3 cursor-pointer hover:shadow-xl transition-all border border-transparent shadow-sm group ${isVisited ? 'opacity-50 grayscale-[0.5]' : ''}`}
+      className="bg-white rounded-2xl p-3 flex gap-3 cursor-pointer hover:shadow-xl transition-all border border-transparent shadow-sm group"
     >
       <div className="flex-1 flex flex-col justify-between py-0.5 text-right">
         <div>
@@ -24,7 +24,7 @@ export default function GeneralAdCard({ ad, onClick, isVisited, isSaved, onToggl
                 <Bookmark size={16} className={isSaved ? "fill-red-600 text-red-600" : "text-gray-300"} />
              </button>
           </div>
-          <h3 className={`font-black text-[14px] leading-6 mt-1 line-clamp-1 ${isVisited ? 'text-gray-400' : 'text-gray-800'}`}>{ad.title}</h3>
+          <h3 className="font-black text-[14px] leading-6 mt-1 line-clamp-1 text-gray-800">{ad.title}</h3>
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
              <span className="text-[8px] text-red-600 font-black bg-red-50 px-1.5 py-0.5 rounded-md border border-red-100">{ad.sub_category}</span>
              {ad.item_condition && (

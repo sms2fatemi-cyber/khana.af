@@ -11,20 +11,19 @@ interface PropertyCardProps {
   onToggleSave?: () => void;
 }
 
-export default function PropertyCard({ property, onClick, isVisited, isSaved, onToggleSave }: PropertyCardProps) {
+export default function PropertyCard({ property, onClick, isSaved, onToggleSave }: PropertyCardProps) {
   const hasImages = property.images && property.images.length > 0;
   const displayAmount = property.deal_type === DealType.MORTGAGE 
     ? (property.mortgage_amount || 0) 
     : (property.price || 0);
 
-  // Safe access to has_elevator
   const hasElevator = (property as any).has_elevator === true;
 
   return (
-    <div onClick={onClick} className={`bg-white rounded-2xl p-3 flex gap-3 cursor-pointer border border-gray-100 hover:shadow-divar transition-all relative group ${isVisited ? 'opacity-70' : ''}`}>
+    <div onClick={onClick} className="bg-white rounded-2xl p-3 flex gap-3 cursor-pointer border border-gray-100 hover:shadow-divar transition-all relative group">
       <div className="flex-1 flex flex-col justify-between py-0.5 text-right overflow-hidden">
         <div>
-          <h3 className={`font-black text-[14px] leading-6 line-clamp-1 mb-1 ${isVisited ? 'text-gray-400' : 'text-gray-900'}`}>{property.title}</h3>
+          <h3 className="font-black text-[14px] leading-6 line-clamp-1 mb-1 text-gray-900">{property.title}</h3>
           
           <div className="flex flex-wrap gap-1.5 mb-2">
             {property.has_parking && (

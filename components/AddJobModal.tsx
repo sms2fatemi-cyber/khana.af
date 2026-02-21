@@ -5,6 +5,7 @@ import { Job } from '../types';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase, TABLES, uploadMultipleImages } from '../services/supabaseClient';
+import { PROVINCE_COORDS } from '../App';
 
 interface AddJobModalProps {
   onClose: () => void;
@@ -114,6 +115,14 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, onBack, editData, t 
   const [previews, setPreviews] = useState<string[]>(editData?.images || []);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleOpenMap = () => {
+    if (!hasConfirmedLocation) {
+        const coords = PROVINCE_COORDS[city];
+        if (coords) setLocation(coords);
+    }
+    setView('map');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files) as File[];
@@ -131,8 +140,8 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, onBack, editData, t 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!hasConfirmedLocation) {
-        alert(t.select_location);
-        setView('map');
+        alert(t.location_on_map);
+        handleOpenMap();
         return;
     }
 
@@ -159,7 +168,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, onBack, editData, t 
       if (editData) {
         const { error } = await supabase.from(TABLES.JOBS).update(payload).eq('id', editData.id);
         if (error) throw error;
-        alert(t.success_msg);
+        alert(t.update_ad);
       } else {
         const { error } = await supabase.from(TABLES.JOBS).insert([payload]);
         if (error) throw error;
@@ -180,7 +189,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, onBack, editData, t 
           <div className="absolute inset-0 z-[110] bg-white flex flex-col animate-in fade-in duration-300">
             <div className="h-16 flex items-center px-6 border-b shrink-0 text-right">
               <button onClick={() => setView('form')} className="p-2 hover:bg-gray-100 rounded-full"><ChevronRight size={32} /></button>
-              <h2 className="font-black mr-2 text-lg">{t.select_location}</h2>
+              <h2 className="font-black mr-2 text-lg">{t.location_on_map}</h2>
             </div>
             <div className="flex-1 relative bg-gray-50">
               <MapContainer center={[location.lat, location.lng]} zoom={14} style={{ height: '100%', width: '100%' }} zoomControl={false}>
@@ -260,7 +269,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, onBack, editData, t 
 
               <button 
                 type="button" 
-                onClick={() => setView('map')} 
+                onClick={handleOpenMap} 
                 className={`w-full border-2 border-dashed rounded-2xl p-5 flex flex-col items-center justify-center gap-2 transition-all ${hasConfirmedLocation ? 'border-green-500 bg-green-50 text-green-700' : 'border-blue-600 bg-blue-50 text-blue-600 animate-pulse'}`}
               >
                 {hasConfirmedLocation ? <><Check size={28} /> <span className="font-black">{t.location_confirmed}</span></> : <><MapPin size={28} /> <span className="font-black">{t.location_on_map}</span></>}
@@ -272,7 +281,7 @@ const AddJobModal: React.FC<AddJobModalProps> = ({ onClose, onBack, editData, t 
         </div>
         <div className="p-5 border-t bg-white flex gap-4 shrink-0 shadow-inner">
           <button form="job-form" type="submit" disabled={isSubmitting} className="flex-[2] bg-blue-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg">
-            {isSubmitting ? <Loader2 size={20} className="animate-spin m-auto" /> : t.submit}
+            {isSubmitting ? <Loader2 size={20} className="animate-spin m-auto" /> : (editData ? t.update_ad : t.submit)}
           </button>
           <button type="button" onClick={onClose} className="flex-1 bg-gray-100 text-gray-500 py-4 rounded-2xl font-black">{t.cancel}</button>
         </div>

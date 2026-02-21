@@ -1,7 +1,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Property } from '../types';
-import { Bookmark, ChevronRight, Phone, Clock, MapPinned, Edit3, Trash2, MessageCircle, UserPlus, User, RefreshCcw, Loader2, Home, Box, Car, Calendar, ArrowUpCircle, X, ArrowUp } from 'lucide-react';
+import { Bookmark, ChevronRight, Phone, Clock, MapPinned, Edit3, Trash2, MessageCircle, UserPlus, User, RefreshCcw, Loader2, Home, Box, Car, Calendar, ArrowUpCircle, X, ArrowUp, Flag, AlertTriangle } from 'lucide-react';
 import { getRelativeTime } from '../services/translations';
 import { supabase, TABLES } from '../services/supabaseClient';
 import ChatWindow from './ChatWindow';
@@ -77,6 +77,8 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
   const [isNardebaning, setIsNardebaning] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [ownerName, setOwnerName] = useState<string>('');
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   const touchStartX = useRef<number | null>(null);
   
   const userPhone = localStorage.getItem('user_phone');
@@ -84,7 +86,35 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
   const isOwner = ownerId === userPhone;
   const allImages = property?.images?.filter(img => img) || [];
 
-  // Safe access to has_elevator
+  const reportReasons = [
+    "فروخته شده است",
+    "کلاه برداری است",
+    "اطلاعات نادرست / قیمت اشتباه",
+    "شماره تماس اشتباه یا عدم پاسخگویی",
+    "محتوای نامناسب یا توهین آمیز",
+    "آگهی تکراری / اسپم"
+  ];
+
+  const handleReport = async (reason: string) => {
+    setIsReporting(true);
+    try {
+      const { error } = await supabase.from(TABLES.REPORTS).insert([{
+        ad_id: property.id,
+        reporter_phone: userPhone || 'ANONYMOUS',
+        reason: reason,
+        ad_title: property.title,
+        ad_type: 'ESTATE'
+      }]);
+      if (error) throw error;
+      alert("گزارش شما با موفقیت ثبت شد و توسط ادمین بررسی می‌شود.");
+      setShowReportModal(false);
+    } catch (e) {
+      alert("خطا در ثبت گزارش.");
+    } finally {
+      setIsReporting(false);
+    }
+  };
+
   const hasElevator = (property as any).has_elevator === true;
 
   const nextImage = useCallback(() => {
@@ -133,6 +163,15 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
         <button onClick={onClose} className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100">
           <X size={24} className="text-gray-800" />
         </button>
+        {!isOwner && (
+          <button 
+            onClick={() => setShowReportModal(true)} 
+            className="p-2 bg-white/90 backdrop-blur rounded-full shadow-lg pointer-events-auto active:scale-90 border border-gray-100 text-gray-400 hover:text-red-600 transition-colors"
+            title="گزارش آگهی"
+          >
+            <Flag size={20} />
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto md:flex md:flex-row bg-gray-50 no-scrollbar">
@@ -240,6 +279,31 @@ const PropertyDetails: React.FC<PropertyDetailsProps> = ({ property, onClose, on
         </div>
       </div>
       {isChatOpen && <ChatWindow receiverPhone={ownerId} adId={property.id} adTitle={property.title} onClose={() => setIsChatOpen(false)} />}
+      
+      {showReportModal && (
+        <div className="fixed inset-0 z-[15000] bg-black/60 flex items-center justify-center p-4" onClick={() => setShowReportModal(false)}>
+           <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl animate-in zoom-in" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-3 mb-6">
+                 <div className="p-3 bg-red-50 text-red-600 rounded-xl"><AlertTriangle size={24} /></div>
+                 <h3 className="font-black text-lg">گزارش تخلف آگهی</h3>
+              </div>
+              <div className="space-y-2">
+                 {reportReasons.map((reason, i) => (
+                    <button 
+                      key={i} 
+                      onClick={() => handleReport(reason)}
+                      disabled={isReporting}
+                      className="w-full text-right p-4 rounded-xl hover:bg-gray-50 font-bold text-sm border border-transparent hover:border-gray-100 transition-all flex items-center justify-between group disabled:opacity-50"
+                    >
+                      {reason}
+                      <ChevronRight size={16} className="text-gray-300 group-hover:text-red-600 transition-colors" />
+                    </button>
+                 ))}
+              </div>
+              <button onClick={() => setShowReportModal(false)} className="w-full mt-6 py-3 text-gray-400 font-black text-sm">انصراف</button>
+           </div>
+        </div>
+      )}
     </div>
   );
 };
