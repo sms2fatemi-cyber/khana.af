@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "tsc --noEmit",
     "android-add": "npx cap add android",
     "android-sync": "npx cap sync android",
     "android-open": "npx cap open android",

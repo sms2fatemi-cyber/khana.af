@@ -509,9 +509,6 @@ function App() {
                  {viewMode === 'map' ? (
                    <div className="flex-1 lg:rounded-[1.5rem] overflow-hidden lg:border shadow-xl relative h-full bg-white">
                      <MapView items={items} selectedItem={selectedItem} onSelectItem={handleSelectItem} visitedIds={visitedIds} flyToLocation={flyToLocation} />
-                     <div className="lg:hidden absolute bottom-[120px] left-4 z-[5000] flex items-center gap-2 pointer-events-none">
-                        <button onClick={() => setViewMode('list')} className="pointer-events-auto flex items-center justify-center gap-1.5 px-4 py-2 bg-white text-[#a62626] rounded-xl shadow-lg font-black text-[9px] border border-gray-100"><ListIcon size={14} /> <span>{t.list}</span></button>
-                     </div>
                      <div className="absolute top-3 left-3 z-[2000] bg-white/95 backdrop-blur-md shadow-xl rounded-xl border border-gray-100 p-1 flex items-center gap-1 scale-90">
                         <input type="tel" placeholder={t.min} value={minPrice} onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} className="w-16 md:w-20 text-[9px] font-black outline-none bg-transparent text-center" />
                         <span className="text-gray-300 text-[8px]">|</span>

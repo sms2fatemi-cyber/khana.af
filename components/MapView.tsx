@@ -41,7 +41,7 @@ const UserLocationButton = () => {
   return (
     <button 
       onClick={handleLocate}
-      className="absolute bottom-[120px] right-4 lg:bottom-6 lg:right-6 z-[5000] w-12 h-11 lg:w-14 lg:h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 active:scale-90 transition-all pointer-events-auto"
+      className="absolute bottom-[92px] right-4 lg:bottom-6 lg:right-6 z-[5000] w-12 h-11 lg:w-14 lg:h-14 bg-white rounded-2xl shadow-2xl flex items-center justify-center text-[#a62626] border border-gray-100 active:scale-90 transition-all pointer-events-auto"
       title="موقعیت من"
     >
       {isLocating ? <Loader2 size={18} className="animate-spin" /> : <Crosshair size={22} />}
@@ -51,6 +51,15 @@ const UserLocationButton = () => {
 
 const MapController = ({ location, selectedItem, markerRefs }: { location: Location | null, selectedItem: any, markerRefs: any }) => {
   const map = useMap();
+
+  useEffect(() => {
+    // Force Leaflet to recalculate its container size to avoid gray/checkered areas
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [map]);
+
   useEffect(() => {
     if (location && location.lat && location.lng) {
       map.flyTo([location.lat, location.lng], 13, { animate: true, duration: 1.5 });
