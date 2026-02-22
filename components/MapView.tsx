@@ -13,6 +13,7 @@ interface MapViewProps {
   onSelectItem: (item: Property | Job | Service) => void;
   visitedIds: Set<string>; 
   flyToLocation?: Location | null;
+  onBoundsChange?: (bounds: L.LatLngBounds) => void;
 }
 
 const UserLocationButton = () => {
@@ -49,6 +50,25 @@ const UserLocationButton = () => {
   );
 };
 
+const MapEvents = ({ onBoundsChange }: { onBoundsChange?: (bounds: L.LatLngBounds) => void }) => {
+  const map = useMap();
+  
+  useEffect(() => {
+    const onMoveEnd = () => {
+      if (onBoundsChange) {
+        onBoundsChange(map.getBounds());
+      }
+    };
+    
+    map.on('moveend', onMoveEnd);
+    return () => {
+      map.off('moveend', onMoveEnd);
+    };
+  }, [map, onBoundsChange]);
+
+  return null;
+};
+
 const MapController = ({ location, selectedItem, markerRefs }: { location: Location | null, selectedItem: any, markerRefs: any }) => {
   const map = useMap();
 
@@ -75,7 +95,7 @@ const MapController = ({ location, selectedItem, markerRefs }: { location: Locat
   return null;
 };
 
-const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, visitedIds, flyToLocation }) => {
+const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, visitedIds, flyToLocation, onBoundsChange }) => {
   const markerRefs = useRef<Record<string, L.Marker>>({});
 
   const createIcon = useCallback((isVisited: boolean, isSelected: boolean) => {
@@ -103,6 +123,7 @@ const MapView: React.FC<MapViewProps> = ({ items, selectedItem, onSelectItem, vi
       >
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
         <MapController location={flyToLocation || null} selectedItem={selectedItem} markerRefs={markerRefs} />
+        <MapEvents onBoundsChange={onBoundsChange} />
         <UserLocationButton />
         
         {items.filter(item => item.location?.lat && item.location?.lng).map((item) => (

@@ -95,6 +95,9 @@ function App() {
   });
 
   const [flyToLocation, setFlyToLocation] = useState<Location | null>(null);
+  const [mapBounds, setMapBounds] = useState<L.LatLngBounds | null>(null);
+  const [isSearchingInArea, setIsSearchingInArea] = useState(false);
+  const [showSearchInAreaBtn, setShowSearchInAreaBtn] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [dealTypeFilter, setDealTypeFilter] = useState<string | null>(null);
   const [minPrice, setMinPrice] = useState<string>('');
@@ -193,7 +196,16 @@ function App() {
 
       const applyFilters = (q: any, tableType: 'ESTATE' | 'JOBS' | 'SERVICES' | 'GENERAL') => {
         let query = q.eq('status', 'APPROVED').gte('created_at', expiryISO);
-        if (ownerFilter) {
+        
+        if (isSearchingInArea && mapBounds) {
+          const sw = mapBounds.getSouthWest();
+          const ne = mapBounds.getNorthEast();
+          query = query
+            .filter('location->lat', 'gte', sw.lat)
+            .filter('location->lat', 'lte', ne.lat)
+            .filter('location->lng', 'gte', sw.lng)
+            .filter('location->lng', 'lte', ne.lng);
+        } else if (ownerFilter) {
           query = query.eq('owner_id', ownerFilter);
         } else {
           if (selectedProvince !== t.provinces[0]) query = query.eq('city', selectedProvince);
@@ -210,7 +222,7 @@ function App() {
 
       let normalizedResults: any[] = [];
       if (appMode === 'ALL') {
-        const mapLimit = viewMode === 'map' ? 25 : 10;
+        const mapLimit = viewMode === 'map' ? (isSearchingInArea ? 100 : 25) : 10;
         const [p, j, s, g] = await Promise.all([
           applyFilters(supabase.from(TABLES.PROPERTIES).select('*'), 'ESTATE').order('created_at', { ascending: false }).limit(mapLimit),
           applyFilters(supabase.from(TABLES.JOBS).select('*'), 'JOBS').order('created_at', { ascending: false }).limit(mapLimit),
@@ -229,7 +241,7 @@ function App() {
         let q = supabase.from(table).select('*');
         if (table === TABLES.GENERAL_ADS) q = q.eq('mode', appMode);
         q = applyFilters(q, tableType);
-        const rangeEnd = viewMode === 'map' ? 99 : (currentPage + 1) * PAGE_SIZE - 1;
+        const rangeEnd = viewMode === 'map' ? (isSearchingInArea ? 299 : 99) : (currentPage + 1) * PAGE_SIZE - 1;
         const { data } = await q.order('created_at', { ascending: false }).range(currentPage * PAGE_SIZE, rangeEnd);
         normalizedResults = (data || []).map((item: any) => ({ ...item, adType: tableType }));
       }
@@ -244,7 +256,7 @@ function App() {
         setHasMore(normalizedResults.length > 0);
       }
     } catch (err) { console.error(err); } finally { setIsLoading(false); }
-  }, [appMode, viewMode, selectedProvince, searchTerm, dealTypeFilter, page, isLoading, userPhone, t, minPrice, maxPrice, savedIds, ownerFilter]);
+  }, [appMode, viewMode, selectedProvince, searchTerm, dealTypeFilter, page, isLoading, userPhone, t, minPrice, maxPrice, savedIds, ownerFilter, isSearchingInArea, mapBounds]);
 
   useEffect(() => {
     fetchUnreadCounts();
@@ -324,16 +336,34 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => { 
       if (mainScrollRef.current && appMode !== 'CHATS') mainScrollRef.current.scrollTop = 0;
+      if (viewMode !== 'map') {
+        setIsSearchingInArea(false);
+        setShowSearchInAreaBtn(false);
+      }
       fetchAds(true); 
     }, 400);
     return () => clearTimeout(timer);
-  }, [appMode, viewMode, selectedProvince, searchTerm, dealTypeFilter, minPrice, maxPrice, ownerFilter]);
+  }, [appMode, viewMode, selectedProvince, searchTerm, dealTypeFilter, minPrice, maxPrice, ownerFilter, isSearchingInArea]);
 
   const handleProvinceChange = (province: string) => {
     setSelectedProvince(province);
     localStorage.setItem('user_province', province);
+    setIsSearchingInArea(false);
+    setShowSearchInAreaBtn(false);
     const coords = PROVINCE_COORDS[province];
     if (coords) setFlyToLocation(coords);
+  };
+
+  const handleBoundsChange = (bounds: L.LatLngBounds) => {
+    setMapBounds(bounds);
+    if (!isSearchingInArea) {
+      setShowSearchInAreaBtn(true);
+    } else {
+      // If already searching in area, we might want to refresh automatically on move?
+      // Or just let the user click the button again if they move far.
+      // For now, let's show the button again if they move.
+      setShowSearchInAreaBtn(true);
+    }
   };
 
   const handleToggleSave = async (item: any) => {
@@ -508,7 +538,24 @@ function App() {
 
                  {viewMode === 'map' ? (
                    <div className="flex-1 lg:rounded-[1.5rem] overflow-hidden lg:border shadow-xl relative h-full bg-white">
-                     <MapView items={items} selectedItem={selectedItem} onSelectItem={handleSelectItem} visitedIds={visitedIds} flyToLocation={flyToLocation} />
+                                           <MapView 
+                        items={items} 
+                        selectedItem={selectedItem} 
+                        onSelectItem={handleSelectItem} 
+                        visitedIds={visitedIds} 
+                        flyToLocation={flyToLocation} 
+                        onBoundsChange={handleBoundsChange}
+                      />
+                      
+                      {showSearchInAreaBtn && (
+                        <button 
+                          onClick={() => { setIsSearchingInArea(true); setShowSearchInAreaBtn(false); fetchAds(true); }}
+                          className="absolute top-16 left-1/2 -translate-x-1/2 z-[5000] bg-[#a62626] text-white px-6 py-2 rounded-full shadow-2xl font-black text-[10px] flex items-center gap-2 animate-in fade-in slide-in-from-top-4 active:scale-95 transition-all"
+                        >
+                          <Search size={14} />
+                          جستجو در این محدوده
+                        </button>
+                      )}
                      <div className="absolute top-3 left-3 z-[2000] bg-white/95 backdrop-blur-md shadow-xl rounded-xl border border-gray-100 p-1 flex items-center gap-1 scale-90">
                         <input type="tel" placeholder={t.min} value={minPrice} onChange={(e) => setMinPrice(formatNumberWithCommas(e.target.value))} className="w-16 md:w-20 text-[9px] font-black outline-none bg-transparent text-center" />
                         <span className="text-gray-300 text-[8px]">|</span>
