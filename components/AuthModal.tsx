@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { List, Heart, User, Loader2, ChevronRight, ArrowLeft, X, Package, Globe, MessageSquare, Camera, AlertCircle, Clock, CheckCircle2, Timer, Ban } from 'lucide-react';
+import { List, Heart, User, Loader2, ChevronRight, ArrowLeft, X, Package, Globe, MessageSquare, Camera, AlertCircle, Clock, CheckCircle2, Timer, Ban, Info, PhoneCall, Instagram, Send, Facebook } from 'lucide-react';
 import { supabase, TABLES, uploadImage } from '../services/supabaseClient';
 
 interface AuthModalProps {
@@ -27,8 +27,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAdminClick, lang, onLa
   
   // States for form
   const [phone, setPhone] = useState(initialPhone);
-  const [name, setName] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [name, setName] = useState(() => localStorage.getItem('user_name') || '');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(() => localStorage.getItem('user_avatar'));
+  const [appSettings, setAppSettings] = useState<any>(() => {
+    const cached = localStorage.getItem('app_settings_cache');
+    return cached ? JSON.parse(cached) : null;
+  });
   const [errorMsg, setErrorMsg] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -39,9 +43,24 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAdminClick, lang, onLa
     try {
       const { data } = await supabase.from('profiles').select('*').eq('phone', currentPhone).maybeSingle();
       if (data) {
-        setName(data.full_name || '');
-        setAvatarUrl(data.avatar_url || null);
+        const newName = data.full_name || '';
+        const newAvatar = data.avatar_url || null;
+        
+        setName(newName);
+        setAvatarUrl(newAvatar);
         setPhone(data.phone || currentPhone);
+
+        // Update cache
+        localStorage.setItem('user_name', newName);
+        if (newAvatar) localStorage.setItem('user_avatar', newAvatar);
+        else localStorage.removeItem('user_avatar');
+      }
+
+      // Also fetch app settings in background
+      const { data: sData } = await supabase.from(TABLES.APP_SETTINGS).select('*').maybeSingle();
+      if (sData) {
+        setAppSettings(sData);
+        localStorage.setItem('app_settings_cache', JSON.stringify(sData));
       }
     } catch (e) { console.error(e); }
   };
@@ -155,6 +174,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAdminClick, lang, onLa
 
       if (error) throw error;
 
+      const finalName = name.trim();
+      localStorage.setItem('user_name', finalName);
+      if (avatarUrl) localStorage.setItem('user_avatar', avatarUrl);
+      else localStorage.removeItem('user_avatar');
+
       if (phone !== currentPhone) {
         localStorage.setItem('user_phone', phone);
       }
@@ -194,7 +218,10 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAdminClick, lang, onLa
     try {
       const { error } = await supabase.from('profiles').upsert({ phone: phone, full_name: name.trim() }, { onConflict: 'phone' });
       if (error) throw error;
+      
       localStorage.setItem('user_phone', phone);
+      localStorage.setItem('user_name', name.trim());
+      
       window.location.reload();
     } catch (err: any) {
       setErrorMsg('خطا در ثبت نام. لطفاً دوباره تلاش کنید.');
@@ -323,6 +350,38 @@ const AuthModal: React.FC<AuthModalProps> = ({ onClose, onAdminClick, lang, onLa
 
               <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="w-full p-5 text-red-600 font-black flex items-center justify-center gap-2 mt-2">{t.logout}</button>
               
+              {appSettings && (
+                <div className="mt-6 p-6 bg-gray-50 rounded-[2rem] border border-gray-100 space-y-4">
+                  <h4 className="font-black text-xs text-gray-400 flex items-center gap-2 mb-2">
+                    <Info size={16} className="text-red-600" /> {lang === 'dari' ? 'درباره خانه' : 'د خانې په اړه'}
+                  </h4>
+                  <p className="text-[11px] font-bold text-gray-600 leading-6 whitespace-pre-wrap">{appSettings.about_text}</p>
+                  
+                  <div className="pt-4 border-t flex flex-wrap gap-3 justify-center">
+                    {appSettings.contact_phone && (
+                      <a href={`tel:${appSettings.contact_phone}`} className="p-3 bg-white rounded-2xl text-blue-600 shadow-sm border border-gray-100 active:scale-90 transition-all">
+                        <PhoneCall size={20} />
+                      </a>
+                    )}
+                    {appSettings.instagram && (
+                      <a href={appSettings.instagram} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-2xl text-pink-600 shadow-sm border border-gray-100 active:scale-90 transition-all">
+                        <Instagram size={20} />
+                      </a>
+                    )}
+                    {appSettings.telegram && (
+                      <a href={appSettings.telegram} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-2xl text-blue-400 shadow-sm border border-gray-100 active:scale-90 transition-all">
+                        <Send size={20} />
+                      </a>
+                    )}
+                    {appSettings.facebook && (
+                      <a href={appSettings.facebook} target="_blank" rel="noreferrer" className="p-3 bg-white rounded-2xl text-blue-800 shadow-sm border border-gray-100 active:scale-90 transition-all">
+                        <Facebook size={20} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="pt-4 text-center">
                  <button onClick={onAdminClick} className="text-[9px] text-gray-300 font-black uppercase tracking-widest">Panel Access</button>
               </div>

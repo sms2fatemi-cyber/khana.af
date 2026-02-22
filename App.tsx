@@ -104,12 +104,13 @@ function App() {
   const [maxPrice, setMaxPrice] = useState<string>('');
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const isLoadingRef = useRef(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
 
-  const [unreadUserCount, setUnreadUserCount] = useState(0);
-  const [unreadAdminCount, setUnreadAdminCount] = useState(0);
+  const [unreadUserCount, setUnreadUserCount] = useState(() => Number(localStorage.getItem('unread_user_count')) || 0);
+  const [unreadAdminCount, setUnreadAdminCount] = useState(() => Number(localStorage.getItem('unread_admin_count')) || 0);
   
   const [savedIds, setSavedIds] = useState<Set<string>>(() => {
     const local = localStorage.getItem('saved_ads_ids');
@@ -151,16 +152,37 @@ function App() {
     try {
       const { count: adminCount } = await supabase.from(TABLES.USER_CHATS).select('*', { count: 'exact', head: true }).match({ receiver_phone: userPhone, sender_phone: 'ADMIN', is_read: false });
       const { count: userCount } = await supabase.from(TABLES.USER_CHATS).select('*', { count: 'exact', head: true }).eq('receiver_phone', userPhone).neq('sender_phone', 'ADMIN').eq('is_read', false);
-      setUnreadAdminCount(adminCount || 0);
-      setUnreadUserCount(userCount || 0);
+      
+      const aCount = adminCount || 0;
+      const uCount = userCount || 0;
+      
+      setUnreadAdminCount(aCount);
+      setUnreadUserCount(uCount);
+      
+      localStorage.setItem('unread_admin_count', aCount.toString());
+      localStorage.setItem('unread_user_count', uCount.toString());
     } catch (e) { console.error(e); }
   }, [userPhone]);
 
   const fetchAds = useCallback(async (isReset = false) => {
-    if (!isSupabaseReady() || (isLoading && !isReset)) return;
+    if (!isSupabaseReady() || (isLoadingRef.current && !isReset)) return;
     if ((appMode as string) === 'CHATS') return;
     
+    // Immediate load from cache for 'ALL' mode to feel instant
+    if (isReset && appMode === 'ALL' && !searchTerm && !ownerFilter && !dealTypeFilter && !minPrice && !maxPrice && !isSearchingInArea) {
+      const cached = localStorage.getItem('feed_cache_all');
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setItems(parsed);
+          }
+        } catch (e) { console.error("Cache parse error", e); }
+      }
+    }
+
     setIsLoading(true);
+    isLoadingRef.current = true;
     const currentPage = isReset ? 0 : page;
     const expiryISO = new Date(Date.now() - EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
@@ -175,6 +197,7 @@ function App() {
               if (parsed.length > 0) {
                   setItems(parsed);
                   setIsLoading(false);
+                  isLoadingRef.current = false;
               }
           }
           for (const table of [TABLES.PROPERTIES, TABLES.JOBS, TABLES.SERVICES, TABLES.GENERAL_ADS]) {
@@ -191,7 +214,7 @@ function App() {
             setItems([]);
             localStorage.removeItem('saved_ads_content_cache');
         }
-        setHasMore(false); setIsLoading(false); return;
+        setHasMore(false); setIsLoading(false); isLoadingRef.current = false; return;
       }
 
       const applyFilters = (q: any, tableType: 'ESTATE' | 'JOBS' | 'SERVICES' | 'GENERAL') => {
@@ -235,6 +258,11 @@ function App() {
           ...(s.data || []).map((x: Ad) => ({...x, adType: 'SERVICES'})),
           ...(g.data || []).map((x: Ad) => ({...x, adType: 'GENERAL'})),
         ].sort((a, b) => new Date(b.created_at || b.date).getTime() - new Date(a.created_at || a.date).getTime());
+        
+        // Update cache for 'ALL' mode
+        if (isReset && !searchTerm && !ownerFilter && !dealTypeFilter && !minPrice && !maxPrice && !isSearchingInArea) {
+          localStorage.setItem('feed_cache_all', JSON.stringify(normalizedResults));
+        }
       } else {
         const table = appMode === 'ESTATE' ? TABLES.PROPERTIES : appMode === 'JOBS' ? TABLES.JOBS : appMode === 'SERVICES' ? TABLES.SERVICES : TABLES.GENERAL_ADS;
         const tableType = (appMode === 'ESTATE') ? 'ESTATE' : (appMode === 'JOBS') ? 'JOBS' : (appMode === 'SERVICES') ? 'SERVICES' : 'GENERAL';
@@ -255,8 +283,11 @@ function App() {
         setPage(currentPage + 1);
         setHasMore(normalizedResults.length > 0);
       }
-    } catch (err) { console.error(err); } finally { setIsLoading(false); }
-  }, [appMode, viewMode, selectedProvince, searchTerm, dealTypeFilter, page, isLoading, userPhone, t, minPrice, maxPrice, savedIds, ownerFilter, isSearchingInArea, mapBounds]);
+    } catch (err) { console.error(err); } finally { 
+      setIsLoading(false); 
+      isLoadingRef.current = false;
+    }
+  }, [appMode, viewMode, selectedProvince, searchTerm, dealTypeFilter, page, userPhone, t, minPrice, maxPrice, savedIds, ownerFilter, isSearchingInArea, mapBounds]);
 
   useEffect(() => {
     fetchUnreadCounts();
@@ -334,6 +365,8 @@ function App() {
   }, [userPhone, fetchUnreadCounts, fetchAds]);
 
   useEffect(() => {
+    // Reduce delay for mode switching to feel faster
+    const delay = (appMode === 'ALL' && viewMode === 'list') ? 50 : 250;
     const timer = setTimeout(() => { 
       if (mainScrollRef.current && appMode !== 'CHATS') mainScrollRef.current.scrollTop = 0;
       if (viewMode !== 'map') {
@@ -341,7 +374,7 @@ function App() {
         setShowSearchInAreaBtn(false);
       }
       fetchAds(true); 
-    }, 400);
+    }, delay);
     return () => clearTimeout(timer);
   }, [appMode, viewMode, selectedProvince, searchTerm, dealTypeFilter, minPrice, maxPrice, ownerFilter, isSearchingInArea]);
 
@@ -420,8 +453,9 @@ function App() {
     setMinPrice('');
     setMaxPrice('');
     setSearchTerm('');
+    setIsSearchingInArea(false);
+    setShowSearchInAreaBtn(false);
     if (viewMode === 'list') mainScrollRef.current?.scrollTo(0, 0);
-    fetchAds(true);
   };
 
   const openAddPost = () => {

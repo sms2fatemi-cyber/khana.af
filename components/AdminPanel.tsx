@@ -20,7 +20,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
   const [adminNote, setAdminNote] = useState('');
   const [data, setData] = useState<any>({ properties: [], jobs: [], services: [], general: [], users: [], reports: [] });
   const [loading, setLoading] = useState(true);
-  const [settings, setSettings] = useState({ contact_phone: '', instagram: '', telegram: '', facebook: '', about_text: '' });
+  const [settings, setSettings] = useState(() => {
+    const cached = localStorage.getItem('app_settings_cache');
+    return cached ? JSON.parse(cached) : { contact_phone: '', instagram: '', telegram: '', facebook: '', about_text: '' };
+  });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   
   const [changePass, setChangePass] = useState({ new: '', confirm: '' });
@@ -59,13 +62,15 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
       });
 
       if (settingsRes.data) {
-        setSettings({
+        const sData = {
           contact_phone: settingsRes.data.contact_phone || '',
           instagram: settingsRes.data.instagram || '',
           telegram: settingsRes.data.telegram || '',
           facebook: settingsRes.data.facebook || '',
           about_text: settingsRes.data.about_text || ''
-        });
+        };
+        setSettings(sData);
+        localStorage.setItem('app_settings_cache', JSON.stringify(sData));
       }
     } catch (e) { 
       console.error("Fetch error:", e); 
@@ -128,8 +133,10 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onExit, currentAdmin }) => {
       const { error } = await supabase.from(TABLES.APP_SETTINGS).upsert({ id: 1, ...settings });
       if (error) throw error;
       alert("تنظیمات با موفقیت ذخیره شد.");
-    } catch (e) { 
-      alert("خطا در ذخیره تنظیمات."); 
+      localStorage.setItem('app_settings_cache', JSON.stringify(settings));
+    } catch (e: any) { 
+      console.error("Settings Error:", e);
+      alert(`خطا در ذخیره تنظیمات: ${e.message || 'خطای ناشناخته'}`); 
     } finally { 
       setIsSavingSettings(false); 
     }
